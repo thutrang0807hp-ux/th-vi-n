@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lofi Train — Scenic Lounge v2</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#161e23;color:#f5eee5;font:14px system-ui,sans-serif;overflow:hidden}
+canvas{display:block}#hud{position:fixed;inset:0;pointer-events:none}
+.panel{background:#201d1bcc;border:1px solid #fff3;backdrop-filter:blur(12px);border-radius:16px;padding:12px 16px}
+#title{position:absolute;top:18px;left:20px}#title strong{font-size:17px}#title small{display:block;color:#d6c5b5;margin-top:4px}
+#controls{position:absolute;bottom:20px;left:20px;line-height:1.8}#actions{position:absolute;bottom:20px;right:20px;display:flex;gap:8px;pointer-events:auto}
+button{border:1px solid #ffffff50;border-radius:12px;padding:12px 15px;color:#fff;background:#302824ee;cursor:pointer}button:hover{background:#634b39}
+#view{position:absolute;right:20px;top:20px}#focus{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;display:none;pointer-events:auto}
+#time{font-size:48px;font-weight:700}kbd{background:#ffffff22;border:1px solid #ffffff40;padding:2px 5px;border-radius:4px}
+#notice{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);background:#211b18dd;border-radius:12px;padding:10px 14px}
+@media(max-width:700px){#controls{font-size:11px;bottom:78px}#actions{bottom:12px;right:8px;flex-wrap:wrap;max-width:60%;justify-content:end}button{padding:8px}}
+</style></head><body><div id="hud"><div id="title" class="panel"><strong>🚂 Lofi Train · Scenic Lounge</strong><small>V2 · Semi-stylized 3D · thử nghiệm hình ảnh</small></div><div id="view" class="panel">Camera: <span id="cameraName">Theo sau</span></div><div id="controls" class="panel"><kbd>W A S D</kbd> Di chuyển · <kbd>Shift</kbd> Chạy<br>Kéo chuột xoay · Cuộn zoom<br><kbd>V</kbd> Camera · <kbd>E</kbd> Ngồi/đứng · <kbd>F</kbd> Focus</div><div id="actions"><button id="cam">📷 Camera</button><button id="sit">🪑 Ngồi</button><button id="timer">⏱ Focus</button></div><div id="focus" class="panel">Phiên tập trung<div id="time">25:00</div><button id="play">Bắt đầu</button><button id="reset">Đặt lại</button><button id="close">Đóng</button></div><div id="notice">Kéo chuột để ngắm cảnh qua cửa sổ</div></div>
+<script type="module">
+import * as T from 'https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js';
+const scene=new T.Scene();scene.background=new T.Color('#a5bac3');scene.fog=new T.FogExp2('#a5bac3',.004);
+const renderer=new T.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.35;document.body.appendChild(renderer.domElement);
+const camera=new T.PerspectiveCamera(67,innerWidth/innerHeight,.07,600);
+scene.add(new T.HemisphereLight(0xd9e7fa,0x584238,2.0));
+const sun=new T.DirectionalLight(0xffd9a4,3.1);sun.position.set(-25,35,-35);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-40,right:40,top:45,bottom:-45});scene.add(sun);
+const mat=(c,r=.76,m=0)=>new T.MeshStandardMaterial({color:c,roughness:r,metalness:m});
+const M={walnut:mat('#5b3c2f'),oak:mat('#896349'),edge:mat('#b58a57',.4,.35),brass:mat('#d2a76a',.28,.65),cream:mat('#d3bd9f'),leather:mat('#35544c',.87),leather2:mat('#42675b'),carpet:mat('#713d40'),pink:mat('#efa5ad',.48),blush:mat('#e88d9b'),white:mat('#fff5e9',.35),black:mat('#211b22',.25),glass:mat('#9ec7d5',.18,.12),stone:mat('#758e8b'),pine:mat('#315b50'),pine2:mat('#527366'),water:mat('#6d9eaa',.27),snow:mat('#e2e8e5')};
+function mesh(g,m,p=[0,0,0],parent=scene){const o=new T.Mesh(g,m);o.position.set(...p);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
+function cube(w,h,d,m,x,y,z,parent){return mesh(new T.BoxGeometry(w,h,d),m,[x,y,z],parent)}
+function sphere(r,m,x,y,z,sx=1,sy=1,sz=1,parent=scene){const o=mesh(new T.SphereGeometry(r,24,16),m,[x,y,z],parent);o.scale.set(sx,sy,sz);return o}
+function rounded(w,h,d,r,m,x,y,z,parent=scene){const s=new T.Shape(),a=-w/2,b=-h/2;s.moveTo(a+r,b);s.lineTo(-a-r,b);s.quadraticCurveTo(-a,b,-a,b+r);s.lineTo(-a,-b-r);s.quadraticCurveTo(-a,-b,-a-r,-b);s.lineTo(a+r,-b);s.quadraticCurveTo(a,-b,a,-b-r);s.lineTo(a,b+r);s.quadraticCurveTo(a,b,a+r,b);const g=new T.ExtrudeGeometry(s,{depth:d,bevelEnabled:true,bevelSize:r*.27,bevelThickness:r*.27,bevelSegments:4,curveSegments:5});g.translate(0,0,-d/2);return mesh(g,m,[x,y,z],parent)}
+function cyl(r1,r2,h,m,x,y,z,parent=scene){return mesh(new T.CylinderGeometry(r1,r2,h,12),m,[x,y,z],parent)}
+// 10 x 42 m generous carriage, open windows on both sides.
+cube(10,.24,42,M.oak,0,-.17,0);cube(2.2,.03,40,M.carpet,0,.01,0);
+for(const x of [-4.9,4.9]){cube(.28,1.05,42,M.walnut,x,.5,0);cube(.34,1.05,42,M.walnut,x,4.85,0);cube(.15,.16,42,M.brass,x,1.08,0);cube(.15,.12,42,M.brass,x,4.25,0);
+for(let z=-20;z<=20;z+=4){cube(.34,3.4,.4,M.walnut,x,2.65,z);cube(.19,.18,3.7,M.edge,x,2.72,z+2);cube(.16,.12,3.7,M.edge,x,3.55,z+2);}}
+for(let z=-20;z<=20;z+=4){cube(10,.2,.23,M.walnut,0,5.24,z);const lamp=new T.PointLight(0xffc98b,12,8,2);lamp.position.set(0,4.8,z);scene.add(lamp);sphere(.22,M.cream,0,4.95,z,1,.65,1);cyl(.025,.025,.3,M.brass,0,5.14,z)}
+// Curved ceiling ribs with tube geometry.
+for(let z=-20;z<=20;z+=2){const points=[];for(let i=0;i<=16;i++){let x=-5+i*10/16;points.push(new T.Vector3(x,5.08+.55*(1-(x/5)**2),z))}const path=new T.CatmullRomCurve3(points);mesh(new T.TubeGeometry(path,30,.055,6,false),M.edge)}
+for(let z of [-21,21]){cube(10,5.5,.3,M.walnut,0,2.55,z);rounded(2.1,3.5,.13,.22,M.edge,0,2.05,z+(z>0?-.18:.18));rounded(1.8,3.2,.12,.18,M.walnut,0,2.05,z+(z>0?-.26:.26))}
+// Upholstered seats: softened cushions, rolled armrests, brass feet, tables and reading lamps.
+for(let z=-17.5;z<=17.5;z+=5){for(const side of [-1,1]){let x=side*3.1;
+rounded(2.35,.48,2.5,.22,M.leather2,x,.56,z);
+rounded(.42,1.7,2.6,.18,M.leather,x+side*1.02,1.15,z);
+rounded(2.45,.4,.38,.15,M.walnut,x,1.03,z-1.1);
+rounded(2.45,.4,.38,.15,M.walnut,x,1.03,z+1.1);
+rounded(.65,.64,.22,.12,M.cream,x-side*.4,1.15,z+.35);
+for(let dz of [-.8,.8]){cube(.15,.26,.16,M.brass,x-side*.65,.13,z+dz)}
+let tx=side*1.15;rounded(1.08,.13,1.6,.12,M.oak,tx,1.23,z);cyl(.1,.14,1.13,M.brass,tx,.61,z);
+cyl(.055,.065,.4,M.brass,tx,1.48,z);sphere(.25,M.cream,tx,1.8,z,1,.58,1);
+for(let j=0;j<3;j++)cube(.33,.07,.44,mat(['#bca38a','#7e9291','#ab765d'][j]),tx-.3+j*.22,1.34,z+.4);
+}}
+// Rail luggage racks.
+for(let side of [-1,1])for(let z=-18;z<=18;z+=6){cube(.9,.05,5.2,M.brass,side*4.15,4.65,z);rounded(.55,.48,.9,.1,M.walnut,side*4.15,4.94,z)}
+// Landscape: terrain ribbons, rounded mountain silhouettes, trees with conical layers.
+const terrain=mat('#5e806c'),terrain2=mat('#809889');
+cube(500,.3,600,terrain,0,-5,0);
+for(let side of [-1,1]){cube(35,.1,600,M.water,side*36,-4.65,0);
+for(let i=0;i<24;i++){const z=-220+i*20,x=side*(60+(i%4)*12),h=18+(i*7%30);
+const mount=mesh(new T.ConeGeometry(12+(i%3)*4,h,7),i%3?M.stone:terrain2,[x,h/2-5,z]);mount.rotation.y=i*.37;
+mesh(new T.ConeGeometry(4,h*.25,7),M.snow,[x,h*.88-5,z])}
+for(let i=0;i<170;i++){let z=-230+(i*41%460),x=side*(12+(i*17%55));let h=3+(i*11%9)*.65;
+cyl(.12,.16,h*.35,M.walnut,x,-3.5+h*.15,z);
+for(let k=0;k<3;k++)mesh(new T.ConeGeometry((1.7+k*.45)*(h/6),h*.38,7),i%3?M.pine:M.pine2,[x,-2.6+k*h*.22,z])}
+}
+// Rounded mascot with large head and chunky short arms/legs.
+const avatar=new T.Group();scene.add(avatar);
+rounded(.95,1.03,.7,.22,M.pink,0,1.02,0,avatar);
+rounded(1.45,1.38,1.05,.3,M.pink,0,2.05,0,avatar);
+for(let s of [-1,1]){sphere(.31,M.pink,s*.76,1.13,0,.95,1.4,1,avatar);sphere(.33,M.pink,s*.3,.36,.04,1,1.1,1.25,avatar);
+sphere(.22,M.white,s*.38,2.18,.56,1,1,.45,avatar);sphere(.145,M.black,s*.38,2.18,.69,1,1,.43,avatar)}
+sphere(.12,M.blush,0,1.94,.63,1,1,.55,avatar);
+sphere(.18,mat('#7b3944'),0,1.75,.57,1,.5,.4,avatar);
+avatar.position.set(0,0,14);
+let mode=0,yaw=0,pitch=.16,dist=6.3,sitting=false,drag=false,px=0,py=0,walking=0;
+const keys={};const names=['Theo sau','POV','Camera tự do'];const cameraName=document.getElementById('cameraName');
+function switchCam(){mode=(mode+1)%3;cameraName.textContent=names[mode]}
+function sit(){sitting=!sitting;document.getElementById('sit').textContent=sitting?'🚶 Đứng':'🪑 Ngồi';if(sitting){avatar.position.set(2.7,0,12.5);yaw=-Math.PI/2}else avatar.position.set(0,0,12.5)}
+document.getElementById('cam').onclick=switchCam;document.getElementById('sit').onclick=sit;
+window.addEventListener('keydown',e=>{keys[e.code]=true;if(['KeyW','KeyA','KeyS','KeyD','Space'].includes(e.code))e.preventDefault();if(e.repeat)return;if(e.code==='KeyV')switchCam();if(e.code==='KeyE')sit();if(e.code==='KeyF')toggleFocus()});
+window.addEventListener('keyup',e=>keys[e.code]=false);
+renderer.domElement.addEventListener('pointerdown',e=>{drag=true;px=e.clientX;py=e.clientY});window.addEventListener('pointerup',()=>drag=false);
+window.addEventListener('pointermove',e=>{if(!drag)return;yaw-=(e.clientX-px)*.0045;pitch=T.MathUtils.clamp(pitch+(e.clientY-py)*.0035,-.7,1.1);px=e.clientX;py=e.clientY});
+renderer.domElement.addEventListener('wheel',e=>{dist=T.MathUtils.clamp(dist+e.deltaY*.008,2.5,14)},{passive:true});
+window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+let timer=1500,run=false,focus=false;const focusEl=document.getElementById('focus');
+function toggleFocus(){focus=!focus;focusEl.style.display=focus?'block':'none'}
+document.getElementById('timer').onclick=toggleFocus;document.getElementById('close').onclick=toggleFocus;
+document.getElementById('play').onclick=()=>{run=!run;document.getElementById('play').textContent=run?'Tạm dừng':'Bắt đầu'};
+document.getElementById('reset').onclick=()=>{run=false;timer=1500;document.getElementById('play').textContent='Bắt đầu'};
+const clock=new T.Clock(),target=new T.Vector3();
+function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.05);
+if(run){timer=Math.max(0,timer-dt);if(!timer)run=false;document.getElementById('time').textContent=String(Math.floor(timer/60)).padStart(2,'0')+':'+String(Math.floor(timer%60)).padStart(2,'0')}
+let x=Number(!!keys.KeyD)-Number(!!keys.KeyA),z=Number(!!keys.KeyS)-Number(!!keys.KeyW);
+if(!sitting&&(x||z)){let l=Math.hypot(x,z);x/=l;z/=l;let f=keys.ShiftLeft?6:3.3;let mx=(-z*Math.sin(yaw)+x*Math.cos(yaw)),mz=(z*Math.cos(yaw)+x*Math.sin(yaw));avatar.position.x=T.MathUtils.clamp(avatar.position.x+mx*f*dt,-3.7,3.7);avatar.position.z=T.MathUtils.clamp(avatar.position.z+mz*f*dt,-19,19);avatar.rotation.y=Math.atan2(mx,mz);walking+=dt*10;avatar.position.y=Math.abs(Math.sin(walking))*.045}else avatar.position.y=T.MathUtils.lerp(avatar.position.y,0,.16);
+avatar.scale.y=T.MathUtils.lerp(avatar.scale.y,sitting?.78:1,.12);
+target.set(avatar.position.x,avatar.position.y+1.7,avatar.position.z);
+if(mode===1){avatar.visible=false;camera.position.copy(target);camera.position.y+=.35;camera.lookAt(camera.position.x+Math.sin(yaw)*10,camera.position.y-Math.tan(pitch)*10,camera.position.z-Math.cos(yaw)*10)}
+else{avatar.visible=true;const d=mode===2?dist*1.8:dist;const pos=new T.Vector3(target.x+Math.sin(yaw)*d*Math.cos(pitch),target.y+1+Math.sin(pitch)*d,target.z-Math.cos(yaw)*d*Math.cos(pitch));camera.position.lerp(pos,.12);camera.lookAt(target)}
+renderer.render(scene,camera)}
+loop();
+</script></body></html>
