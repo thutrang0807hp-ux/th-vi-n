@@ -1,0 +1,94 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lofi Train V3 · Golden Hour</title><style>
+*{box-sizing:border-box}body{margin:0;overflow:hidden;background:#181c20;color:#f9eee0;font:14px system-ui,sans-serif}canvas{display:block}
+#ui{position:fixed;inset:0;pointer-events:none} .panel{background:#201a19c9;border:1px solid #ffffff38;border-radius:16px;backdrop-filter:blur(14px);box-shadow:0 10px 35px #0004;padding:12px 16px}
+#brand{position:absolute;top:18px;left:18px}#brand strong{font-size:17px}#brand small{display:block;color:#e4cdb7;margin-top:5px}
+#help{position:absolute;bottom:18px;left:18px;font-size:12px;line-height:1.9}#actions{position:absolute;bottom:18px;right:18px;display:flex;gap:8px;pointer-events:auto}
+button{background:#382923e8;color:#fff3e4;border:1px solid #ffffff50;border-radius:11px;padding:12px;cursor:pointer}button:hover{background:#76533d}#status{position:absolute;top:18px;right:18px}
+#focus{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:none;text-align:center;pointer-events:auto}#digits{font-size:50px;font-weight:700}
+kbd{border:1px solid #ffffff55;border-radius:4px;padding:2px 5px;background:#ffffff24}
+#loading{position:fixed;inset:0;background:#171b20;display:grid;place-items:center;z-index:9}
+@media(max-width:700px){#help{bottom:75px;font-size:10px}#actions{bottom:10px;right:8px;max-width:70%;flex-wrap:wrap;justify-content:end}button{padding:8px}#status{top:90px;right:10px}}
+</style></head><body><div id="loading">Đang chuẩn bị toa tàu Golden Hour…</div><div id="ui"><div class="panel" id="brand"><strong>🚂 Lofi Train · Golden Hour</strong><small>V3 · Cozy scenic lounge</small></div><div class="panel" id="status">Camera: <span id="camlabel">Theo sau</span></div><div class="panel" id="help"><kbd>W A S D</kbd> Di chuyển · <kbd>Shift</kbd> Chạy<br>Kéo chuột xoay · Cuộn zoom<br><kbd>V</kbd> POV · <kbd>E</kbd> Ngồi · <kbd>F</kbd> Focus</div><div id="actions"><button id="cam">📷 Camera</button><button id="seat">🪑 Ngồi</button><button id="focusBtn">⏱ Focus</button></div><div class="panel" id="focus">Phiên tập trung<div id="digits">25:00</div><button id="start">Bắt đầu</button><button id="reset">Đặt lại</button><button id="close">Đóng</button></div></div>
+<script type="module">
+import * as T from 'https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js';
+const scene=new T.Scene();scene.background=new T.Color('#c7c8bd');scene.fog=new T.Fog('#b4c3bb',75,260);
+const renderer=new T.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.8));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;document.body.appendChild(renderer.domElement);
+const camera=new T.PerspectiveCamera(65,innerWidth/innerHeight,.08,350);scene.add(new T.HemisphereLight(0xe5edff,0x4b352e,2.15));
+const sun=new T.DirectionalLight(0xffc78e,3.2);sun.position.set(-22,25,-26);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-30,right:30,top:38,bottom:-38});scene.add(sun);
+const material=(c,r=.75,m=0)=>new T.MeshStandardMaterial({color:c,roughness:r,metalness:m});
+function texture(type){const c=document.createElement('canvas');c.width=512;c.height=512;const ctx=c.getContext('2d');ctx.fillStyle=type==='wood'?'#8b5a39':type==='fabric'?'#3c6257':'#773e40';ctx.fillRect(0,0,512,512);
+let seed=42;const rand=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296};
+if(type==='wood'){for(let i=0;i<140;i++){ctx.strokeStyle='rgba(35,19,11,'+(rand()*.18)+')';ctx.lineWidth=1+rand()*3;ctx.beginPath();let y=rand()*512;ctx.moveTo(0,y);ctx.bezierCurveTo(160,y+rand()*14,330,y-rand()*12,512,y+rand()*8);ctx.stroke()}}
+else if(type==='fabric'){for(let i=0;i<512;i+=4){ctx.fillStyle='rgba(255,255,255,.035)';ctx.fillRect(i,0,1,512);ctx.fillRect(0,i,512,1)}}
+else{for(let i=0;i<300;i++){ctx.fillStyle='rgba(255,214,158,'+(rand()*.13)+')';ctx.fillRect(rand()*512,rand()*512,2+rand()*3,2+rand()*3)}}
+const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;t.wrapS=t.wrapT=T.RepeatWrapping;return t}
+const woodTex=texture('wood'),clothTex=texture('fabric'),rugTex=texture('rug');woodTex.repeat.set(2,3);clothTex.repeat.set(2,2);rugTex.repeat.set(1,6);
+const M={wood:new T.MeshStandardMaterial({map:woodTex,roughness:.65}),dark:material('#442b23'),trim:material('#bb8a50',.38,.42),brass:material('#e3b878',.24,.68),cream:material('#d8c7ad'),ceiling:material('#bca58e'),seat:new T.MeshStandardMaterial({map:clothTex,roughness:.92}),carpet:new T.MeshStandardMaterial({map:rugTex,roughness:.95}),pillow:material('#d6b99c'),pink:material('#f1a4b5',.4),blush:material('#e78099'),eye:material('#241e25',.2),white:material('#fff5e9'),mountain:material('#829894'),mountain2:material('#6b8582'),snow:material('#e5e9df'),pine:material('#3e665b'),pine2:material('#658778'),lake:material('#7eabb0',.25),stone:material('#b7a48c')};
+function add(g,m,x,y,z,parent=scene){let o=new T.Mesh(g,m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
+function box(w,h,d,m,x,y,z,parent){return add(new T.BoxGeometry(w,h,d),m,x,y,z,parent)}
+function ball(r,m,x,y,z,sx=1,sy=1,sz=1,parent=scene){const o=add(new T.SphereGeometry(r,24,18),m,x,y,z,parent);o.scale.set(sx,sy,sz);return o}
+function cylinder(rt,rb,h,m,x,y,z,parent){return add(new T.CylinderGeometry(rt,rb,h,16),m,x,y,z,parent)}
+function soft(w,h,d,r,m,x,y,z,parent=scene){const s=new T.Shape();s.moveTo(-w/2+r,-h/2);s.lineTo(w/2-r,-h/2);s.quadraticCurveTo(w/2,-h/2,w/2,-h/2+r);s.lineTo(w/2,h/2-r);s.quadraticCurveTo(w/2,h/2,w/2-r,h/2);s.lineTo(-w/2+r,h/2);s.quadraticCurveTo(-w/2,h/2,-w/2,h/2-r);s.lineTo(-w/2,-h/2+r);s.quadraticCurveTo(-w/2,-h/2,-w/2+r,-h/2);const g=new T.ExtrudeGeometry(s,{depth:d,bevelEnabled:true,bevelSize:r*.32,bevelThickness:r*.32,bevelSegments:5,curveSegments:8});g.translate(0,0,-d/2);return add(g,m,x,y,z,parent)}
+function tube(points,r,m){return add(new T.TubeGeometry(new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),32,r,8,false),m,0,0,0)}
+// Intentionally smaller, richly dressed 24m carriage instead of repeating dozens of booths.
+box(9,.28,26,M.wood,0,-.2,0);box(2.2,.035,25.2,M.carpet,0,.005,0);
+for(let side of [-1,1]){const x=side*4.45;box(.28,1.13,26,M.wood,x,.45,0);box(.3,.75,26,M.wood,x,4.65,0);box(.13,.1,26,M.brass,x,1.03,0);box(.12,.12,26,M.trim,x,4.23,0);
+for(let z=-12;z<=12;z+=4){box(.33,3.1,.38,M.dark,x,2.68,z);box(.17,.1,3.7,M.trim,x,3.6,z+2);box(.16,.1,3.7,M.trim,x,1.22,z+2);
+// Curtain drapes: soft vertical folds, gathered at middle.
+for(let j=0;j<5;j++){let zz=z-1.68+j*.1;ball(.10,M.cream,x-side*.14,3.2,zz,.55,7,.65)}ball(.13,M.brass,x-side*.2,2.6,z-1.5,.6,.6,.6);
+}
+// luggage rail and hanging greenery
+box(.75,.08,25,M.trim,side*3.92,4.65,0);for(let z=-10;z<=10;z+=5){soft(.5,.5,.85,.1,M.dark,side*3.92,4.92,z);
+for(let j=0;j<7;j++)ball(.13,M.pine2,side*(3.7+j*.045),4.4-j*.13,z+(j%2)*.18,1,.6,1)}
+}
+// Solid curved ceiling panels, unlike open slats in v2.
+for(let z=-12.9;z<13;z+=1.2){const verts=[],idx=[];for(let i=0;i<=20;i++){let x=-4.5+9*i/20;let y=4.95+.73*(1-(x/4.5)**2);verts.push(x,y,z,x,y,z+1.2)}for(let i=0;i<20;i++){let a=2*i;idx.push(a,a+1,a+2,a+1,a+3,a+2)}const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(verts,3));g.setIndex(idx);g.computeVertexNormals();const panel=add(g,new T.MeshStandardMaterial({color:'#a88a73',roughness:.88,side:T.DoubleSide}),0,0,0);panel.castShadow=false}
+for(let z=-12;z<=12;z+=2.4){const p=[];for(let i=0;i<=20;i++){let x=-4.5+i*.45;p.push([x,5.02+.75*(1-(x/4.5)**2),z])}tube(p,.06,M.trim)}
+for(let z=-10;z<=10;z+=4){cylinder(.22,.22,.13,M.brass,0,5.7,z);ball(.32,M.cream,0,5.42,z,1,.6,1);let light=new T.PointLight(0xffc894,15,9,2);light.position.set(0,5.2,z);scene.add(light)}
+for(let z of [-13,13]){box(9,5.25,.32,M.dark,0,2.4,z);soft(2.1,3.3,.1,.3,M.trim,0,2,z+(z>0?-.23:.23));soft(1.85,3.05,.11,.24,M.wood,0,2,z+(z>0?-.32:.32));ball(.09,M.brass,.72,2,z+(z>0?-.42:.42))}
+// Booths: padded seats, cushions, brass legs, tables and shaded lamps.
+for(let z of [-8,-3,2,7])for(let side of [-1,1]){const x=side*2.95;
+soft(2.45,.48,2.55,.23,M.seat,x,.58,z);soft(.48,1.6,2.65,.2,M.seat,x+side*1.04,1.28,z);
+for(let dz of [-1.07,1.07]){soft(2.35,.32,.35,.13,M.dark,x,1.0,z+dz);ball(.1,M.brass,x-side*.7,.25,z+dz)}
+soft(.65,.65,.25,.16,M.pillow,x-side*.38,1.16,z+.28);soft(.65,.65,.25,.16,M.pillow,x-side*.38,1.16,z-.36);
+for(let j=0;j<4;j++)ball(.035,M.trim,x+side*1.04,1.0+j*.28,z,.7,.7,.7);
+const tx=side*1.05;soft(1.1,.12,1.48,.13,M.wood,tx,1.22,z);cylinder(.09,.15,1.12,M.brass,tx,.59,z);
+cylinder(.035,.045,.37,M.brass,tx,1.47,z-.36);ball(.24,M.cream,tx,1.78,z-.36,1,.65,1);
+for(let j=0;j<3;j++)box(.3,.07,.45,j%2?M.pillow:M.dark,tx-.28+j*.2,1.33,z+.32);
+}
+// Window-side decorative lamps and framed paintings at both end walls.
+for(let side of [-1,1])for(let z of [-10,-5,0,5,10]){ball(.18,M.cream,side*4.1,3.75,z,1,1.4,.65);let l=new T.PointLight(0xffb975,3,4);l.position.set(side*4,3.7,z);scene.add(l)}
+// Moving exterior scenery (parent groups slide slowly along the train).
+const exterior=new T.Group();scene.add(exterior);
+box(400,.2,420,M.pine2,0,-6,0,exterior);for(let side of [-1,1]){box(26,.12,420,M.lake,side*35,-5.7,0,exterior);
+for(let i=0;i<34;i++){const z=-170+i*11,x=side*(57+(i%5)*11),h=19+(i*13%35);
+add(new T.ConeGeometry(13+(i%3)*4,h,9),i%2?M.mountain:M.mountain2,x,h/2-6,z,exterior);
+add(new T.ConeGeometry(4.4,h*.24,9),M.snow,x,h*.88-6,z,exterior)}
+for(let i=0;i<180;i++){let z=-180+(i*43%360),x=side*(12+(i*19%47)),h=3+(i*7%9)*.7;
+cylinder(.13,.18,h*.3,M.dark,x,-4.6,z,exterior);
+for(let k=0;k<3;k++)add(new T.ConeGeometry((1.3+k*.5)*h/6,h*.43,7),i%3?M.pine:M.pine2,x,-3.9+k*h*.2,z,exterior)}
+}
+// Pink toy mascot.
+const avatar=new T.Group();scene.add(avatar);soft(.96,1.0,.73,.24,M.pink,0,1.03,0,avatar);soft(1.46,1.38,1.06,.34,M.pink,0,2.08,0,avatar);
+for(let s of [-1,1]){ball(.31,M.pink,s*.75,1.15,.02,.9,1.35,1,avatar);ball(.33,M.pink,s*.29,.35,.06,1,1.12,1.2,avatar);ball(.23,M.white,s*.37,2.2,.57,1,1,.5,avatar);ball(.145,M.eye,s*.37,2.2,.72,1,1,.5,avatar);ball(.12,M.blush,s*.54,1.92,.52,1,.6,.4,avatar)}
+ball(.15,M.eye,0,1.83,.62,1,.35,.3,avatar);avatar.position.set(0,0,8.5);
+let yaw=0,pitch=.14,dist=5.6,pov=false,sitting=false,drag=false,px=0,py=0,walk=0;const keys={};const camlabel=document.getElementById('camlabel');
+function toggleCam(){pov=!pov;camlabel.textContent=pov?'POV':'Theo sau'}
+function toggleSeat(){sitting=!sitting;document.getElementById('seat').textContent=sitting?'🚶 Đứng':'🪑 Ngồi';if(sitting){avatar.position.set(2.8,0,7);yaw=-Math.PI/2}else avatar.position.set(0,0,7)}
+document.getElementById('cam').onclick=toggleCam;document.getElementById('seat').onclick=toggleSeat;
+window.addEventListener('keydown',e=>{keys[e.code]=true;if(['KeyW','KeyA','KeyS','KeyD','Space'].includes(e.code))e.preventDefault();if(e.repeat)return;if(e.code==='KeyV')toggleCam();if(e.code==='KeyE')toggleSeat();if(e.code==='KeyF')toggleFocus()});window.addEventListener('keyup',e=>keys[e.code]=false);
+renderer.domElement.addEventListener('pointerdown',e=>{drag=true;px=e.clientX;py=e.clientY});window.addEventListener('pointerup',()=>drag=false);
+window.addEventListener('pointermove',e=>{if(!drag)return;yaw-=(e.clientX-px)*.0045;pitch=T.MathUtils.clamp(pitch+(e.clientY-py)*.0035,-.6,.9);px=e.clientX;py=e.clientY});renderer.domElement.addEventListener('wheel',e=>{dist=T.MathUtils.clamp(dist+e.deltaY*.007,2.8,10)},{passive:true});
+window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+let timer=1500,running=false,opened=false;const focus=document.getElementById('focus');function toggleFocus(){opened=!opened;focus.style.display=opened?'block':'none'}
+document.getElementById('focusBtn').onclick=toggleFocus;document.getElementById('close').onclick=toggleFocus;document.getElementById('start').onclick=()=>{running=!running;document.getElementById('start').textContent=running?'Tạm dừng':'Bắt đầu'};document.getElementById('reset').onclick=()=>{running=false;timer=1500;document.getElementById('start').textContent='Bắt đầu'};
+const clock=new T.Clock(),target=new T.Vector3();document.getElementById('loading').remove();
+function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),.05);exterior.position.z+=dt*.95;if(exterior.position.z>12)exterior.position.z=0;
+if(running){timer=Math.max(0,timer-dt);if(!timer)running=false;document.getElementById('digits').textContent=String(Math.floor(timer/60)).padStart(2,'0')+':'+String(Math.floor(timer%60)).padStart(2,'0')}
+let x=Number(!!keys.KeyD)-Number(!!keys.KeyA),z=Number(!!keys.KeyS)-Number(!!keys.KeyW);if(!sitting&&(x||z)){let l=Math.hypot(x,z);x/=l;z/=l;let speed=keys.ShiftLeft?5.5:3.1,mx=-z*Math.sin(yaw)+x*Math.cos(yaw),mz=z*Math.cos(yaw)+x*Math.sin(yaw);
+avatar.position.x=T.MathUtils.clamp(avatar.position.x+mx*speed*dt,-3.5,3.5);avatar.position.z=T.MathUtils.clamp(avatar.position.z+mz*speed*dt,-11,11);avatar.rotation.y=Math.atan2(mx,mz);walk+=dt*10;avatar.position.y=Math.abs(Math.sin(walk))*.05}else avatar.position.y=T.MathUtils.lerp(avatar.position.y,0,.2);
+avatar.scale.y=T.MathUtils.lerp(avatar.scale.y,sitting?.78:1,.12);target.set(avatar.position.x,avatar.position.y+1.65,avatar.position.z);
+if(pov){avatar.visible=false;camera.position.copy(target);camera.position.y+=.4;camera.lookAt(camera.position.x+Math.sin(yaw)*10,camera.position.y-Math.tan(pitch)*10,camera.position.z-Math.cos(yaw)*10)}
+else{avatar.visible=true;const p=new T.Vector3(target.x+Math.sin(yaw)*dist*Math.cos(pitch),target.y+1+Math.sin(pitch)*dist,target.z-Math.cos(yaw)*dist*Math.cos(pitch));camera.position.lerp(p,.13);camera.lookAt(target)}
+renderer.render(scene,camera)}frame();
+</script></body></html>
