@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lofi Train — Thung lũng Tulip</title>
   <meta name="color-scheme" content="dark">
-  <link rel="stylesheet" href="../lounge.css?v=avatar">
+  <link rel="stylesheet" href="../lounge.css?v=focus-integration">
 <style>
 #table-lamp-tool { position: fixed; z-index: 5; width: 152px; padding: 9px;
   border: 1px solid #bd9468; border-radius: 11px; background: #291c17f4;
@@ -105,13 +105,40 @@
       <form method="dialog"><button>Đóng</button></form>
     </dialog>
     <dialog id="focus-panel" aria-labelledby="focus-title">
-      <h2 id="focus-title">Đồng hồ Focus</h2>
-      <output id="focus-clock" role="timer">25:00</output>
+      <div class="focus-heading">
+        <h2 id="focus-title">Góc tập trung</h2>
+        <form method="dialog"><button type="submit" autofocus aria-label="Đóng menu tập trung">Đóng</button></form>
+      </div>
+      <div class="focus-modes" role="group" aria-label="Chế độ đồng hồ">
+        <button type="button" data-focus-mode="25" aria-pressed="true">Tập trung <small>25 phút</small></button>
+        <button type="button" data-focus-mode="5" aria-pressed="false">Nghỉ ngắn <small>5 phút</small></button>
+        <button type="button" data-focus-mode="15" aria-pressed="false">Nghỉ dài <small>15 phút</small></button>
+        <button type="button" data-focus-mode="up" aria-pressed="false">Bấm giờ</button>
+      </div>
+      <div class="focus-dial">
+        <output id="focus-clock" role="timer">25:00</output>
+        <span id="focus-status" role="status">Sẵn sàng</span>
+      </div>
       <div class="timer-actions">
         <button id="timer-start" type="button">Bắt đầu</button>
         <button id="timer-reset" type="button">Đặt lại</button>
-        <form method="dialog"><button>Đóng</button></form>
       </div>
+      <div class="focus-options">
+        <label>Hoạt động Mochi <select id="focus-activity"></select></label>
+        <label>Phong cảnh <select id="focus-route"></select></label>
+      </div>
+      <fieldset class="focus-sound">
+        <legend>Âm thanh</legend>
+        <label><input id="focus-music-switch" type="checkbox"> Nhạc lofi</label>
+        <label class="focus-volume"><span>Âm lượng nhạc</span><input id="focus-music-level" type="range" min="0" max="100" value="37"></label>
+        <label><input id="focus-rail-switch" type="checkbox"> Tiếng bánh tàu</label>
+        <label><input id="focus-wind-switch" type="checkbox"> Gió ngoài cửa</label>
+        <label class="focus-volume"><span>Âm lượng môi trường</span><input id="focus-ambient-level" type="range" min="0" max="100" value="34"></label>
+        <p id="focus-audio-status" role="status" hidden></p>
+      </fieldset>
+      <audio id="focus-music" loop preload="none" src="../assets/focus-lofi.ogg"></audio>
+      <audio id="focus-rail" loop preload="none" src="../assets/focus-rail.ogg"></audio>
+      <audio id="focus-wind" loop preload="none" src="../assets/focus-wind.ogg"></audio>
     </dialog>
   </main>
   <script type="module">
@@ -128,7 +155,7 @@
     window.addEventListener('pageshow', () => { picker.value = scene; });
 
     try {
-      const { start } = await import('../village-scene.js?v=camera-relative-movement');
+      const { start } = await import('../village-scene.js?v=focus-integration');
       if (scene === 'tri-ton') {
         const { buildTriTon } = await import('../tri-ton-scene.js');
         document.querySelector('.route').textContent = '— Mùa vàng Tri Tôn';

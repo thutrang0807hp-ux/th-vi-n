@@ -1588,6 +1588,7 @@ function play(renderer, avatar,
   motionButton.addEventListener('click', () => {
     trainMoving = !trainMoving;
     updateMotionButton();
+    syncRail();
   });
   updateMotionButton();
   const keys = new Set();
@@ -1597,9 +1598,63 @@ function play(renderer, avatar,
   const panel = document.querySelector('#focus-panel');
   const timer = document.querySelector('#focus-clock');
   const timerButton = document.querySelector('#timer-start');
-  const duration = 25 * 60 * 1000;
+  const timerStatus = document.querySelector('#focus-status');
+  const focusModes = Array.from(panel.querySelectorAll('[data-focus-mode]'));
+  const focusActivity = document.querySelector('#focus-activity');
+  const focusRoute = document.querySelector('#focus-route');
+  const routePicker = document.querySelector('#route-picker');
+  focusActivity.replaceChildren(...Array.from(activityPicker.options, option => option.cloneNode(true)));
+  focusActivity.options[0].textContent = 'Nghỉ tại ghế';
+  focusRoute.replaceChildren(...Array.from(routePicker.options, option => option.cloneNode(true)));
+  focusRoute.value = routePicker.value;
+  focusRoute.addEventListener('change', () => {
+    routePicker.value = focusRoute.value;
+    routePicker.dispatchEvent(new Event('change'));
+  });
+  focusActivity.addEventListener('change', () => {
+    activityPicker.value = focusActivity.value;
+    activityPicker.dispatchEvent(new Event('change'));
+  });
+
+  const music = document.querySelector('#focus-music');
+  const rail = document.querySelector('#focus-rail');
+  const wind = document.querySelector('#focus-wind');
+  const railSwitch = document.querySelector('#focus-rail-switch');
+  const musicSwitch = document.querySelector('#focus-music-switch');
+  const windSwitch = document.querySelector('#focus-wind-switch');
+  const musicLevel = document.querySelector('#focus-music-level');
+  const ambientLevel = document.querySelector('#focus-ambient-level');
+  const audioStatus = document.querySelector('#focus-audio-status');
+  function playSound(audio, toggle, enabled) {
+    if (!enabled) {
+      audio.pause();
+      return;
+    }
+    audio.play().catch(error => {
+      if (error.name === 'AbortError') return;
+      toggle.checked = false;
+      audioStatus.textContent = 'Âm thanh chưa phát được. Hãy bật lại để thử.';
+      audioStatus.hidden = false;
+    });
+  }
+  function syncRail() { playSound(rail, railSwitch, railSwitch.checked && trainMoving); }
+  function syncVolumes() {
+    music.volume = Number(musicLevel.value) / 100;
+    rail.volume = Number(ambientLevel.value) / 100;
+    wind.volume = ambientLevel.value / 125;
+  }
+  syncVolumes();
+  for (const level of [musicLevel, ambientLevel]) level.addEventListener('input', syncVolumes);
+  musicSwitch.addEventListener('change', () => playSound(music, musicSwitch, musicSwitch.checked));
+  windSwitch.addEventListener('change', () => playSound(wind, windSwitch, windSwitch.checked));
+  railSwitch.addEventListener('change', syncRail);
+
+  let countingUp = false;
+  let duration = 25 * 60 * 1000;
   let remaining = duration;
-  let deadline = null;
+  let startedAt = null;
+  let elapsedTime = 0;
+  let lastTimerSecond = -1;
   let firstPerson = false;
   let seated = false;
   let currentSeat;
@@ -1758,6 +1813,7 @@ function play(renderer, avatar,
       currentSeat = undefined;
       activity = 'idle';
       activityPicker.value = activity;
+      focusActivity.value = activity;
       avatar.setActivity(activity);
     }
     follow.copy(mascot.position);
@@ -1778,20 +1834,37 @@ function play(renderer, avatar,
   function toggleFocus() {
     keys.clear();
     if (panel.open) panel.close();
-    else panel.showModal();
+    else {
+      focusActivity.value = activityPicker.value;
+      focusRoute.value = routePicker.value;
+      panel.showModal();
+    }
   }
 
   function updateTimer() {
-    if (deadline !== null) {
-      remaining = Math.max(0, deadline - performance.now());
-      if (!remaining) {
-        deadline = null;
-        timerButton.textContent = 'Bắt đầu';
-      }
+    const total = elapsedTime + (startedAt === null ? 0 : performance.now() - startedAt);
+    remaining = Math.max(0, duration - total);
+    if (!countingUp && !remaining && startedAt !== null) {
+      startedAt = null;
+      elapsedTime = duration;
+      timerButton.textContent = 'Bắt đầu';
+      timerStatus.textContent = 'Phiên đã hoàn thành';
     }
-    const seconds = Math.ceil(remaining / 1000);
-    const text = [Math.floor(seconds / 60), seconds % 60].map(value => String(value).padStart(2, '0')).join(':');
-    if (timer.textContent !== text) timer.textContent = text;
+    const seconds = countingUp ? Math.floor(total / 1000) : Math.ceil(remaining / 1000);
+    if (seconds === lastTimerSecond) return;
+    lastTimerSecond = seconds;
+    const format = value => String(value).padStart(2, '0');
+    timer.textContent = [format(Math.floor(seconds / 60)), format(seconds % 60)].join(':');
+    panel.style.setProperty('--focus-progress', (countingUp ? (seconds % 60) / 60 : 1 - remaining / duration) * 100 + '%');
+  }
+
+  function resetTimer() {
+    startedAt = null;
+    elapsedTime = 0;
+    lastTimerSecond = -1;
+    timerButton.textContent = 'Bắt đầu';
+    timerStatus.textContent = 'Sẵn sàng';
+    updateTimer();
   }
 
   cameraButton.addEventListener('click', toggleCamera);
@@ -1801,6 +1874,7 @@ function play(renderer, avatar,
   activityPicker.disabled = false;
   activityPicker.addEventListener('change', () => {
     activity = activityPicker.value;
+    focusActivity.value = activity;
     if (activity !== 'idle' && !seated) toggleSeat();
     activityTime = 0;
     avatar.setActivity(activity);
@@ -1812,21 +1886,26 @@ function play(renderer, avatar,
   });
   document.querySelector('#focus-toggle').addEventListener('click', toggleFocus);
   timerButton.addEventListener('click', () => {
-    if (deadline !== null) {
-      updateTimer();
-      deadline = null;
+    if (startedAt !== null) {
+      elapsedTime += performance.now() - startedAt;
+      startedAt = null;
       timerButton.textContent = 'Tiếp tục';
+      timerStatus.textContent = 'Đang tạm dừng';
     } else {
-      if (!remaining) remaining = duration;
-      deadline = performance.now() + remaining;
+      if (!countingUp && !remaining) elapsedTime = 0;
+      startedAt = performance.now();
       timerButton.textContent = 'Tạm dừng';
+      timerStatus.textContent = 'Đang chạy';
     }
-  });
-  document.querySelector('#timer-reset').addEventListener('click', () => {
-    remaining = duration;
-    deadline = null;
-    timerButton.textContent = 'Bắt đầu';
     updateTimer();
+  });
+  document.querySelector('#timer-reset').addEventListener('click', resetTimer);
+  for (const mode of focusModes) mode.addEventListener('click', () => {
+    if (mode.getAttribute('aria-pressed') === 'true') return;
+    for (const option of focusModes) option.setAttribute('aria-pressed', option === mode);
+    countingUp = mode.dataset.focusMode === 'up';
+    if (!countingUp) duration = Number(mode.dataset.focusMode) * 60 * 1000;
+    resetTimer();
   });
 
   const avatarPanel = setupMascotCustomizer(avatar, renderer,
@@ -1841,7 +1920,7 @@ function play(renderer, avatar,
   window.addEventListener('keydown', event => {
     if (event.ctrlKey || event.metaKey || event.altKey || avatarPanel.open) return;
     if (event.target === activityPicker && event.code.startsWith('Arrow')) return;
-    if (!event.repeat && event.code === 'KeyF') toggleFocus();
+    if (!event.repeat && event.code === 'KeyF' && !event.target.matches?.('input, select')) toggleFocus();
     if (panel.open) return;
     if (movement.has(event.code)) {
       event.preventDefault();
