@@ -1043,11 +1043,11 @@ function createMochiAnimator(mascot, pose, upper, head, arms, feet, showFace) {
     mascot.rotation.y += shortAngle(gaitYaw - mascot.rotation.y) * (1 - Math.exp(-dt * 14));
     headYaw += shortAngle(mascot.rotation.y - headYaw) * (1 - Math.exp(-dt * 9));
     const speed = dt > 0 ? distance / dt : 0;
-    strideWeight = damp(strideWeight, smoothstep(speed, 0.035, 0.95), distance > 0.0001 ? 16 : 13, dt);
+    strideWeight = damp(strideWeight, smoothstep(speed, 0.035, 1.15), distance > 0.0001 ? 12 : 11, dt);
     runWeight = damp(runWeight, sprint ? smoothstep(speed, 1.3, 3.9) : 0, 9, dt);
 
     const cycle = lerp(.66, .84, runWeight);
-    const stance = lerp(.48, .38, runWeight);
+    const stance = lerp(.55, .39, runWeight);
     const reach = cycle * stance * .5;
     phase = euclideanModulo(phase + distance / cycle, 1);
     const sin = Math.sin(mascot.rotation.y);
@@ -1055,12 +1055,14 @@ function createMochiAnimator(mascot, pose, upper, head, arms, feet, showFace) {
     for (const [index, foot] of feet.entries()) {
       const contact = contacts[index];
       const tick = euclideanModulo(phase + index * .5, 1);
-      const planted = tick < stance && strideWeight > .16;
+      const grounded = tick < stance;
       const swing = clamp((tick - stance) / (1 - stance), 0, 1);
-      const step = lerp(reach, -reach, smoothstep(swing, 0, 1));
+      const support = clamp(tick / stance, 0, 1);
+      const step = grounded ? lerp(-reach, reach, support)
+        : lerp(reach, -reach, smoothstep(swing, 0, 1));
       let localX = contact.restX;
       let localZ = restZ + step;
-      if (planted) {
+      if (grounded) {
         if (!contact.planted) {
           const touchdown = restZ + lerp(-reach, reach, tick / stance);
           contact.x = mascot.position.x + cos * localX + sin * touchdown;
@@ -1068,20 +1070,22 @@ function createMochiAnimator(mascot, pose, upper, head, arms, feet, showFace) {
         }
         const x = contact.x - mascot.position.x;
         const z = contact.z - mascot.position.z;
-        localX = clamp(cos * x - sin * z, contact.restX - .052, contact.restX + .052);
-        localZ = clamp(sin * x + cos * z, restZ - .22, restZ + .22);
+        // Ease the contact correction in and out so turns and phase changes never snap a foot.
+        const lock = smoothstep(support, 0, .2) * (1 - smoothstep(support, .78, 1));
+        localX = lerp(localX, clamp(cos * x - sin * z, contact.restX - .042, contact.restX + .042), lock);
+        localZ = lerp(localZ, clamp(sin * x + cos * z, restZ - .23, restZ + .23), lock);
       }
-      contact.planted = planted;
-      const lift = planted ? 0 : Math.sin(Math.PI * swing) ** 2;
+      contact.planted = grounded;
+      const lift = grounded ? 0 : Math.sin(Math.PI * swing) ** 2;
       foot.position.set(lerp(contact.restX, localX, strideWeight), mochiHipY
-        + (reduceMotion ? .035 : lerp(.053, .097, runWeight)) * lift * strideWeight,
+        + (reduceMotion ? .035 : lerp(.032, .058, runWeight)) * lift * strideWeight,
       lerp(restZ, localZ, strideWeight));
-      foot.rotation.x = reduceMotion ? 0 : Math.sin(Math.PI * 2 * swing) * .30 * strideWeight;
-      arms[index].rotation.x = -Math.cos(Math.PI * 2 * tick) * lerp(.35, .59, runWeight) * strideWeight;
+      foot.rotation.x = reduceMotion ? 0 : Math.sin(Math.PI * 2 * swing) * lift * .21 * strideWeight;
+      arms[index].rotation.x = -Math.cos(Math.PI * 2 * tick) * lerp(.23, .36, runWeight) * strideWeight;
       arms[index].rotation.z = 0;
     }
 
-    if (reduceMotion) return;
+    if (reduceMotion) return strideWeight > .01;
     if (gesture) {
       gestureTime += dt;
       const duration = gesture.getClip().duration;
@@ -1094,13 +1098,13 @@ function createMochiAnimator(mascot, pose, upper, head, arms, feet, showFace) {
     mixer.update(dt);
 
     const idleWeight = 1 - strideWeight;
-    const bounce = Math.abs(Math.sin(phase * Math.PI * 2));
+    const bounce = -Math.cos(phase * Math.PI * 4);
     pose.position.y = Math.max(0, offsets.position.y) * idleWeight;
     pose.scale.copy(offsets.scale).lerp(neutralScale, strideWeight);
     upper.position.set(offsets.position.x * idleWeight, Math.min(0, offsets.position.y) * idleWeight +
-      (bounce - .37) * lerp(.032, .052, runWeight) * strideWeight, 0);
+      bounce * lerp(.0045, .0095, runWeight) * strideWeight, 0);
     upper.rotation.set(-lerp(.035, .16, runWeight) * strideWeight, 0,
-      offsets.position.z * idleWeight + Math.sin(phase * Math.PI * 2) * .045 * strideWeight);
+      offsets.position.z * idleWeight + Math.sin(phase * Math.PI * 2) * lerp(.013, .017, runWeight) * strideWeight);
     head.rotation.set(aim.position.x * idleWeight + .038 * runWeight,
       aim.position.y * idleWeight + clamp(shortAngle(headYaw - mascot.rotation.y), -.28, .28),
       aim.position.z * idleWeight);
@@ -1110,6 +1114,7 @@ function createMochiAnimator(mascot, pose, upper, head, arms, feet, showFace) {
     arms[1].rotation.z -= hands.position.z * idleWeight;
     const yawning = gestureName === 'sleepy' && gestureWeight > .3 && gestureTime > .43 && gestureTime < 1.07;
     showFace(yawning ? 'yawn' : null, time);
+    return strideWeight > .01 || Boolean(gesture);
   }
   const neutralScale = new T.Vector3(1, 1, 1);
   return { update, reset, cue };
@@ -1632,7 +1637,9 @@ function play(renderer, avatar,
     }
     const dxMoved = position.x - oldX;
     const dzMoved = position.z - oldZ;
-    if (!seated) avatar.animator.update(dt, dxMoved, dzMoved, sprint, ambientTime, reduceMotion);
+    if (!seated && avatar.animator.update(dt, dxMoved, dzMoved, sprint, ambientTime, reduceMotion)) {
+      needsRender = true;
+    }
     if (Math.abs(dxMoved) + Math.abs(dzMoved) > 0.0001) needsRender = true;
 
     const cameraMoving = follow.distanceToSquared(position) > 0.000002;
