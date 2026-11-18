@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lofi Train — Thung lũng Tulip</title>
   <meta name="color-scheme" content="dark">
-  <link rel="stylesheet" href="../lounge.css?v=pomodoro-phase1">
+  <link rel="stylesheet" href="../lounge.css?v=planner-phase2">
 <style>
 #table-lamp-tool { position: fixed; z-index: 5; width: 152px; padding: 9px;
   border: 1px solid #bd9468; border-radius: 11px; background: #291c17f4;
@@ -116,6 +116,13 @@
         <h2 id="focus-title">Góc tập trung</h2>
         <form method="dialog"><button type="submit" autofocus aria-label="Đóng menu tập trung">Đóng</button></form>
       </div>
+      <div class="focus-workspace-tabs" role="group" aria-label="Góc tập trung">
+        <button type="button" data-focus-tab="timer" aria-pressed="true">Đồng hồ</button>
+        <button type="button" data-focus-tab="tasks" aria-pressed="false">Công việc</button>
+        <button type="button" data-focus-tab="notes" aria-pressed="false">Ghi chú</button>
+      </div>
+      <p id="focus-planner-status" role="status" hidden>Trình duyệt chưa cho phép lưu công việc và ghi chú.</p>
+      <section data-focus-view="timer" aria-label="Đồng hồ">
       <div class="focus-modes" role="group" aria-label="Chế độ đồng hồ">
         <button type="button" data-focus-mode="25" aria-pressed="true">Tập trung <small>25 phút</small></button>
         <button type="button" data-focus-mode="5" aria-pressed="false">Nghỉ ngắn <small>5 phút</small></button>
@@ -126,6 +133,7 @@
         <output id="focus-clock" role="timer">25:00</output>
         <span id="focus-status" role="status">Sẵn sàng</span>
       </div>
+      <p id="focus-active-task" hidden></p>
       <div class="timer-actions">
         <button id="timer-start" type="button">Bắt đầu</button>
         <button id="timer-reset" type="button">Đặt lại</button>
@@ -157,6 +165,54 @@
         <label class="focus-volume"><span>Âm lượng môi trường</span><input id="focus-ambient-level" type="range" min="0" max="100" value="34"></label>
         <p id="focus-audio-status" role="status" hidden></p>
       </fieldset>
+      </section>
+      <section data-focus-view="tasks" aria-label="Công việc" hidden>
+        <div class="planner-actions">
+          <button id="task-new" type="button">Thêm việc</button>
+          <select id="focus-task-filter" aria-label="Lọc công việc">
+            <option value="open">Đang mở</option>
+            <option value="done">Hoàn thành</option>
+            <option value="all">Tất cả</option>
+          </select>
+        </div>
+        <ul id="focus-task-list" class="planner-list" aria-label="Danh sách công việc"></ul>
+        <p id="focus-task-count"></p>
+        <form id="focus-task-form" class="planner-editor" hidden>
+          <label>Tên công việc <input id="task-title" required maxlength="100"></label>
+          <label>Mô tả <textarea id="task-description" rows="2" maxlength="1000"></textarea></label>
+          <div class="planner-grid">
+            <label>Trạng thái <select id="task-state">
+              <option value="todo">Chưa làm</option><option value="doing">Đang làm</option><option value="done">Hoàn thành</option>
+            </select></label>
+            <label>Ưu tiên <select id="task-priority">
+              <option value="low">Thấp</option><option value="normal" selected>Thường</option><option value="high">Cao</option>
+            </select></label>
+          </div>
+          <label>Số phiên dự kiến <input id="task-estimate" type="number" min="1" max="99"></label>
+          <div class="planner-actions">
+            <button type="submit">Lưu việc</button><button id="task-cancel" type="button">Hủy</button>
+            <button id="task-up" type="button" aria-label="Đưa việc lên">↑</button>
+            <button id="task-down" type="button" aria-label="Đưa việc xuống">↓</button>
+            <button id="task-delete" type="button">Xóa</button>
+          </div>
+        </form>
+      </section>
+      <section data-focus-view="notes" aria-label="Ghi chú" hidden>
+        <div class="planner-actions">
+          <button id="note-new" type="button">Thêm ghi chú</button>
+          <input id="focus-note-search" type="search" placeholder="Tìm ghi chú" aria-label="Tìm ghi chú">
+        </div>
+        <ul id="focus-note-list" class="planner-list" aria-label="Ghi chú gần đây"></ul>
+        <div id="focus-note-editor" class="planner-editor" hidden>
+          <label>Tiêu đề <input id="note-title" maxlength="100"></label>
+          <label>Nội dung <textarea id="note-body" rows="6" maxlength="15000"></textarea></label>
+          <label>Liên kết với công việc <select id="focus-note-task"></select></label>
+          <div class="planner-actions">
+            <button id="note-delete" type="button">Xóa ghi chú</button>
+            <span id="focus-note-status" role="status"></span>
+          </div>
+        </div>
+      </section>
       <audio id="focus-music" loop preload="none" src="../assets/focus-lofi.ogg"></audio>
       <audio id="focus-rail" loop preload="none" src="../assets/focus-rail.ogg"></audio>
       <audio id="focus-wind" loop preload="none" src="../assets/focus-wind.ogg"></audio>
@@ -176,7 +232,7 @@
     window.addEventListener('pageshow', () => { picker.value = scene; });
 
     try {
-      const { start } = await import('../village-scene.js?v=pomodoro-phase1');
+      const { start } = await import('../village-scene.js?v=planner-phase2');
       if (scene === 'tri-ton') {
         const { buildTriTon } = await import('../tri-ton-scene.js');
         document.querySelector('.route').textContent = '— Mùa vàng Tri Tôn';

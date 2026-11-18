@@ -4,7 +4,7 @@ const labels = { 25: 'Tập trung', 5: 'Nghỉ ngắn', 15: 'Nghỉ dài', up: '
 
 export function initialTimer() {
   return { mode: '25', minutes: { ...defaults }, elapsed: 0, startedAt: null,
-    id: null, completed: 0, autoBreak: false, autoFocus: false, chime: false,
+    id: null, taskId: null, completed: 0, autoBreak: false, autoFocus: false, chime: false,
     notify: false, notice: '' };
 }
 
@@ -12,18 +12,22 @@ export function timerReading(state, now) {
   return Math.max(0, state.elapsed + (state.startedAt === null ? 0 : Math.max(0, now - state.startedAt)));
 }
 
-export function transitionTimer(previous, action, now, makeId = () => crypto.randomUUID()) {
+export function transitionTimer(previous, action, now, makeId = () => crypto.randomUUID(), selectedTask = null) {
   let state = previous;
   let record;
   const reset = (mode, notice = '') =>
-    ({ ...state, mode, elapsed: 0, startedAt: null, id: null, notice });
-  const begin = () => ({ ...state, startedAt: now, id: state.id ?? makeId(), notice: '' });
+    ({ ...state, mode, elapsed: 0, startedAt: null, id: null, taskId: null, notice });
+  const begin = () => ({
+    ...state, startedAt: now, id: state.id ?? makeId(),
+    taskId: state.mode === '25' ? (state.id ? state.taskId ?? null : selectedTask) : null,
+    notice: '',
+  });
   const length = state.minutes[state.mode] * MINUTE;
   if (state.mode !== 'up' && state.startedAt !== null && timerReading(state, now) >= length) {
     const endedAt = state.startedAt + Math.max(0, length - state.elapsed);
     const isFocus = state.mode === '25';
     const completed = state.completed + Number(isFocus);
-    record = { id: state.id, mode: state.mode, endedAt, duration: length, taskId: null };
+    record = { id: state.id, mode: state.mode, endedAt, duration: length, taskId: state.taskId ?? null };
     const next = isFocus ? (completed % 4 === 0 ? '15' : '5') : '25';
     const auto = (isFocus ? state.autoBreak : state.autoFocus) && now - endedAt < MINUTE;
     state = { ...reset(next, `Đã xong · ${labels[next]}`), completed };
@@ -66,15 +70,22 @@ export function transitionTimer(previous, action, now, makeId = () => crypto.ran
   return { state, record };
 }
 
-function openStorage() {
+export function openStorage() {
   return new Promise((resolve, reject) => {
     if (!globalThis.indexedDB) return reject(new Error('Unavailable'));
-    const request = indexedDB.open('lofi-train-focus', 1);
-    request.onupgradeneeded = () => {
-      request.result.createObjectStore('timer');
-      request.result.createObjectStore('sessions', { keyPath: 'id' });
+    const request = indexedDB.open('lofi-train-focus', 2);
+    request.onupgradeneeded = event => {
+      if (event.oldVersion < 1) {
+        request.result.createObjectStore('timer');
+        request.result.createObjectStore('sessions', { keyPath: 'id' });
+      }
+      request.result.createObjectStore('planner');
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      const connection = request.result;
+      connection.onversionchange = () => connection.close();
+      resolve(connection);
+    };
     request.onerror = () => reject(request.error);
     request.onblocked = () => reject(new Error('Blocked'));
   });
@@ -82,13 +93,15 @@ function openStorage() {
 
 function transact(db, action) {
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(['timer','sessions'], 'readwrite');
+    const tx = db.transaction(['timer','sessions','planner'], 'readwrite');
     const store = tx.objectStore('timer');
     const request = store.get('current');
+    const planner = tx.objectStore('planner').get('current');
     let result;
-    request.onsuccess = () => {
+    planner.onsuccess = () => {
       const previous = request.result ?? initialTimer();
-      result = transitionTimer(previous, action, Date.now());
+      const selected = planner.result?.activeTaskId ?? null;
+      result = transitionTimer(previous, action, Date.now(), undefined, selected);
       if (result.state !== previous) store.put(result.state, 'current');
       if (result.record) tx.objectStore('sessions').add(result.record);
     };
@@ -208,6 +221,9 @@ export function mountFocusTimer(panel, widget) {
       result ??= transitionTimer(state,action,Date.now());
       state = result.state;
       syncControls();
+      panel.dispatchEvent(new CustomEvent('focus:session', { detail: {
+        active: state.id !== null && state.mode === '25', taskId: state.taskId ?? null,
+      } }));
       if (result.record) completion(result.record);
       if (result.record || action.type !== 'tick') channel?.postMessage('sync');
       draw();

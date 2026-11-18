@@ -1,4 +1,5 @@
 import { mountFocusTimer } from './focus/timer.js';
+import { mountFocusPlanner } from './focus/planner.js';
 import { loadExteriorStudy, plantExteriorStudy } from './exterior-study.js';
 import * as T from './vendor/three-r164/three.module.min.js';
 import { RoundedBoxGeometry } from './vendor/three-r164/RoundedBoxGeometry.js';
@@ -1859,6 +1860,7 @@ function play(renderer, avatar,
     else avatar.animator.cue('happy');
     needsRender = true;
   });
+  mountFocusPlanner(panel);
   mountFocusTimer(panel,focusWidget);
 
   const avatarPanel = setupMascotCustomizer(avatar, renderer,
@@ -1873,7 +1875,7 @@ function play(renderer, avatar,
   window.addEventListener('keydown', event => {
     if (event.ctrlKey || event.metaKey || event.altKey || avatarPanel.open) return;
     if (event.target === activityPicker && event.code.startsWith('Arrow')) return;
-    if (!event.repeat && event.code === 'KeyF' && !event.target.matches?.('input, select')) toggleFocus();
+    if (!event.repeat && event.code === 'KeyF' && !event.target.matches?.('input, select, textarea, [contenteditable]')) toggleFocus();
     if (panel.open) return;
     if (movement.has(event.code)) {
       event.preventDefault();
