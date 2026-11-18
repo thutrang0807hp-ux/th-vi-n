@@ -1,3 +1,4 @@
+import { focusAudioContext } from './sound.js';
 const MINUTE = 60000;
 const defaults = { 25: 25, 5: 5, 15: 15 };
 const labels = { 25: 'Tập trung', 5: 'Nghỉ ngắn', 15: 'Nghỉ dài', up: 'Bấm giờ' };
@@ -150,15 +151,8 @@ export function mountFocusTimer(panel, widget) {
     }
   }
   function armChime() {
-    const Audio = globalThis.AudioContext ?? globalThis.webkitAudioContext;
-    if (Audio) {
-      try {
-        context ??= new Audio();
-        void context.resume().catch(() => {});
-      } catch {
-        // The visual status is available even without audio.
-      }
-    }
+    context = focusAudioContext();
+    if (context) void context.resume().catch(() => {});
   }
   function completion(record) {
     if (state.chime) sound();

@@ -317,3 +317,26 @@ dialog h2 { margin: 0 0 12px; font-size: 1.1rem; }
 .planner-actions select { width: auto; }
 .planner-editor textarea { resize: vertical; }
 #focus-task-count, #focus-note-status, #focus-planner-status { color: #dbc1a4; font-size: .8rem; }
+
+.sound-master, .sound-presets { display: grid; gap: 8px; margin-bottom: 9px; }
+.sound-master button { background: #ecc696; color: #2c1e17; border-color: #ecc696; }
+.sound-master label, .sound-presets label {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 9px; font-size: .83rem;
+}
+.sound-presets select {
+  min-width: 0; width: 68%; padding: 6px; color: inherit; font: inherit;
+  border: 1px solid #946b4f; border-radius: 7px; background: #241a16;
+}
+#focus-sound-recommendation { padding: 5px 8px; font-size: .78rem; }
+#focus-audio-list { max-height: min(47dvh,340px); overflow: auto; }
+.sound-track {
+  display: grid; grid-template-columns: minmax(0,1fr) minmax(70px,38%);
+  align-items: center; gap: 0 8px; border-bottom: 1px solid #694e3d; padding: 7px 2px;
+}
+.sound-track label, .sound-track small, #focus-audio-status { font-size: .81rem; }
+.sound-track small { grid-column: 1/-1; color: #dcbf9d; }
+.sound-track small:empty, #focus-audio-status:empty { display: none; }
+.sound-track input, .sound-master input { accent-color: #e6b87a; }
+.sound-track input[type="range"], .sound-master input { width: 100%; min-width: 0; }
+.sound-master input { width: 45%; }

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lofi Train — Thung lũng Tulip</title>
   <meta name="color-scheme" content="dark">
-  <link rel="stylesheet" href="../lounge.css?v=planner-phase2">
+  <link rel="stylesheet" href="../lounge.css?v=audio-phase3">
 <style>
 #table-lamp-tool { position: fixed; z-index: 5; width: 152px; padding: 9px;
   border: 1px solid #bd9468; border-radius: 11px; background: #291c17f4;
@@ -120,6 +120,7 @@
         <button type="button" data-focus-tab="timer" aria-pressed="true">Đồng hồ</button>
         <button type="button" data-focus-tab="tasks" aria-pressed="false">Công việc</button>
         <button type="button" data-focus-tab="notes" aria-pressed="false">Ghi chú</button>
+        <button type="button" data-focus-tab="sound" aria-pressed="false">Âm thanh</button>
       </div>
       <p id="focus-planner-status" role="status" hidden>Trình duyệt chưa cho phép lưu công việc và ghi chú.</p>
       <section data-focus-view="timer" aria-label="Đồng hồ">
@@ -156,15 +157,6 @@
         <label>Hoạt động Mochi <select id="focus-activity"></select></label>
         <label>Phong cảnh <select id="focus-route"></select></label>
       </div>
-      <fieldset class="focus-sound">
-        <legend>Âm thanh</legend>
-        <label><input id="focus-music-switch" type="checkbox"> Nhạc lofi</label>
-        <label class="focus-volume"><span>Âm lượng nhạc</span><input id="focus-music-level" type="range" min="0" max="100" value="37"></label>
-        <label><input id="focus-rail-switch" type="checkbox"> Tiếng bánh tàu</label>
-        <label><input id="focus-wind-switch" type="checkbox"> Gió ngoài cửa</label>
-        <label class="focus-volume"><span>Âm lượng môi trường</span><input id="focus-ambient-level" type="range" min="0" max="100" value="34"></label>
-        <p id="focus-audio-status" role="status" hidden></p>
-      </fieldset>
       </section>
       <section data-focus-view="tasks" aria-label="Công việc" hidden>
         <div class="planner-actions">
@@ -213,9 +205,28 @@
           </div>
         </div>
       </section>
-      <audio id="focus-music" loop preload="none" src="../assets/focus-lofi.ogg"></audio>
-      <audio id="focus-rail" loop preload="none" src="../assets/focus-rail.ogg"></audio>
-      <audio id="focus-wind" loop preload="none" src="../assets/focus-wind.ogg"></audio>
+      <section data-focus-view="sound" data-audio-base="../assets/" aria-label="Âm thanh" hidden>
+        <div class="sound-master">
+          <button id="focus-audio-play" type="button" aria-pressed="false">Phát âm thanh</button>
+          <label>Âm lượng tổng <input id="focus-audio-master" type="range" min="0" max="100" value="68"></label>
+        </div>
+        <div class="sound-presets">
+          <label>Bộ âm
+            <select id="focus-audio-preset">
+              <option value="train">Chuyến tàu yên bình</option>
+              <option value="rain">Ngày mưa học bài</option>
+              <option value="coast">Bờ biển thư giãn</option>
+            </select>
+          </label>
+          <div class="planner-actions">
+            <button id="focus-audio-apply" type="button">Áp dụng</button>
+            <button id="focus-audio-save" type="button">Lưu bộ âm</button>
+          </div>
+          <button id="focus-sound-recommendation" type="button" hidden>Thử bộ âm Bờ biển thư giãn</button>
+        </div>
+        <p id="focus-audio-status" role="status"></p>
+        <div id="focus-audio-list" aria-label="Các lớp âm thanh"></div>
+      </section>
     </dialog>
   </main>
   <script type="module">
@@ -232,7 +243,7 @@
     window.addEventListener('pageshow', () => { picker.value = scene; });
 
     try {
-      const { start } = await import('../village-scene.js?v=planner-phase2');
+      const { start } = await import('../village-scene.js?v=audio-phase3');
       if (scene === 'tri-ton') {
         const { buildTriTon } = await import('../tri-ton-scene.js');
         document.querySelector('.route').textContent = '— Mùa vàng Tri Tôn';

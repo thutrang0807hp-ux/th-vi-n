@@ -1,3 +1,4 @@
+import { mountFocusSound } from './focus/sound.js';
 import { mountFocusTimer } from './focus/timer.js';
 import { mountFocusPlanner } from './focus/planner.js';
 import { loadExteriorStudy, plantExteriorStudy } from './exterior-study.js';
@@ -1590,7 +1591,7 @@ function play(renderer, avatar,
   motionButton.addEventListener('click', () => {
     trainMoving = !trainMoving;
     updateMotionButton();
-    syncRail();
+    focusSound.setTrainMoving(trainMoving);
   });
   updateMotionButton();
   const keys = new Set();
@@ -1614,38 +1615,7 @@ function play(renderer, avatar,
     activityPicker.dispatchEvent(new Event('change'));
   });
 
-  const music = document.querySelector('#focus-music');
-  const rail = document.querySelector('#focus-rail');
-  const wind = document.querySelector('#focus-wind');
-  const railSwitch = document.querySelector('#focus-rail-switch');
-  const musicSwitch = document.querySelector('#focus-music-switch');
-  const windSwitch = document.querySelector('#focus-wind-switch');
-  const musicLevel = document.querySelector('#focus-music-level');
-  const ambientLevel = document.querySelector('#focus-ambient-level');
-  const audioStatus = document.querySelector('#focus-audio-status');
-  function playSound(audio, toggle, enabled) {
-    if (!enabled) {
-      audio.pause();
-      return;
-    }
-    audio.play().catch(error => {
-      if (error.name === 'AbortError') return;
-      toggle.checked = false;
-      audioStatus.textContent = 'Âm thanh chưa phát được. Hãy bật lại để thử.';
-      audioStatus.hidden = false;
-    });
-  }
-  function syncRail() { playSound(rail, railSwitch, railSwitch.checked && trainMoving); }
-  function syncVolumes() {
-    music.volume = Number(musicLevel.value) / 100;
-    rail.volume = Number(ambientLevel.value) / 100;
-    wind.volume = ambientLevel.value / 125;
-  }
-  syncVolumes();
-  for (const level of [musicLevel, ambientLevel]) level.addEventListener('input', syncVolumes);
-  musicSwitch.addEventListener('change', () => playSound(music, musicSwitch, musicSwitch.checked));
-  windSwitch.addEventListener('change', () => playSound(wind, windSwitch, windSwitch.checked));
-  railSwitch.addEventListener('change', syncRail);
+  const focusSound = mountFocusSound(panel,{ moving:trainMoving, route:routePicker.value });
 
   let firstPerson = false;
   let seated = false;
