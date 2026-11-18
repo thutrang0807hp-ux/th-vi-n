@@ -25,10 +25,10 @@ const auroraShader = `
   vec3 curtain(vec3 ray, float offset, float height, float width, vec3 low, vec3 high) {
     float a = atan(ray.z, abs(ray.x)) + offset;
     float t = time * 0.026;
-    float fold = sin(a*4.8+t)*0.064 + sin(a*9.1-t*0.38)*0.022 + sin(a*17.0+t*0.42)*0.009;
+    float fold = sin(a*4.8+t)*0.072 + sin(a*9.1-t*0.38)*0.029 + sin(a*17.0+t*0.42)*0.012;
     float h = ray.y - height - fold - a*0.048;
-    float strands = noise(vec2(a*41.0+t*0.40,0.75))*0.52
-      + noise(vec2(a*112.0+t*0.64,3.1))*0.16;
+    float strands = noise(vec2(a*42.0+t*0.40,0.75))*0.58
+      + noise(vec2(a*112.0+t*0.64,3.1))*0.25;
     float layer = exp(-pow((h-0.011)/width,2.0))*0.39
       + smoothstep(-0.015,0.014,h)*exp(-max(h,0.0)/(width*2.2))*0.73;
     float rim = exp(-pow(h/(width*0.37),2.0))*0.34;
@@ -36,8 +36,9 @@ const auroraShader = `
     return mix(low,high,smoothstep(0.012,width*2.2,h))*(layer+rim)*(0.35+strands)*envelope;
   }
   vec3 ribbons(vec3 ray) {
-    return curtain(ray, 0.25, 0.238, 0.030, vec3(0.05,0.76,0.45), vec3(0.38,0.032,0.78))
-      + curtain(ray,-0.94,0.154,0.016,vec3(0.22,0.22,0.62),vec3(0.41,0.032,0.76))*0.69;
+    return curtain(ray, 0.25, 0.248, 0.032, vec3(0.058,1.04,0.55), vec3(0.43,0.045,0.88))*1.15
+      + curtain(ray,-0.94,0.153,0.020,vec3(0.21,0.50,0.72),vec3(0.48,0.066,1.02))*0.76
+      + curtain(ray,1.41,0.407,0.027,vec3(0.27,0.045,0.64),vec3(0.32,0.024,0.63))*0.37;
   }
 `;
 
@@ -62,9 +63,11 @@ function sky(time) {
         vec2 st = uv * vec2(108.0,115.0), id = floor(st);
         float pick = hash(id);
         vec2 p = fract(st) - vec2(0.25+hash(id+4.0)*0.5,0.25+hash(id+9.0)*0.5);
-        float star = (1.0-smoothstep(0.016,0.106,length(p))) * step(0.928,pick);
-        color += vec3(0.48,0.54,0.86)*star*smoothstep(0.01,0.20,r.y)*(0.25+0.75*pick);
-        color += ribbons(r)*smoothstep(0.03,0.12,r.y);
+        float star = (1.0-smoothstep(0.007,0.085,length(p))) * step(0.914,pick);
+        vec3 glow = ribbons(r)*smoothstep(0.03,0.12,r.y);
+        float behind = 1.0/(1.0+max(glow.g,glow.b)*6.8);
+        color += vec3(0.29,0.33,0.54)*star*smoothstep(0.01,0.20,r.y)*behind*(0.28+0.58*pick);
+        color += glow;
         float drift = time * 0.009;
         vec2 cloudUv = vec2(uv.x * 6.0 + drift, r.y * 35.0);
         float wisps = noise(cloudUv) * 0.73 + noise(cloudUv * 2.03 + 7.0) * 0.27;
@@ -125,50 +128,73 @@ function facets(vertices, colors) {
   return geometry;
 }
 function mountain(side, range, salt) {
-  const rand = randomSource(522 + salt);
-  const steps = 56;
-  const rows = 5;
-  const ridges = [0, 0.38, 1, 0.51, 0];
-  const palette = [
-    ['#182440', '#3b5585', '#9eaed5'],
-    ['#253c62', '#536f9d', '#a6bee6'],
-    ['#2c4064', '#5a72a2', '#b0c1e5'],
-  ][range];
-  const shades = palette.map(color => new T.Color(color));
-  const vertices = [];
-  const colors = [];
-  const points = [];
-  const distance = [63, 84, 111][range];
-  const elevation = [8.4, 14.7, 21.6][range];
-  const crest = z => {
-    const a = z / span * tau;
-    const profile = 0.46 + 0.22 * Math.sin(a * (range + 2) + salt)
-      + 0.17 * Math.sin(a * (range + 5) + salt * 2.4);
-    return elevation * (profile + 0.29 * Math.max(0, Math.sin(a * 3 - salt) ** 5));
-  };
-  for (let i = 0; i < rows; i++) {
-    const row = [];
-    for (let j = 0; j < steps; j++) {
-      const z = -span / 2 + j * span / steps + (j ? (rand() - .5) * 1.1 : 0);
-      const y = crest(z) * ridges[i] * (0.83 + rand() * 0.34) - 0.43;
-      row.push([side * (distance + (i - 2) * 5.5 + (rand() - .5) * 3.2), y, z]);
+  const rand = randomSource(902 + salt);
+  const vertices = [], colors = [];
+  const rockPalette = [
+    ['#172746', '#3e5684', '#6180a9'],
+    ['#273b65', '#4c6796', '#7693be'],
+    ['#374d77', '#627ca5', '#8ba2c8'],
+  ][range].map(hex => new T.Color(hex));
+  const snowPalette = [
+    ['#9caed4', '#d5e6ff'],
+    ['#a8bbdf', '#ebecff'],
+    ['#9baed8', '#dee5ff'],
+  ][range].map(hex => new T.Color(hex));
+
+  function face(a, b, c, snowy, detail = 0) {
+    vertices.push(...a, ...b, ...c);
+    const normal = new T.Vector3(b[0]-a[0], b[1]-a[1], b[2]-a[2])
+      .cross(new T.Vector3(c[0]-a[0], c[1]-a[1], c[2]-a[2])).normalize();
+    if (normal.y < 0) normal.negate();
+    const light = T.MathUtils.clamp(.48 + normal.y*.43 - normal.x*side*.17 + normal.z*.22, 0, 1);
+    const shade = snowy
+      ? snowPalette[0].clone().lerp(snowPalette[1], Math.min(1, light*.94 + detail*.32))
+      : rockPalette[0].clone().lerp(rockPalette[1], light)
+        .lerp(rockPalette[2], detail*.43);
+    shade.multiplyScalar(.87 + rand()*.21);
+    for (let i=0;i<3;i++) colors.push(shade.r,shade.g,shade.b);
+  }
+
+  function peak(x, z, height, width, depth) {
+    const slices = 9 + Math.floor(rand()*3);
+    const rings = [[],[],[]];
+    const tilt = (rand()-.5)*.64;
+    const angleOffset = rand()*tau;
+    for (let i=0;i<slices;i++) {
+      const angle = angleOffset + i*tau/slices + (rand()-.5)*.24;
+      const dx = Math.cos(angle)*depth*(.82+rand()*.27);
+      const dz = Math.sin(angle)*width*(.78+rand()*.31);
+      const shoulder = .36+rand()*.17;
+      const snowline = .53+rand()*.26;
+      rings[0].push([x+dx,-.49,z+dz]);
+      rings[1].push([x+dx*(.70+rand()*.12),height*shoulder-.45,z+dz*.73+width*tilt*.25]);
+      rings[2].push([x+dx*(.33+rand()*.16),height*snowline-.45,z+dz*.39+width*tilt*.59]);
     }
-    row.push([row[0][0], row[0][1], span / 2]);
-    points.push(row);
+    const tip = [x+depth*(rand()-.5)*.26,height-.45,z+width*tilt];
+    for(let i=0;i<slices;i++){
+      const n=(i+1)%slices;
+      for(let row=0;row<2;row++){
+        face(rings[row][i],rings[row][n],rings[row+1][i],false,row*.9);
+        face(rings[row+1][i],rings[row][n],rings[row+1][n],false,row+.1);
+      }
+      face(rings[2][i],rings[2][n],tip,true,1);
+    }
   }
-  function add(a,b,c) {
-    vertices.push(...a,...b,...c);
-    const height = (a[1]+b[1]+c[1])/3/elevation;
-    const snow = T.MathUtils.smoothstep(height + (rand() - 0.5) * .28, .38, .69);
-    const shade = shades[0].clone().lerp(shades[1], T.MathUtils.clamp(height * 1.15 + rand()*.37, 0, 1))
-      .lerp(shades[2], snow).multiplyScalar(.74 + rand() * .39);
-    for (let i = 0; i < 3; i++) colors.push(shade.r, shade.g, shade.b);
+
+  const distance = [65, 86, 108][range];
+  const heights = [[4.8,10.7],[10.0,18.5],[12.4,25.0]][range];
+  const entries = 7;
+  for(let i=0;i<entries;i++){
+    const z = -span/2 + (i+.5)*span/entries + (rand()-.5)*8;
+    const x = side*(distance+(rand()-.5)*5.8);
+    const height = T.MathUtils.lerp(heights[0],heights[1],rand());
+    peak(x,z,height,12+rand()*7.4,9+rand()*5);
+    if((i+range)%3!==1) {
+      peak(x-side*(3+rand()*2),z+(rand()<.5?-1:1)*(5+rand()*4),
+        height*(.45+rand()*.19),5.5+rand()*4.0,6.0+rand()*3.0);
+    }
   }
-  for (let i = 0; i < rows - 1; i++) for (let j = 0; j < steps; j++) {
-    add(points[i][j],points[i+1][j],points[i][j+1]);
-    add(points[i][j+1],points[i+1][j],points[i+1][j+1]);
-  }
-  return new T.Mesh(facets(vertices, colors), colored);
+  return new T.Mesh(facets(vertices,colors),colored);
 }
 
 function shore(side, far) {
@@ -300,7 +326,7 @@ function town(side,time) {
       void main(){
         float trail=(1.0-abs(vUv.x*2.0-1.0))*(1.0-abs(vUv.y*2.0-1.0));
         float broken=0.27+0.73*smoothstep(.22,.83,noise(vec2(vUv.y*41.0+time*.76,vUv.x*2.2)));
-        gl_FragColor=vec4(.93,.32,.085,pow(max(trail,0.0),1.55)*broken*.51);
+        gl_FragColor=vec4(.93,.32,.085,pow(max(trail,0.0),1.55)*broken*.66);
         #include <colorspace_fragment>
       }
     `,
@@ -334,9 +360,53 @@ function town(side,time) {
   return group;
 }
 
+function lightSnow(time) {
+  const rand = randomSource(8156);
+  const points = [], phases = [];
+  for (const side of [-1,1]) for (let i=0;i<116;i++) {
+    const depth = 4.75 + (rand()**1.3)*29;
+    points.push(side*depth,rand()*8 - .35,(rand()-.5)*69);
+    phases.push(rand());
+  }
+  const geometry = new T.BufferGeometry();
+  geometry.setAttribute('position',new T.Float32BufferAttribute(points,3));
+  geometry.setAttribute('phase',new T.Float32BufferAttribute(phases,1));
+  const snow = new T.Points(geometry,new T.ShaderMaterial({
+    transparent:true, depthWrite:false, uniforms:{time},
+    vertexShader:`
+      uniform float time;
+      attribute float phase;
+      varying float alpha;
+      void main(){
+        vec3 p=position;
+        float cycle=mod(p.y+0.35-time*(0.19+phase*0.15),8.0);
+        p.y=cycle-0.35;
+        p.x+=sin(time*0.45+phase*14.0)*0.23;
+        p.z+=sin(time*0.22+phase*21.0)*0.46;
+        vec4 view=modelViewMatrix*vec4(p,1.0);
+        gl_Position=projectionMatrix*view;
+        gl_PointSize=clamp((15.0+phase*8.5)/max(1.0,-view.z),0.65,2.05);
+        alpha=(0.19+phase*.30)*smoothstep(0.03,.7,cycle)*
+          (1.0-smoothstep(7.2,8.0,cycle))*(1.0-smoothstep(25.0,43.0,-view.z));
+      }
+    `,
+    fragmentShader:`
+      varying float alpha;
+      void main(){
+        float shape=1.0-smoothstep(.12,.49,length(gl_PointCoord-.5));
+        gl_FragColor=vec4(.64,.77,.96,alpha*shape);
+        #include <colorspace_fragment>
+      }
+    `,
+  }));
+  snow.frustumCulled=false;
+  return snow;
+}
+
 export function buildIcelandAurora(scene) {
   const time = {value:0};
   const dome = sky(time);
+  const snow = lightSnow(time);
   const terrain = new T.Group();
   const tile = new T.Group();
   const floating = [];
@@ -357,12 +427,13 @@ export function buildIcelandAurora(scene) {
     });
     terrain.add(copy);
   }
-  scene.add(dome,terrain);
+  scene.add(dome,terrain,snow);
   return {
     layers: [], trainSpeed: 6.9, sceneryFrameLimit: .16,
     animateAmbient(seconds,trainZ) {
       time.value=seconds;
       dome.position.z=trainZ;
+      snow.position.z=trainZ;
       terrain.position.z=Math.floor(trainZ/span)*span;
       for(const {mesh,phase} of floating){
         if (mesh.name === 'IceDrift') {
