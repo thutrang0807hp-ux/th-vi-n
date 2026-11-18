@@ -277,30 +277,56 @@ function buildBooths() {
   }
 }
 
-function buildEndWall() {
-  const z = -17.2;
-  box(halfCabin * 2 + 0.12, 3.85, 0.18, darkWood, 0, 1.9, z);
-  box(1.43, 2.63, 0.26, bronze, 0, 1.32, z + 0.12, 0.09);
-  box(1.31, 2.52, 0.24, walnut, 0, 1.29, z + 0.16, 0.075);
-  box(0.88, 1.12, 0.07, material('#6c8581', 0.24), 0, 1.73, z + 0.3, 0.06);
-  box(0.046, 1.12, 0.06, bronze, 0, 1.73, z + 0.343);
-  box(0.88, 0.05, 0.06, bronze, 0, 1.73, z + 0.343);
-  oval(bronze, 0.48, 1.04, z + 0.33, 0.06, 0.06, 0.05);
-  oval(bronze, 0, 3.11, z + 0.22, 0.24, 0.24, 0.065);
-  oval(pillow, 0, 3.11, z + 0.27, 0.19, 0.19, 0.04);
-  box(0.022, 0.16, 0.02, darkWood, 0, 3.14, z + 0.311).rotation.z = -0.35;
-  box(0.12, 0.02, 0.02, darkWood, -0.04, 3.11, z + 0.311);
+function buildBulkhead(z, facesFront) {
+  const start = scene.children.length;
+  const profile = new T.Shape();
+  profile.moveTo(-halfCabin, -0.02);
+  profile.lineTo(halfCabin, -0.02);
+  profile.lineTo(halfCabin, 3);
+  for (let i = 1; i <= 32; i++) {
+    const angle = i * Math.PI / 32;
+    profile.lineTo(Math.cos(angle) * halfCabin, 3 + Math.sin(angle) * 1.04);
+  }
+  profile.closePath();
+  mesh(new T.ExtrudeGeometry(profile, { depth: 0.17, bevelEnabled: false }), darkWood, 0, 0, -0.11);
+  box(8, 0.15, 0.08, bronze, 0, 2.83, 0.055);
+  box(8, 0.17, 0.12, walnut, 0, 0.12, 0.065);
+  box(1.54, 2.7, 0.22, darkWood, 0, 1.36, 0.14, 0.09);
+  box(1.45, 2.61, 0.19, bronze, 0, 1.36, 0.19, 0.075);
+  box(1.33, 2.52, 0.21, walnut, 0, 1.33, 0.22, 0.075);
+  box(0.93, 1.17, 0.06, bronze, 0, 1.77, 0.34, 0.07);
+  box(0.83, 1.07, 0.045, material('#354849', 0.28), 0, 1.77, 0.37, 0.065);
+  box(0.034, 1.07, 0.035, bronze, 0, 1.77, 0.401);
+  box(0.83, 0.037, 0.035, bronze, 0, 1.77, 0.401);
+  box(0.85, 0.42, 0.045, darkWood, 0, 0.49, 0.335, 0.035);
+  box(0.73, 0.31, 0.04, walnut, 0, 0.49, 0.36, 0.03);
+  oval(bronze, 0.49, 1.07, 0.35, 0.063, 0.05, 0.034);
+  oval(bronze, 0, 3.15, 0.12, 0.245, 0.245, 0.072);
+  oval(pillow, 0, 3.15, 0.174, 0.196, 0.196, 0.04);
+  box(0.018, 0.15, 0.02, darkWood, 0.025, 3.18, 0.215).rotation.z = -0.55;
+  box(0.10, 0.016, 0.02, darkWood, -0.035, 3.15, 0.216);
   for (const side of [-1, 1]) {
-    const x = side * 1.99;
+    const x = side * 2.35;
+    box(2.38, 2.57, 0.115, walnut, x, 1.42, 0.095, 0.05);
+    box(2.16, 2.36, 0.11, darkWood, x, 1.42, 0.14, 0.035);
     for (let shelf = 0; shelf < 4; shelf++) {
-      const y = 0.5 + shelf * 0.62;
-      box(1.97, 0.095, 0.41, walnut, x, y, z + 0.27);
+      const y = 0.41 + shelf * 0.55;
+      box(2.14, 0.087, 0.35, walnut, x, y, 0.25);
       for (let i = 0; i < 12; i++) {
-        const h = 0.2 + random() * 0.25;
-        box(0.115, h, 0.22, bookColors[i % 4], x - 0.8 + i * 0.14, y + 0.05 + h / 2, z + 0.31);
+        const h = 0.18 + random() * 0.22;
+        box(0.107, h, 0.17, bookColors[(i + shelf) % 4], x - 0.87 + i * 0.15,
+          y + 0.045 + h / 2, 0.27);
       }
     }
+    box(0.18, 0.38, 0.13, bronze, side * 3.7, 2.28, 0.13, 0.03);
+    oval(lightShade, side * 3.7, 2.29, 0.21, 0.075, 0.15, 0.058);
   }
+  const wall = new T.Group();
+  for (const object of scene.children.slice(start)) wall.add(object);
+  batchScenery(wall, false);
+  wall.position.z = z;
+  if (facesFront) wall.rotation.y = Math.PI;
+  scene.add(wall);
 }
 
 function buildScenery() {
@@ -309,10 +335,13 @@ function buildScenery() {
   const lake = material('#528e9b', 0.32, 0.12);
   const stone = material('#9c8b83');
   const trunks = material('#554639');
-  const gravel = material('#9b8162');
+  const gravel = material('#7e7769');
+  const grass = material('#536c48');
+  const ochre = material('#b19a66');
+  const shrub = material('#59794b');
   const pines = ['#234c49', '#355b48', '#557253'].map(color => material(color));
   const conifer = new T.ConeGeometry(1, 1, 7);
-  const ripple = new T.MeshBasicMaterial({ color: '#86b2bb' });
+  const ripple = new T.MeshBasicMaterial({ color: '#79a6af' });
 
   scene.fog.color.set('#c1a4b0');
   const sky = new T.ShaderMaterial({
@@ -334,7 +363,13 @@ function buildScenery() {
       varying vec3 direction;
       void main() {
         float height = smoothstep(-0.04, 0.42, normalize(direction).y);
-        gl_FragColor = vec4(mix(horizon, zenith, height), 1.0);
+        vec3 ray = normalize(direction);
+        float bands = sin(ray.x * 10.0 + ray.z * 4.0 + ray.y * 42.0)
+          + 0.55 * sin(ray.z * 17.0 + ray.y * 71.0);
+        float cloud = smoothstep(0.65, 1.4, bands) * smoothstep(0.07, 0.2, ray.y)
+          * (1.0 - smoothstep(0.36, 0.66, ray.y));
+        vec3 skyColor = mix(horizon, zenith, height);
+        gl_FragColor = vec4(mix(skyColor, horizon * 1.17, cloud * 0.46), 1.0);
         #include <colorspace_fragment>
       }
     `
@@ -375,25 +410,61 @@ function buildScenery() {
 
   loop(74, 9.2, 3, length => {
     for (const side of [-1, 1]) {
-      for (let i = 0; i < 16; i++) {
-        grove(side * (7.7 + random() * 2.7), -length / 2 + (i + random()) * length / 16,
-          2 + random() * 3.8, i % 3);
+      const geometry = new T.PlaneGeometry(length, 1, 60, 10);
+      const vertices = geometry.attributes.position;
+      function bank(z) {
+        const phase = z / length * Math.PI * 2;
+        return 13.2 + 2.15 * Math.sin(phase * 2 + side) + 1.45 * Math.cos(phase * 3);
       }
-      for (let i = 0; i < 9; i++) {
-        const z = -length / 2 + 3 + i * 8;
-        oval(gravel, side * (5.8 + random() * 0.7), -2.26, z, 0.45, 0.19, 0.75);
+      for (let i = 0; i < vertices.count; i++) {
+        const z = vertices.getX(i);
+        const t = vertices.getY(i) + 0.5;
+        const edge = bank(z);
+        const slope = Math.sin(t * Math.PI) ** 1.25;
+        const y = -2.45 + slope * (0.73 + 0.29 * Math.cos(z / length * Math.PI * 6 + side));
+        vertices.setXYZ(i, side * (4.4 + t * (edge - 4.4)), y, z);
+      }
+      if (side === -1) {
+        const indices = geometry.index.array;
+        for (let i = 0; i < indices.length; i += 3) {
+          [indices[i + 1], indices[i + 2]] = [indices[i + 2], indices[i + 1]];
+        }
+      }
+      geometry.computeVertexNormals();
+      grass.side = T.DoubleSide;
+      mesh(geometry, grass, 0, 0, 0);
+      for (let cluster = 0; cluster < 5; cluster++) {
+        const center = -length / 2 + 6 + cluster * 14 + random() * 5;
+        const count = 2 + Math.floor(random() * 5);
+        for (let i = 0; i < count; i++) {
+          const z = center + (random() - 0.5) * 7;
+          const x = 6.8 + random() * Math.max(1, bank(z) - 8);
+          grove(side * x, z, 1.7 + random() * 4.4, i % 3);
+        }
+      }
+      for (let i = 0; i < 26; i++) {
+        const z = (random() - 0.5) * length;
+        const x = side * (6 + random() * (bank(z) - 5));
+        const size = 0.13 + random() * 0.45;
+        const mound = oval([gravel, shrub, ochre][i % 3], x, -2.02, z, size, size * 0.39, size * 1.35);
+        mound.rotation.y = random() * Math.PI;
       }
     }
   });
 
   loop(98, 3.25, 2, length => {
     for (const side of [-1, 1]) {
-      for (let i = 0; i < 36; i++) {
-        box(0.23 + random() * 0.64, 0.009, 0.45 + random() * 2.7, ripple,
-          side * (12 + random() * 32), -2.293, (random() - 0.5) * length);
+      for (let i = 0; i < 48; i++) {
+        const glint = box(0.05 + random() * 0.17, 0.007, 0.45 + random() * 3.4, ripple,
+          side * (14 + random() * 29), -2.293, (random() - 0.5) * length);
+        glint.rotation.y = (random() - 0.5) * 0.4;
       }
-      for (let i = 0; i < 19; i++) {
-        grove(side * (45.9 + random() * 8), (random() - 0.5) * length, 3.1 + random() * 4.6, i % 3);
+      for (let i = 0; i < 9; i++) {
+        const z = -44 + i * 11;
+        oval(grass, side * (49 + random() * 3), -2.52, z, 6.8 + random() * 3, 1.6 + random() * 1.4, 8.5);
+        for (let n = 0; n < 5; n++) {
+          grove(side * (44.5 + random() * 9), z + (random() - 0.5) * 9, 2.4 + random() * 4.5, n % 3);
+        }
       }
     }
     const bridgeX = -29;
@@ -424,7 +495,9 @@ function buildScenery() {
           const slope = vertices.getY(i) / 32 + 0.5;
           const angle = z / length * Math.PI * 2;
           const jagged = 0.46 * Math.sin(angle * 5 + side) + 0.28 * Math.cos(angle * 11 + row);
-          const peak = 15 + 9 * row + 11 * Math.sin(angle * 3 + row * 1.4) ** 2 + jagged * 6;
+          const rolling = 0.65 + 0.35 * Math.cos(angle * 2 - row * 1.6 + side);
+          const peak = 9 + 12 * row + 14 * rolling * Math.sin(angle * (2 + row) + row * 1.4) ** 2
+            + jagged * (4 + row * 3);
           const height = Math.sin(slope * Math.PI) ** 1.4 * peak + Math.sin(angle * 17 + slope * 17)
             * Math.sin(slope * Math.PI) * 1.6;
           vertices.setXYZ(i, side * (46 + row * 24 + slope * 32), -2.45 + height, z);
@@ -506,7 +579,8 @@ function start() {
   finishMaterials();
   buildShell();
   buildBooths();
-  buildEndWall();
+  buildBulkhead(-17.33, false);
+  buildBulkhead(13.42, true);
   const scenery = buildScenery();
   batchScenery();
   play(renderer, buildMascot(), scenery);
