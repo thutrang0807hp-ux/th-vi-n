@@ -124,6 +124,43 @@ function distantCherryCard(profile) {
   return new T.MeshBasicMaterial({ map, alphaTest: 0.43, side: T.DoubleSide, toneMapped: false });
 }
 
+function distantFlowerCard(petals) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 72;
+  const ctx = canvas.getContext('2d');
+  const blooms = [[14, 28, 5], [34, 14, 7], [51, 32, 5], [65, 19, 6],
+    [84, 34, 6], [100, 17, 6], [116, 37, 4], [46, 43, 4], [76, 46, 4]];
+  for (const [x, y] of blooms) {
+    ctx.strokeStyle = '#77954f';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(x - 4, 72);
+    ctx.quadraticCurveTo(x + 2, 52, x, y + 4);
+    ctx.stroke();
+    ctx.fillStyle = '#91a659';
+    ctx.beginPath();
+    ctx.moveTo(x, 59);
+    ctx.lineTo(x + 10, 46);
+    ctx.lineTo(x + 4, 58);
+    ctx.fill();
+  }
+  blooms.forEach(([x, y, size], index) => {
+    ctx.fillStyle = petals[index % petals.length];
+    ctx.beginPath();
+    ctx.moveTo(x - size, y - size * 0.55);
+    ctx.lineTo(x - size * 0.24, y - size * 0.28);
+    ctx.lineTo(x + size * 0.21, y - size * 0.8);
+    ctx.lineTo(x + size, y - size * 0.35);
+    ctx.quadraticCurveTo(x + size * 0.83, y + size, x, y + size * 0.86);
+    ctx.quadraticCurveTo(x - size * 0.78, y + size * 0.9, x - size, y - size * 0.55);
+    ctx.fill();
+  });
+  const map = new T.CanvasTexture(canvas);
+  map.colorSpace = T.SRGBColorSpace;
+  return new T.MeshBasicMaterial({ map, alphaTest: 0.36, side: T.DoubleSide, toneMapped: false });
+}
+
 export function plantExteriorStudy(scene, kit, ground, length, farBank) {
   const root = new T.Group();
   root.name = 'Tulip meadow tile';
@@ -248,6 +285,37 @@ export function plantExteriorStudy(scene, kit, ground, length, farBank) {
     greens.computeBoundingSphere();
     root.add(bulbs, greens);
   }
+
+  const horizonColors = [
+    ['#ea859d', '#efa8b5', '#dd6d94'],
+    ['#f2c968', '#ffe3a4', '#f5d58d'],
+    ['#c5a2d9', '#d4b4e4', '#bca0dd'],
+    ['#fff1d9', '#f6e1c1', '#ffe4be'],
+    ['#e9867c', '#f4a995', '#e98c96'],
+  ];
+  const horizonBands = horizonColors.map(() => []);
+  const horizonColumns = Math.ceil(length / 0.84);
+  for (const side of [-1, 1]) {
+    for (let row = 0; row < 18; row++) {
+      for (let column = 0; column < horizonColumns; column++) {
+        const z = -halfLength + (column + 0.2 + random() * 0.58) * length / horizonColumns;
+        const phase = z * Math.PI * 2 / length;
+        const start = Math.max(39.1, farBank(side, z) + 8.7);
+        const x = side * (start + row * 0.74 + Math.sin(phase * 2 + row * 0.22) * 0.68);
+        if (houseSites.some(([hx, hz, radius]) => Math.abs(x - hx) < radius && Math.abs(z - hz) < radius)) continue;
+        const band = Math.floor(row / 2.65 + 0.62 * Math.sin(phase) + 1) % horizonBands.length;
+        horizonBands[band].push([x, z, 0.76 + random() * 0.47, Math.PI / 2 + (random() - 0.5) * 0.56]);
+      }
+    }
+  }
+  const flowerPatch = new T.PlaneGeometry(1.27, 0.57).translate(0, 0.225, 0);
+  horizonBands.forEach((patches, band) => {
+    const cluster = new T.InstancedMesh(flowerPatch, distantFlowerCard(horizonColors[band]), patches.length);
+    cluster.name = 'Distant flower ribbons';
+    patches.forEach(([x, z, scale, angle], i) => put(cluster, i, x, ground(x, z), z, scale, angle));
+    cluster.computeBoundingSphere();
+    root.add(cluster);
+  });
 
   const fenceBay = length / Math.ceil(length / 3);
   for (let z = -halfLength; z < halfLength - fenceBay / 2; z += fenceBay) {
