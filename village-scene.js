@@ -101,6 +101,108 @@ function textile() {
   return new T.MeshStandardMaterial({ map: texture, roughness: 0.95 });
 }
 
+const reviewBayZ = 4.7;
+const isReviewBooth = (side, z) => side > 0 && Math.abs(z - reviewBayZ) < 0.01;
+let bayMaterials;
+function reviewFinishes() {
+  if (bayMaterials) return bayMaterials;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 96;
+  const context = canvas.getContext('2d');
+  const data = context.createImageData(96, 96);
+  for (let y = 0; y < 96; y++) for (let x = 0; x < 96; x++) {
+    const yarn = 236 + 8 * Math.sin(x * Math.PI / 2) * Math.cos(y * Math.PI / 2)
+      + 5 * Math.cos((x + y) * Math.PI / 4) + 3 * Math.sin(x * 0.73 + y * 0.91);
+    data.data.set([yarn, yarn, yarn, 255], (y * 96 + x) * 4);
+  }
+  context.putImageData(data, 0, 0);
+  const weave = new T.CanvasTexture(canvas);
+  const fabric = material('#527553', 0.95);
+  fabric.map = weave;
+  fabric.bumpMap = weave;
+  fabric.bumpScale = 0.0032;
+  const fabricEdge = fabric.clone();
+  fabricEdge.color.set('#3c5c42');
+  const linen = fabric.clone();
+  linen.color.set('#d7c19d');
+  linen.side = T.DoubleSide;
+  linen.bumpScale = 0.002;
+  const wood = walnut.clone();
+  wood.color.set('#a8673a');
+  wood.roughness = 0.48;
+  const silk = new T.MeshStandardMaterial({
+    color: '#ffead1', emissive: '#f5a95c', emissiveIntensity: 0.62, roughness: 0.82,
+  });
+  bayMaterials = {
+    fabric, fabricEdge, linen, wood, silk,
+    piping: material('#ddc59a', 0.84),
+    brass: material('#b48b55', 0.47, 0.42),
+  };
+  return bayMaterials;
+}
+
+const bayGeometry = new Map();
+function bayBox(width, height, depth, radius, finish, x, y, z) {
+  const key = [width, height, depth, radius].join('/');
+  if (!bayGeometry.has(key)) {
+    bayGeometry.set(key, radius ? new RoundedBoxGeometry(width, height, depth, 1, radius)
+      : new T.BoxGeometry(width, height, depth));
+  }
+  return mesh(bayGeometry.get(key), finish, x, y, z);
+}
+
+function bayPiping(width, height, corner, thin, surface, x, y, z, floor = false) {
+  const key = [width, height, corner, thin, floor].join('/');
+  if (!bayGeometry.has(key)) {
+    const points = [];
+    for (let quadrant = 0; quadrant < 4; quadrant++) {
+      const angle = quadrant * Math.PI / 2;
+      const cx = Math.sign(Math.cos(angle + Math.PI / 4)) * (width / 2 - corner);
+      const cy = Math.sign(Math.sin(angle + Math.PI / 4)) * (height / 2 - corner);
+      for (let i = 0; i <= 3; i++) {
+        const t = angle + i * Math.PI / 6;
+        const px = cx + corner * Math.cos(t);
+        const py = cy + corner * Math.sin(t);
+        points.push(new T.Vector3(px, floor ? 0 : py, floor ? py : 0));
+      }
+    }
+    const path = new T.CatmullRomCurve3(points, true, 'centripetal');
+    bayGeometry.set(key, new T.TubeGeometry(path, 32, thin, 5, true));
+  }
+  return mesh(bayGeometry.get(key), surface, x, y, z);
+}
+
+function reviewBackrest(x, back, direction) {
+  const m = reviewFinishes();
+  bayBox(1.83, 1.15, 0.30, 0.14, m.fabricEdge, x, 1.03, back);
+  bayBox(1.72, 0.99, 0.274, 0.145, m.fabric, x, 1.052, back - direction * 0.078);
+  const face = back - direction * 0.213;
+  bayPiping(1.61, 0.866, 0.124, 0.013, m.piping, x, 1.055, face);
+  for (const offset of [-0.262, 0.262]) {
+    bayBox(0.009, 0.69, 0.009, 0.004, m.fabricEdge, x + offset, 1.051, face - direction * 0.006);
+  }
+}
+
+function reviewLamp(x, z) {
+  const m = reviewFinishes();
+  const profile = (points, surface, y) =>
+    mesh(new T.LatheGeometry(points.map(([r, h]) => new T.Vector2(r, h)), 24), surface, x, y, z);
+  profile([[0, 0], [.165, 0], [.165, .015], [.142, .027], [.077, .049], [.040, .080],
+    [.034, .155], [.055, .184], [.043, .213], [.041, .281], [0, .281]], m.brass, 1.029);
+  profile([[.218, 0], [.212, .022], [.196, .066], [.17, .115], [.129, .16],
+    [.086, .191], [.056, .199]], m.silk, 1.29);
+  for (const [radius, y] of [[.218, 1.289], [.056, 1.487]]) {
+    mesh(new T.TorusGeometry(radius, .0048, 6, 28), m.brass, x, y, z).rotation.x = Math.PI / 2;
+  }
+  for (let rib = 0; rib < 6; rib++) {
+    const angle = rib * Math.PI / 3;
+    const curve = new T.CatmullRomCurve3([[.218, 0], [.197, .066], [.129, .16], [.056, .198]]
+      .map(([r, y]) => new T.Vector3(Math.cos(angle) * r, y, Math.sin(angle) * r)));
+    mesh(new T.TubeGeometry(curve, 7, .0022, 4), m.brass, x, 1.29, z);
+  }
+  oval(m.brass, x, 1.504, z, .034, .023, .034);
+}
+
 function buildShell() {
   box(halfCabin * 2 + 0.24, 0.24, 31, darkWood, 0, -0.15, -2);
   const planks = Array.from({ length: 7 }, (_, i) => material(new T.Color('#744327').multiplyScalar(0.8 + i * 0.066), 0.47));
@@ -142,7 +244,11 @@ function buildShell() {
     for (let z = -16; z <= 13; z += 3.6) {
       box(0.23, 2.3, 0.2, darkWood, x, 1.99, z);
       box(0.075, 0.045, 3.45, bronze, x, 2.79, z + 1.8);
-      for (const direction of [-1, 1]) drape(x, z, side, direction);
+      for (const direction of [-1, 1]) {
+        const reviewDrape = side > 0 && ((Math.abs(z - 2) < .01 && direction > 0)
+          || (Math.abs(z - 5.6) < .01 && direction < 0));
+        drape(x, z, side, direction, reviewDrape);
+      }
       box(0.36, 0.26, 0.67, leather, x - side * 0.2, 3.33, z + 0.9, 0.052);
     }
   }
@@ -179,7 +285,7 @@ function finishMaterials() {
   curtain.side = T.DoubleSide;
 }
 
-function drape(x, z, side, direction) {
+function drape(x, z, side, direction, review) {
   const geometry = new T.PlaneGeometry(1, 1, 30, 24);
   const vertices = geometry.attributes.position;
   for (let i = 0; i < vertices.count; i++) {
@@ -192,8 +298,10 @@ function drape(x, z, side, direction) {
       direction * (0.08 + u * spread));
   }
   geometry.computeVertexNormals();
-  mesh(geometry, curtain, x - side * 0.12, 0, z);
-  box(0.12, 0.043, 0.22, bronze, x - side * 0.155, 1.85, z + direction * 0.19, 0.014);
+  const finishes = review ? reviewFinishes() : null;
+  mesh(geometry, finishes?.linen ?? curtain, x - side * 0.12, 0, z);
+  box(0.12, 0.043, 0.22, finishes?.brass ?? bronze,
+    x - side * 0.155, 1.85, z + direction * 0.19, 0.014);
 }
 
 const shadeProfile = [
@@ -244,22 +352,37 @@ function buildBooths() {
   shadowGeometry.rotateX(-Math.PI / 2);
   for (const side of [-1, 1]) for (let z = -13.3; z <= 12; z += 3.6) {
     const x = side * boothCenter;
+    const review = isReviewBooth(side, z);
+    const finishes = review ? reviewFinishes() : null;
     for (const direction of [-1, 1]) {
       const back = z + direction * 1.29;
       mesh(shadowGeometry, shadowMaterial, x, 0.004, back - direction * 0.2);
-      box(1.8, 0.53, 0.79, darkWood, x, 0.29, back - direction * 0.17, 0.08);
-      box(1.75, 0.28, 0.83, green, x, 0.62, back - direction * 0.23, 0.12);
-      boothPadding(x, back, direction);
-      box(0.23, 0.3, 0.81, green, x - side * 0.82, 0.81, back - direction * 0.27, 0.1);
-      const cushion = box(0.47, 0.48, 0.16, pillow, x + side * 0.36, 0.95, back - direction * 0.32, 0.075);
+      if (review) {
+        bayBox(1.8, 0.53, 0.79, 0.08, darkWood, x, 0.29, back - direction * 0.17);
+        bayBox(1.75, 0.28, 0.83, 0.12, finishes.fabric, x, 0.62, back - direction * 0.23);
+        bayPiping(1.64, 0.727, 0.11, 0.010, finishes.piping,
+          x, 0.741, back - direction * 0.23, true);
+        reviewBackrest(x, back, direction);
+        bayBox(0.23, 0.3, 0.81, 0.1, finishes.fabricEdge, x - side * 0.82, 0.81,
+          back - direction * 0.27);
+      } else {
+        box(1.8, 0.53, 0.79, darkWood, x, 0.29, back - direction * 0.17, 0.08);
+        box(1.75, 0.28, 0.83, green, x, 0.62, back - direction * 0.23, 0.12);
+        boothPadding(x, back, direction);
+        box(0.23, 0.3, 0.81, green, x - side * 0.82, 0.81, back - direction * 0.27, 0.1);
+      }
+      const cushion = box(0.47, 0.48, 0.16, finishes?.linen ?? pillow,
+        x + side * 0.36, 0.95, back - direction * 0.32, 0.075);
       cushion.rotation.z = direction * 0.22;
     }
-    box(1.58, 0.115, 0.94, walnut, x, 0.97, z, 0.065);
+    box(1.58, 0.115, 0.94, finishes?.wood ?? walnut, x, 0.97, z, 0.065);
+    if (review) bayPiping(1.48, 0.85, 0.072, 0.0048, finishes.brass, x, 1.029, z, true);
     box(1.52, 0.027, 0.887, bronze, x, 0.943, z, 0.014);
     cylinder(0.105, 0.16, 0.85, darkWood, x, 0.49, z);
     cylinder(0.22, 0.23, 0.045, walnut, x, 0.066, z);
     const lampX = x + side * 0.23;
-    tableLamp(lampX, z);
+    if (review) reviewLamp(lampX, z);
+    else tableLamp(lampX, z);
     const books = new T.Group();
     for (let i = 0; i < 2; i++) {
       const book = box(0.28, 0.048, 0.19, bookColors[(i + Math.round(z + 14)) % bookColors.length], x - side * 0.23, 1.05 + i * 0.049, z + 0.18, 0.01);
@@ -278,7 +401,8 @@ function buildBooths() {
     }
     scene.add(books);
     if (side > 0) tableStacks.push(books);
-    if (z > 3 && z < 10) point('#ffc27d', 8, 2.6, lampX, 1.28, z);
+    if (z > 3 && z < 10) point(review ? '#ffdab0' : '#ffc27d',
+      review ? 6.5 : 8, 2.6, lampX, 1.28, z);
   }
   return tableStacks;
 }
