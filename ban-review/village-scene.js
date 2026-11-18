@@ -1879,6 +1879,22 @@ function play(renderer, avatar,
       return true;
     },
   });
+  panel.querySelector('#focus-watch-mochi').addEventListener('click', () => {
+    if (!seated) toggleSeat();
+    if (firstPerson) toggleCamera();
+    if (manualActivity) {
+      manualActivity = false;
+      activity = 'idle';
+      renderedActivity = 'idle';
+      activityPicker.value = activity;
+      focusActivity.value = activity;
+      currentSeat.books.visible = true;
+      focusCompanion.reset();
+      avatar.setActivity(activity);
+    }
+    needsRender = true;
+    panel.close();
+  });
   mountFocusPlanner(panel);
   mountFocusTimer(panel,focusWidget);
 

@@ -345,3 +345,13 @@ dialog h2 { margin: 0 0 12px; font-size: 1.1rem; }
 .focus-companion-settings .focus-companion-level { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .focus-companion-level input { width: 45%; }
 #focus-companion-state { margin: 5px 0 0; color: #dbc1a4; }
+
+.focus-companion-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 8px;
+  align-items: center;
+  margin: -2px 0 12px;
+}
+.focus-companion-preview button { padding: 6px 9px; font-size: .8rem; }
+.focus-companion-preview #focus-companion-state { margin: 0; font-size: .76rem; }
