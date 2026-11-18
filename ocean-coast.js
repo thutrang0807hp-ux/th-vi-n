@@ -44,18 +44,17 @@ function sky() {
 
 const shoreMath = `
   uniform float waveTime;
-  uniform vec3 shoreTravel, swellTravel;
+  uniform vec3 shoreTravel;
   const float coastUnit = ${(2 * Math.PI / travelLength).toFixed(10)};
 
   float nearPhase(float z) { return (z - shoreTravel.z) * coastUnit; }
-  float swellPhase(float z) { return (z - swellTravel.z) * coastUnit; }
   float shore(float z) {
     float a = nearPhase(z);
     return 8.6 + 1.76 * sin(a * 3.0 + 0.35)
       + 0.83 * sin(a * 5.0 + 1.11) + 0.23 * sin(a * 9.0 - 0.2);
   }
   float wavePhase(float depth, float z) {
-    float a = swellPhase(z);
+    float a = z * coastUnit;
     float nearCoast = 1.0 - smoothstep(19.0, 56.0, depth);
     float shoreCurves = 1.24 * sin(a * 5.0 + depth * 0.18 + waveTime * 0.16)
       + 0.43 * sin(a * 12.0 - depth * 0.19 - waveTime * 0.12);
@@ -64,7 +63,7 @@ const shoreMath = `
   }
 `;
 
-function coastalSurface(cloudDrift, waveTime, layers) {
+function coastalSurface(cloudDrift, waveTime, beach) {
   const material = new T.ShaderMaterial({
     side: T.DoubleSide,
     uniforms: {
@@ -77,8 +76,7 @@ function coastalSurface(cloudDrift, waveTime, layers) {
       hazyWater: { value: tint('#4799d1') },
       foamTint: { value: tint('#f6fcf6') },
       cloudDrift, waveTime,
-      shoreTravel: { value: layers[0].strip.position },
-      swellTravel: { value: layers[1].strip.position },
+      shoreTravel: { value: beach.position },
     },
     vertexShader: shoreMath + `
       varying vec3 surfPoint;
@@ -86,8 +84,9 @@ function coastalSurface(cloudDrift, waveTime, layers) {
         vec3 p = position;
         float radius = abs(p.x);
         float depth = radius - mix(8.6, shore(p.z), 1.0 - smoothstep(23.0, 56.0, radius));
-        float swell = pow(0.5 + 0.5 * sin(wavePhase(depth, p.z)), 6.0);
-        float breaks = smoothstep(0.0, 1.1, depth) * (1.0 - smoothstep(16.0, 30.0, depth));
+        float swell = pow(0.5 + 0.5 * sin(wavePhase(radius - 8.6, p.z)), 6.0);
+        float waveDepth = radius - 8.6;
+        float breaks = smoothstep(0.0, 1.1, waveDepth) * (1.0 - smoothstep(16.0, 30.0, waveDepth));
         breaks *= 0.78 + 0.22 * sin(waveTime * 0.48 + p.z * 0.08);
         p.y = -0.48 + (1.0 - smoothstep(-5.0, -0.2, depth)) * 0.17 + swell * breaks * 0.22;
         surfPoint = (modelMatrix * vec4(p, 1.0)).xyz;
@@ -133,7 +132,8 @@ function coastalSurface(cloudDrift, waveTime, layers) {
         float z = surfPoint.z;
         float radius = abs(surfPoint.x);
         float depth = radius - mix(8.6, shore(z), 1.0 - smoothstep(23.0, 56.0, radius));
-        vec2 uv = vec2(depth, z);
+        float waveDepth = radius - 8.6;
+        vec2 uv = vec2(waveDepth, z);
         float surge = sin(waveTime * 0.94 + z * 0.11) * 0.59 + sin(waveTime * 1.41 - z * 0.09) * 0.16;
         float coast = nearPhase(z);
         float swash = -0.19 + 0.29 * sin(coast * 10.0) + 0.14 * sin(coast * 25.0 + 0.4) - surge
@@ -150,14 +150,14 @@ function coastalSurface(cloudDrift, waveTime, layers) {
         vec3 water = mix(lagoon, shelf, smoothstep(1.4, 16.0, d));
         water = mix(water, blueWater, smoothstep(12.0, 52.0, d));
         water = mix(water, hazyWater, smoothstep(74.0, 144.5, radius) * 0.94);
-        float phase = wavePhase(depth, z);
+        float phase = wavePhase(waveDepth, z);
         float front = 0.5 + 0.5 * sin(phase);
-        float ripple = sin(depth * 5.1 + z * 0.24 + waveTime * 1.5 + noise(uv * 0.47) * 3.4);
+        float ripple = sin(waveDepth * 5.1 + z * 0.24 + waveTime * 1.5 + noise(uv * 0.47) * 3.4);
         float fine = 1.0 - smoothstep(24.0, 82.0, radius);
         float crest = pow(front, 10.0);
-        float drift = swellPhase(z);
-        float swellPatch = smoothstep(0.08, 0.87, 0.50 + 0.32 * sin(drift * 5.0 + depth * 0.22)
-          + 0.17 * sin(drift * 9.0 - depth * 0.39));
+        float drift = z * coastUnit;
+        float swellPatch = smoothstep(0.08, 0.87, 0.50 + 0.32 * sin(drift * 5.0 + waveDepth * 0.22)
+          + 0.17 * sin(drift * 9.0 - waveDepth * 0.39));
         float shallows = 1.0 - smoothstep(14.0, 44.0, d);
         water *= 1.0 + (swellPatch - 0.53) * shallows * 0.34;
         water += vec3(0.015, 0.10, 0.082) * swellPatch * shallows * 0.40;
@@ -190,7 +190,7 @@ function coastalSurface(cloudDrift, waveTime, layers) {
         vec3 viewDir = normalize(surfPoint - cameraPosition);
         vec3 oceanRay = vec3(abs(viewDir.x), -viewDir.y, viewDir.z);
         float streak = exp(-pow((oceanRay.z - sun.z) / (0.084 + 0.073 * fine), 2.0));
-        float glint = smoothstep(0.47, 0.88, noise(vec2(depth * 4.1 + waveTime * 1.2, z * 3.2)));
+        float glint = smoothstep(0.47, 0.88, noise(vec2(waveDepth * 4.1 + waveTime * 1.2, z * 3.2)));
         float shadowZ = surfPoint.x >= 0.0 ? z : -z + 8.5 + cloudDrift * 2.0;
         vec2 point = vec2(radius, shadowZ);
         float shade = max(cloudShadow(point, vec3(84.0, 13.7, 35.0), vec2(11.6, 16.1)),
@@ -405,67 +405,64 @@ function cumulus() {
   return clouds;
 }
 
-function movingSurf(layer, coast, waveTime) {
-  const positions = [], fade = [];
-  function triangle(a, b, c, opacity) {
-    positions.push(...a, ...b, ...c);
-    fade.push(...opacity);
-  }
+function movingBeach() {
+  const beach = new T.Group();
+  beach.name = 'Bờ cát chuyển động';
+  const positions = [], colors = [];
+  const dry = tint('#e9b985'), lee = tint('#ab7956'), lit = tint('#f6d0a3');
+  const cycle = [
+    [-58, 6.21, 0.83, 3.6, 1.12], [-45, 5.43, 1.05, 6.4, 0.75], [-24, 6.37, 0.86, 5.3, 1.24],
+    [-10, 5.70, 1.49, 5.9, 0.47], [3, 5.60, 1.23, 5.0, 0.82], [22, 6.04, 0.97, 6.7, 1.07],
+    [39, 5.64, 1.34, 4.8, 0.64], [54, 5.70, 1.19, 4.4, 0.97],
+    [-50, 15.2, 2.5, 6.8, 0.83], [-29, 17.1, 2.15, 5.4, 0.93],
+    [-13, 15.6, 1.8, 4.4, 0.51], [8, 14.8, 2.6, 5.1, 0.76], [32, 17.5, 1.76, 6.1, 0.84],
+  ];
   for (const side of [-1, 1]) {
-    for (let i = 0; i < 28; i++) {
-      const z = -travelLength / 2 + (i + 0.42) * travelLength / 28;
-      const x = side * (10.0 + ((i * 7) % 19) * 0.84);
-      const length = 1.8 + ((i * 3) % 8) * 0.45;
-      const width = 0.28 + (i % 4) * 0.13;
-      for (let part = 0; part < 5; part++) {
-        const a = part / 5, b = (part + 1) / 5;
-        const ridge = t => x + side * (Math.sin(t * 3.14) * 0.54 + Math.sin(t * 13 + i) * 0.14);
-        const opacity = t => Math.sin(t * Math.PI) * (part % 2 ? 0.63 : 0.98);
-        const p = [ridge(a), 0, z + length * a], q = [ridge(b), 0, z + length * b];
-        const r = [q[0] + side * width, 0, q[2] - 0.17];
-        const v = [p[0] + side * width, 0, p[2] - 0.17];
-        triangle(p, q, r, [opacity(a), opacity(b), 0]);
-        triangle(p, r, v, [opacity(a), 0, 0]);
+    for (const [z, center, width, length, height] of cycle) {
+      const origin = z + (side < 0 ? 3.5 : 0);
+      const along = 13, across = 7;
+      const vertices = [];
+      for (let row = 0; row <= along; row++) {
+        const v = row / along * 2 - 1;
+        for (let col = 0; col <= across; col++) {
+          const u = col / across * 2 - 1;
+          const roll = Math.max(0, 1 - u * u);
+          const taper = Math.max(0, 1 - v * v);
+          const crest = height * roll ** 1.5 * taper ** 1.62 *
+            (0.88 + 0.10 * Math.sin(v * 6 + origin) + 0.09 * Math.sin(u * 5.2 + v * 2.8));
+          const px = center + u * width + Math.sin(v * 2.5) * 0.24 * taper;
+          vertices.push([side * px, -0.355 + crest, origin + length * v]);
+        }
+      }
+      function face(a, b, c, shade) {
+        for (const i of [a, b, c]) {
+          positions.push(...vertices[i]);
+          colors.push(shade.r, shade.g, shade.b);
+        }
+      }
+      for (let row = 0; row < along; row++) {
+        for (let col = 0; col < across; col++) {
+          const a = row * (across + 1) + col, b = a + 1, c = a + across + 1, d = c + 1;
+          const shoulder = col / across;
+          const contrast = Math.sin(row * 3.1 + col * 0.76 + origin) * 0.055;
+          const shade = dry.clone().lerp(shoulder > 0.5 ? lit : lee,
+            Math.min(1, Math.abs(shoulder - 0.5) * 0.49 + 0.22 + contrast));
+          face(a, b, c, shade);
+          face(b, d, c, shade.clone().multiplyScalar(0.98 + contrast * 0.6));
+        }
       }
     }
   }
   const geometry = new T.BufferGeometry();
   geometry.setAttribute('position', new T.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('fade', new T.Float32BufferAttribute(fade, 1));
-  const material = new T.ShaderMaterial({
-    uniforms: {
-      shoreTravel: { value: coast.strip.position }, swellTravel: { value: layer.strip.position }, waveTime,
-    },
-    side: T.DoubleSide, transparent: true, depthWrite: false,
-    vertexShader: shoreMath + `
-      attribute float fade;
-      varying float amount;
-      void main() {
-        vec3 p = (modelMatrix * vec4(position, 1.0)).xyz;
-        float radius = abs(p.x);
-        float depth = radius - mix(8.6, shore(p.z), 1.0 - smoothstep(23.0, 56.0, radius));
-        float swell = pow(0.5 + 0.5 * sin(wavePhase(depth, p.z)), 6.0);
-        float breaks = smoothstep(0.0, 1.1, depth) * (1.0 - smoothstep(16.0, 30.0, depth));
-        breaks *= 0.78 + 0.22 * sin(waveTime * 0.48 + p.z * 0.08);
-        p.y = -0.446 + (1.0 - smoothstep(-5.0, -0.2, depth)) * 0.17 + swell * breaks * 0.22;
-        amount = fade * smoothstep(0.35, 1.9, depth) * (0.70 + 0.30 * swell);
-        gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
-      }
-    `,
-    fragmentShader: `
-      varying float amount;
-      void main() {
-        gl_FragColor = vec4(0.68, 0.89, 0.90, amount * 0.72);
-        #include <colorspace_fragment>
-      }
-    `,
-  });
+  geometry.setAttribute('color', new T.Float32BufferAttribute(colors, 3));
+  const material = new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide, toneMapped: false });
   for (let i = -2; i <= 1; i++) {
-    const surf = new T.Mesh(geometry, material);
-    surf.position.z = i * travelLength;
-    surf.frustumCulled = false; // Vertices are lifted to the displaced waterline by the shader.
-    layer.strip.add(surf);
+    const tile = new T.Mesh(geometry, material);
+    tile.position.z = i * travelLength;
+    beach.add(tile);
   }
+  return beach;
 }
 
 function oceanLife(scene) {
@@ -622,10 +619,9 @@ export function buildOceanCoast(scene) {
   const animateLife = oceanLife(scene);
   const cloudDrift = { value: 0 };
   const waveTime = { value: 0 };
-  // The surface stays in place; periodic world-space shader offsets supply the two parallax speeds.
-  const layers = [6.9, 3.1].map(speed => ({ strip: new T.Object3D(), length: travelLength, speed }));
-  movingSurf(layers[1], layers[0], waveTime);
-  scene.add(sky(), coastalSurface(cloudDrift, waveTime, layers), clouds, layers[1].strip);
+  const beach = movingBeach();
+  const layers = [{ strip: beach, length: travelLength, speed: 6.9 }];
+  scene.add(sky(), coastalSurface(cloudDrift, waveTime, beach), clouds, beach);
   return {
     layers,
     animateAmbient(time) {
