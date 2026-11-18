@@ -820,9 +820,22 @@ function buildMochiBody(surface) {
 
     const hip = new T.Group();
     hip.position.set(side * 0.109, mochiHipY, -0.021);
-    // Extend the upper foot into the hip so it stays tucked in through each step.
-    const footShape = new RoundedBoxGeometry(0.194, 0.186, 0.197, 4, 0.069);
-    const foot = mesh(footShape, surface, side * 0.007, -0.051, -0.009);
+    // The heel extends into the hip, leaving a small rounded toe below the body.
+    const footShape = new T.SphereGeometry(1, 32, 24);
+    const footPoints = footShape.attributes.position;
+    const footPower = 2.45;
+    for (let i = 0; i < footPoints.count; i++) {
+      const x = footPoints.getX(i);
+      const y = footPoints.getY(i);
+      const z = footPoints.getZ(i);
+      const radius = (Math.abs(x) ** footPower + Math.abs(y) ** footPower
+        + Math.abs(z) ** footPower) ** (1 / footPower);
+      const height = y / radius;
+      footPoints.setXYZ(i, x / radius * (0.083 - height * 0.009),
+        height * 0.093, z / radius * 0.082 + height * 0.016);
+    }
+    footShape.computeVertexNormals();
+    const foot = mesh(footShape, surface, -side * 0.005, -0.047, 0.012);
     foot.rotation.y = -side * 0.08;
     hip.add(foot);
     scene.add(hip);
