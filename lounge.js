@@ -331,24 +331,47 @@ function buildBulkhead(z, facesFront) {
 
 function buildScenery() {
   const layers = [];
-  const ground = material('#334c48');
-  const lake = material('#528e9b', 0.32, 0.12);
-  const stone = material('#9c8b83');
+  const ground = material('#394947');
+  const lake = material('#4e6486', 0.29, 0.20);
+  lake.onBeforeCompile = shader => {
+    shader.vertexShader = 'varying vec3 lakePosition;\n' + shader.vertexShader.replace(
+      '#include <begin_vertex>',
+      '#include <begin_vertex>\nlakePosition = (modelMatrix * vec4(position, 1.0)).xyz;'
+    );
+    shader.fragmentShader = 'varying vec3 lakePosition;\n' + shader.fragmentShader.replace(
+      '#include <opaque_fragment>', `
+        vec3 delta = lakePosition - cameraPosition;
+        float distanceToMoon = abs(delta.z + abs(delta.x) * 0.25);
+        float bands = 0.56 + 0.44 * sin(lakePosition.x * 8.0 + sin(lakePosition.z * 1.5));
+        float shimmer = exp(-distanceToMoon * 0.56) * bands;
+        float fade = smoothstep(10.0, 23.0, abs(delta.x)) * (1.0 - smoothstep(34.0, 49.0, abs(delta.x)));
+        outgoingLight += vec3(0.70, 0.40, 0.27) * shimmer * fade * 0.72;
+        #include <opaque_fragment>
+      `
+    );
+  };
+  const siding = material('#886858');
+  const roof = material('#4a3f55');
+  const timber = material('#4e3a39');
+  const windowLight = new T.MeshBasicMaterial({ color: '#ffcf85' });
+  const lanternReflection = new T.MeshBasicMaterial({ color: '#b58f97' });
+  const autumn = ['#805261', '#a86163', '#704657'].map(color => material(color));
+  const crownGeometry = new T.IcosahedronGeometry(1, 1);
   const trunks = material('#554639');
   const gravel = material('#7e7769');
-  const grass = material('#536c48');
+  const grass = material('#606d54');
   const ochre = material('#b19a66');
   const shrub = material('#59794b');
   const pines = ['#234c49', '#355b48', '#557253'].map(color => material(color));
   const conifer = new T.ConeGeometry(1, 1, 7);
-  const ripple = new T.MeshBasicMaterial({ color: '#79a6af' });
+  const ripple = new T.MeshBasicMaterial({ color: '#7084a4' });
 
-  scene.fog.color.set('#c1a4b0');
+  scene.fog.color.set('#a397bb');
   const sky = new T.ShaderMaterial({
     side: T.BackSide,
     uniforms: {
-      horizon: { value: new T.Color('#f5b28f') },
-      zenith: { value: new T.Color('#727cae') }
+      horizon: { value: new T.Color('#e7adbc') },
+      zenith: { value: new T.Color('#6c75b6') }
     },
     vertexShader: `
       varying vec3 direction;
@@ -369,7 +392,13 @@ function buildScenery() {
         float cloud = smoothstep(0.65, 1.4, bands) * smoothstep(0.07, 0.2, ray.y)
           * (1.0 - smoothstep(0.36, 0.66, ray.y));
         vec3 skyColor = mix(horizon, zenith, height);
-        gl_FragColor = vec4(mix(skyColor, horizon * 1.17, cloud * 0.46), 1.0);
+        skyColor = mix(skyColor, horizon * 1.14, cloud * 0.27);
+        vec3 moonDirection = normalize(vec3(1.0, 0.22, -0.25));
+        float angle = distance(vec3(abs(ray.x), ray.yz), moonDirection);
+        float halo = 0.16 * (1.0 - smoothstep(0.025, 0.145, angle));
+        float moon = 1.0 - smoothstep(0.020, 0.023, angle);
+        vec3 moonColor = vec3(1.0, 0.84, 0.67);
+        gl_FragColor = vec4(mix(skyColor, moonColor, max(halo, moon)), 1.0);
         #include <colorspace_fragment>
       }
     `
@@ -408,6 +437,45 @@ function buildScenery() {
     }
   }
 
+  function maple(x, y, z, scale, color) {
+    const trunk = mesh(conifer, trunks, x, y + scale * 0.61, z);
+    trunk.scale.set(scale * 0.095, scale * 1.22, scale * 0.095);
+    for (const [dx, height, dz, width] of [[0, 1.3, 0, 0.65], [0.36, 1.13, 0.22, 0.48], [-0.31, 1.23, -0.23, 0.50]]) {
+      const crown = mesh(crownGeometry, autumn[color], x + dx * scale, y + height * scale, z + dz * scale);
+      crown.scale.set(width * scale, width * scale * 0.79, width * scale);
+      crown.rotation.y = 0.8 + dx;
+    }
+  }
+
+  function cottage(side, x, z, size) {
+    const groundLevel = -1.63;
+    const facade = x - side * size * 0.54;
+    const eave = groundLevel + size * 0.65;
+    box(size * 1.07, size * 0.69, size * 1.32, siding, x, groundLevel + size * 0.34, z);
+    for (const sign of [-1, 1]) {
+      const slope = box(size * 1.21, size * 0.084, size * 0.81, roof,
+        x, eave + size * 0.18, z + sign * size * 0.35);
+      slope.rotation.x = sign * 0.46;
+      const windowZ = z + sign * size * 0.36;
+      box(0.055, size * 0.35, size * 0.35, timber, facade, groundLevel + size * 0.39, windowZ);
+      box(0.058, size * 0.26, size * 0.27, windowLight,
+        facade - side * 0.026, groundLevel + size * 0.39, windowZ);
+      box(0.061, size * 0.26, size * 0.025, timber,
+        facade - side * 0.049, groundLevel + size * 0.39, windowZ);
+    }
+    const gable = new T.Shape();
+    gable.moveTo(-size * 0.66, 0);
+    gable.lineTo(size * 0.66, 0);
+    gable.lineTo(0, size * 0.35);
+    gable.closePath();
+    const wall = mesh(new T.ExtrudeGeometry(gable, { depth: size * 1.05, bevelEnabled: false }),
+      siding, x - size * 0.525, eave, z);
+    wall.rotation.y = Math.PI / 2;
+    box(size * 0.19, size * 0.40, size * 0.18, timber, x + size * 0.24, eave + size * 0.30, z + size * 0.28);
+    box(0.065, size * 0.45, size * 0.28, timber, facade - side * 0.03,
+      groundLevel + size * 0.23, z);
+  }
+
   loop(74, 9.2, 3, length => {
     for (const side of [-1, 1]) {
       const geometry = new T.PlaneGeometry(length, 1, 60, 10);
@@ -435,11 +503,12 @@ function buildScenery() {
       mesh(geometry, grass, 0, 0, 0);
       for (let cluster = 0; cluster < 5; cluster++) {
         const center = -length / 2 + 6 + cluster * 14 + random() * 5;
-        const count = 2 + Math.floor(random() * 5);
+        const count = 1 + Math.floor(random() * 3);
         for (let i = 0; i < count; i++) {
           const z = center + (random() - 0.5) * 7;
           const x = 6.8 + random() * Math.max(1, bank(z) - 8);
-          grove(side * x, z, 1.7 + random() * 4.4, i % 3);
+          if (cluster % 2 === 0) maple(side * x, -2.05, z, 0.85 + random() * 0.78, cluster % 3);
+          else grove(side * x, z, 1.6 + random() * 2.6, i % 3);
         }
       }
       for (let i = 0; i < 26; i++) {
@@ -461,27 +530,28 @@ function buildScenery() {
       }
       for (let i = 0; i < 9; i++) {
         const z = -44 + i * 11;
-        oval(grass, side * (49 + random() * 3), -2.52, z, 6.8 + random() * 3, 1.6 + random() * 1.4, 8.5);
-        for (let n = 0; n < 5; n++) {
-          grove(side * (44.5 + random() * 9), z + (random() - 0.5) * 9, 2.4 + random() * 4.5, n % 3);
+        oval(grass, side * (48 + random() * 2), -2.53, z, 7.1 + random() * 2.4, 1.45, 8.5);
+        for (let n = 0; n < 3; n++) {
+          grove(side * (48 + random() * 5), z + (random() - 0.5) * 9, 2.1 + random() * 3.2, n % 3);
         }
       }
-    }
-    const bridgeX = -29;
-    box(1.4, 0.37, 31, stone, bridgeX, 1.76, -4);
-    for (let i = 0; i < 9; i++) {
-      const z = -19 + i * 3.75;
-      box(1.09, 2.45, 0.56, stone, bridgeX, -1.14, z);
-      if (i < 8) {
-        mesh(new T.TorusGeometry(1.875, 0.22, 7, 16, Math.PI), stone,
-          bridgeX, -0.06, z + 1.875).rotation.y = Math.PI / 2;
+      const villageZ = -28 + side * 3;
+      for (let i = 0; i < 4; i++) {
+        const z = villageZ + i * 8.3;
+        const x = side * (43.3 + (i % 2) * 1.7);
+        cottage(side, x, z, 2.2 + (i % 3) * 0.36);
+        maple(x + side * 1.7, -1.52, z - 3.25, 1.6 + i * 0.20, i % 3);
+        for (let gleam = 0; gleam < 6; gleam++) {
+          box(0.20 + random() * 0.38, 0.006, 0.17 + random() * 0.42, lanternReflection,
+            side * (39.8 - gleam * 0.62), -2.292, z + (random() - 0.5) * 1.1);
+        }
       }
     }
   });
 
   const ridge = new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.98, flatShading: true, side: T.DoubleSide });
-  const warmRock = new T.Color('#637b90');
-  const highRock = new T.Color('#9b9db3');
+  const warmRock = new T.Color('#697698');
+  const highRock = new T.Color('#8994b5');
   const snow = new T.Color('#efe8f0');
   const tint = new T.Color();
   loop(116, 0.65, 2, length => {
@@ -496,8 +566,8 @@ function buildScenery() {
           const angle = z / length * Math.PI * 2;
           const jagged = 0.46 * Math.sin(angle * 5 + side) + 0.28 * Math.cos(angle * 11 + row);
           const rolling = 0.65 + 0.35 * Math.cos(angle * 2 - row * 1.6 + side);
-          const peak = 9 + 12 * row + 14 * rolling * Math.sin(angle * (2 + row) + row * 1.4) ** 2
-            + jagged * (4 + row * 3);
+          const peak = 5 + 7 * row + 8 * rolling * Math.sin(angle * (2 + row) + row * 1.4) ** 2
+            + jagged * (2.8 + row * 1.5);
           const height = Math.sin(slope * Math.PI) ** 1.4 * peak + Math.sin(angle * 17 + slope * 17)
             * Math.sin(slope * Math.PI) * 1.6;
           vertices.setXYZ(i, side * (46 + row * 24 + slope * 32), -2.45 + height, z);
@@ -804,8 +874,9 @@ function play(renderer, { mascot, feet }, scenery) {
     const cosYaw = Math.cos(yaw);
     mascot.visible = !firstPerson;
     if (firstPerson) {
-      camera.position.set(x, y + 1.18, z);
-      look.set(x + sinYaw * Math.cos(pitch), y + 1.18 + Math.sin(pitch), z - cosYaw * Math.cos(pitch));
+      const eyeHeight = y + 1.45;
+      camera.position.set(x, eyeHeight, z);
+      look.set(x + sinYaw * Math.cos(pitch), eyeHeight + Math.sin(pitch), z - cosYaw * Math.cos(pitch));
     } else {
       const pivotX = clamp(x, -cameraAisleLimit + 0.08, cameraAisleLimit - 0.08);
       const elevation = clamp(0.14 - pitch, -0.33, 0.72);
