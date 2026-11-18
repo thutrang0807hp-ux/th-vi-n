@@ -337,7 +337,7 @@ function buildScenery() {
   const foliage = ['#566859', '#484e56', '#744c67'].map(color => material(color));
   const firGeometry = new T.ConeGeometry(1, 1, 7);
   const crownGeometry = new T.IcosahedronGeometry(1, 1);
-  const panorama = new T.TextureLoader().load(new URL('./assets/twilight-river.webp?v=3d-village', import.meta.url).href);
+  const panorama = new T.TextureLoader().load(new URL('./assets/village-horizon.webp', import.meta.url).href);
   panorama.colorSpace = T.SRGBColorSpace;
   panorama.anisotropy = 4;
 

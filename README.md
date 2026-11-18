@@ -32,4 +32,4 @@ Sau đó truy cập `http://localhost:8000` để đi lại trong toa lounge 3D.
 4. Hoàn thiện va chạm, animation ngồi/đứng và điều khiển camera.
 5. Tối ưu đồ họa sau khi chốt chất lượng hình ảnh.
 
-Cảnh lounge và phần điều khiển nằm trong `lounge.js`. `prototype.html` lưu bản thử nghiệm ban đầu.
+Cảnh lounge và phần điều khiển nằm trong `village-scene.js`. `prototype.html` lưu bản thử nghiệm ban đầu.
