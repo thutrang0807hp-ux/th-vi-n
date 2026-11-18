@@ -401,9 +401,45 @@ dialog h2 { margin: 0 0 12px; font-size: 1.1rem; }
   width: min(350px, calc(100vw - 32px)); background: #2a201b; border: 1px solid #9c7958;
   border-radius: 12px; overflow: hidden;
 }
-.youtube-dock > div { display: flex; justify-content: space-between; align-items: center; gap: 3px; flex-wrap: wrap; padding: 4px 7px; }
-.youtube-dock button, .youtube-dock a { padding: 4px 7px; font-size: .8rem; }
+.youtube-dock > div { display: flex; justify-content: flex-end; align-items: center; gap: 6px; padding: 4px 7px; }
+.youtube-dock button, .youtube-dock a { flex-shrink: 0; padding: 4px 7px; font-size: .8rem; }
 .youtube-drag { cursor: grab; touch-action: none; user-select: none; }
 .youtube-drag:active { cursor: grabbing; }
 .youtube-dock iframe { display: block; width: 100%; height: 200px; border: 0; }
 @media (max-width: 580px) { .youtube-dock { bottom: 126px; } }
+
+.youtube-dock .youtube-drag {
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-right: auto; min-width: 30px; min-height: 28px;
+}
+.youtube-vinyl { display: none; }
+.youtube-dock--compact {
+  width: min(294px, calc(100vw - 24px));
+  color: #f6e4cc;
+  background: linear-gradient(115deg, #38251f, #241a16);
+  border-color: #8d674a;
+  border-radius: 16px;
+  box-shadow: 0 8px 26px #110a0880;
+}
+.youtube-dock--compact > div { padding: 8px; }
+.youtube-dock--compact .youtube-drag {
+  position: relative; flex: none; margin: 0; width: 44px; height: 44px;
+  padding: 2px; border-color: transparent; background: transparent;
+}
+.youtube-dock--compact .youtube-vinyl {
+  display: block; width: 38px; height: 38px; border-radius: 50%;
+  background: radial-gradient(circle, #35251a 0 5%, #d19a65 6% 24%, transparent 25%),
+    repeating-radial-gradient(circle, #312320 0 2px, #161110 2px 4px);
+  box-shadow: inset 0 0 0 1px #795342, 0 2px 5px #100a08;
+}
+.youtube-dock--compact .youtube-grip {
+  position: absolute; right: -1px; bottom: 0; color: #f4d2a4;
+  background: #392820; border-radius: 5px; padding: 0 2px;
+}
+.youtube-mini-heading { flex: 1; min-width: 0; line-height: 1.25; }
+.youtube-mini-heading strong, .youtube-mini-heading small { display: block; }
+.youtube-mini-heading strong { font-size: .86rem; }
+.youtube-mini-heading small { margin-top: 2px; color: #e0bc95; font-size: .68rem; }
+.youtube-dock--compact button[aria-expanded="false"] {
+  white-space: nowrap; background: #e8bd88; border-color: #e8bd88; color: #2e1e17;
+}
