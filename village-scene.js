@@ -811,8 +811,8 @@ function buildMochiBody(surface) {
   for (const side of [-1, 1]) {
     // Each limb has its own joint, recessed into the body at its attachment.
     const shoulder = new T.Group();
-    shoulder.position.set(side * 0.169, 0.435, 0.073);
-    const arm = oval(surface, side * 0.071, -0.121, -0.013, 0.059, 0.143, 0.072);
+    shoulder.position.set(side * 0.18, 0.433, 0.012);
+    const arm = oval(surface, side * 0.075, -0.112, -0.006, 0.077, 0.123, 0.082);
     arm.rotation.z = side * 0.29;
     shoulder.add(arm);
     scene.add(shoulder);
