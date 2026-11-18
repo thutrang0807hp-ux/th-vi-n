@@ -372,3 +372,9 @@ dialog h2 { margin: 0 0 12px; font-size: 1.1rem; }
 .focus-static .focus-options label:has(#focus-activity) { display: none; }
 .focus-static #status { pointer-events: none; }
 .focus-static :is(header, .actions, #focus-widget) { z-index: 3; }
+
+@media (max-width: 580px) {
+  header > span { white-space: nowrap; padding: 7px 9px; }
+  .view-controls button { padding: 7px 10px; }
+  .bay-lamp-controls { top: 112px; left: 12px; }
+}
