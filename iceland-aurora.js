@@ -5,6 +5,12 @@ const tau = Math.PI * 2;
 const waterline = -0.52;
 const villageBank = 58.4;
 
+function bankDistance(z,side) {
+  const a = z/span*tau + side*.28;
+  return villageBank + 3.1*Math.sin(a*2+.55) - 6.9*Math.max(0,Math.cos(a-1.12))**5
+    - 3.6*Math.max(0,Math.cos(a+2.03))**7;
+}
+
 function randomSource(seed) {
   return () => {
     seed = (Math.imul(1664525, seed) + 1013904223) >>> 0;
@@ -57,7 +63,7 @@ function sky(time) {
       varying vec3 ray;
       void main() {
         vec3 r = normalize(ray);
-        vec3 color = mix(vec3(0.050,0.084,0.191), vec3(0.008,0.008,0.042),
+        vec3 color = mix(vec3(0.026,0.044,0.118), vec3(0.006,0.008,0.035),
           smoothstep(-0.03,0.52,r.y));
         color += vec3(0.033,0.016,0.066) * exp(-abs(r.y-0.045)*9.0);
         vec2 uv = vec2(atan(r.z,r.x),asin(r.y));
@@ -102,15 +108,16 @@ function lake(time) {
         void main() {
           vec2 p = point.xz;
           vec3 ray = normalize(point - cameraPosition);
-          vec2 wave = vec2(sin(p.x*3.5 + p.y*0.78 + time*0.74),
-            sin(p.x*5.7 - p.y*1.4 - time*0.69));
+          float crosswind = noise(vec2(p.y*.32 + time*.09,p.x*.47));
+          vec2 wave = vec2(sin(p.x*2.8 + p.y*0.49 + time*0.62+crosswind*3.9),
+            sin(p.x*4.2 - p.y*.76 - time*.44+crosswind*4.2));
           vec3 mirror = normalize(vec3(ray.x+wave.x*0.037, abs(ray.y)*2.1+wave.y*0.027+0.042,
             ray.z+wave.y*0.018));
           float shimmer = noise(vec2(p.x*5.8 + time*0.28,p.y*1.8))
             * noise(vec2(p.x*2.5 - time*0.27,p.y*0.42));
           float deep = smoothstep(3.0,55.0,abs(p.x));
           vec3 color = mix(vec3(0.012,0.037,0.073),vec3(0.023,0.055,0.111),deep);
-          color += ribbons(mirror)*(0.22+shimmer*0.27)*(1.0-deep*0.29);
+          color += ribbons(mirror)*(0.12+shimmer*0.45)*(1.0-deep*0.29);
           color += vec3(0.052,0.085,0.152)*smoothstep(0.20,0.80,shimmer)*0.49;
           gl_FragColor = vec4(color,1.0);
           #include <colorspace_fragment>
@@ -207,14 +214,15 @@ function shore(side, far) {
   for (let i = 0; i < count; i++) {
     const z = -span/2 + i*span/(count-1);
     const wave = Math.cos(z/span*tau*4)*.83 + Math.sin(z/span*tau*7)*.34;
-    const bank = far ? villageBank + wave : 6.75 + wave * 0.70;
-    rows.push([[side*(far ? villageBank + 7.0 : 4.12),0.10,z],
+    const phase = z/span*tau + side*.67;
+    const bank = far ? bankDistance(z,side) : 6.56 + wave*.63 + 1.9*Math.max(0,Math.sin(phase*2+.35))**4;
+    rows.push([[side*(far ? Math.max(villageBank+6.7,bank+5.6) : 4.12),far ? .14+Math.sin(phase*3)*.07 : .10,z],
       [side*bank,(i === count-1 ? rows[0][1][1] : rand()*.19-.13),z],
       [side*(bank+(far ? -0.65 : 0.85)),waterline-.025,z]]);
   }
   function triangle(a,b,c,edge) {
     vertices.push(...a,...b,...c);
-    const color = new T.Color(edge ? '#374f71' : (rand() > .20 ? '#9ab3dc' : '#56729d'));
+    const color = new T.Color(edge ? '#304564' : (rand() > .26 ? '#a7bcdf' : '#637da5'));
     color.multiplyScalar(.76+rand()*.25);
     for(let i=0;i<3;i++) colors.push(color.r,color.g,color.b);
   }
@@ -301,6 +309,54 @@ function tundra(side) {
   return grass;
 }
 
+function snowPlants(side) {
+  const group = new T.Group();
+  const rand = randomSource(9016 + side);
+  const positions = [], colors = [];
+  function crown(y, h, radius, branch) {
+    const dark = new T.Color(branch ? '#273c4e' : '#304c59');
+    const snow = new T.Color('#9ab1cf');
+    for (let i=0;i<7;i++) {
+      const a = i*tau/7, b=(i+1)*tau/7;
+      const x1=Math.cos(a)*radius,z1=Math.sin(a)*radius;
+      const x2=Math.cos(b)*radius,z2=Math.sin(b)*radius;
+      const shade = dark.clone().multiplyScalar(.78+rand()*.45);
+      const white = snow.clone().multiplyScalar(.75+rand()*.24);
+      positions.push(x1,y,z1,x2,y,z2,x2*.66,y+h*.34,z2*.66,
+        x1,y,z1,x2*.66,y+h*.34,z2*.66,x1*.66,y+h*.34,z1*.66,
+        x1*.66,y+h*.34,z1*.66,x2*.66,y+h*.34,z2*.66,0,y+h,0);
+      for(let j=0;j<6;j++) colors.push(shade.r,shade.g,shade.b);
+      for(let j=0;j<3;j++) colors.push(white.r,white.g,white.b);
+    }
+  }
+  crown(.23,.69,.29,false);
+  crown(.52,.69,.235,false);
+  crown(.81,.69,.166,false);
+  const trees = new T.InstancedMesh(facets(positions,colors),colored,15);
+  const shrubs = new T.InstancedMesh(iceShape(81,true),colored,41);
+  const pose = new T.Object3D();
+  for(let i=0;i<trees.count;i++){
+    const z=-58+rand()*116, scale=.54+rand()*.63;
+    const distance=i<4 ? 5.2+rand()*.55 : bankDistance(z,side)+3.3+rand()*2.7;
+    pose.position.set(side*distance,-.025,z);
+    pose.scale.set(scale,scale*(.9+rand()*.16),scale);
+    pose.rotation.y=rand()*tau;
+    pose.updateMatrix();
+    trees.setMatrixAt(i,pose.matrix);
+  }
+  for(let i=0;i<shrubs.count;i++){
+    const z=-63+rand()*126, scale=.20+rand()*.36;
+    const distance=i<27 ? 5.3+rand()*.72 : bankDistance(z,side)+2.2+rand()*3.4;
+    pose.position.set(side*distance,.018,z);
+    pose.scale.set(scale,scale*.71,scale*.82);
+    pose.rotation.y=rand()*tau;
+    pose.updateMatrix();
+    shrubs.setMatrixAt(i,pose.matrix);
+  }
+  group.add(trees,shrubs);
+  return group;
+}
+
 function town(side,time) {
   const rand = randomSource(28092+side*311);
   const group = new T.Group();
@@ -327,7 +383,7 @@ function town(side,time) {
       void main(){
         float trail=(1.0-abs(vUv.x*2.0-1.0))*(1.0-abs(vUv.y*2.0-1.0));
         float broken=0.27+0.73*smoothstep(.22,.83,noise(vec2(vUv.y*41.0+time*.76,vUv.x*2.2)));
-        gl_FragColor=vec4(.93,.32,.085,pow(max(trail,0.0),1.55)*broken*.66);
+        gl_FragColor=vec4(.95,.39,.10,pow(max(trail,0.0),1.34)*broken*.81);
         #include <colorspace_fragment>
       }
     `,
@@ -347,11 +403,13 @@ function town(side,time) {
     pose.updateMatrix(); mesh.setMatrixAt(index,pose.matrix);
     if(color) mesh.setColorAt(index,new T.Color(color));
   }
-  const clusters = [-53,-36,-7,14,36,52];
+  const clusters = [-51,-31,-10,15,40,51];
   const roofColors = ['#8e514c','#785657','#3f647b','#586955','#655775'];
   for(let i=0;i<houseCount;i++){
-    const z = clusters[i%clusters.length]+(rand()-.5)*8.8;
-    const x = side*(villageBank+1.25+rand()*2.25);
+    const cluster = i%clusters.length;
+    const z = clusters[cluster]+(rand()-.5)*(cluster===3?13.4:8.4);
+    const bank = bankDistance(z,side);
+    const x = side*(bank+1.12+rand()*(cluster===3?4.1:1.85));
     const h=.69+rand()*.43, w=.94+rand()*.80, d=.70+rand()*.45;
     const front = x-side*(d*.5+.07);
     stamp(houses,i,x,h*.5+.035,z,d,h,w,'#6d4b43');
@@ -369,16 +427,33 @@ function town(side,time) {
       stamp(windows,i*4+j,front-side*.024,h*(.534+Math.floor(j/2)*.123),
         z+w*(.132+(j%2)*.127),1,h*.094,w*.101,j%2?'#ffc06e':'#ffe2a0');
     }
-    stamp(reflections,i,side*(villageBank-3.1+rand()*1.2),waterline+.009,z+w*.19,3.2+rand()*1.9,1,.57+rand()*.46);
+    stamp(reflections,i,side*(bank-3.4+rand()*1.3),waterline+.009,z+w*.19,3.2+rand()*1.9,1,.57+rand()*.46);
   }
   group.add(houses,roofs,logs,trim,windows,reflections);
+  const chapelZ = 12.6;
+  const chapelX = side*(bankDistance(chapelZ,side)+2.05);
+  function chapelPart(geometry,color,x,y,z,sx,sy,sz) {
+    const part = new T.Mesh(geometry,new T.MeshBasicMaterial({color,side:T.DoubleSide,fog:false}));
+    part.position.set(x,y,z);
+    part.scale.set(sx,sy,sz);
+    group.add(part);
+  }
+  chapelPart(walls,'#98786c',chapelX,0.67,chapelZ,1.60,1.27,2.07);
+  chapelPart(roof,'#626985',chapelX,1.30,chapelZ,1.94,.88,2.33);
+  chapelPart(walls,'#a68578',chapelX-side*.68,1.15,chapelZ+.78,.67,2.21,.75);
+  chapelPart(new T.ConeGeometry(.5,1,4).rotateY(Math.PI/4),'#524c6c',
+    chapelX-side*.68,2.57,chapelZ+.78,1.03,1.01,1.11);
+  chapelPart(lampGeometry,'#ffcd78',chapelX-side*1.023,1.76,chapelZ+.78,1,.24,.17);
+  for (const offset of [-.61,-.20,.21]) {
+    chapelPart(lampGeometry,'#ffd28a',chapelX-side*.81,.67,chapelZ+offset,1,.31,.15);
+  }
   return group;
 }
 
 function lightSnow(time) {
   const rand = randomSource(8156);
   const points = [], phases = [];
-  for (const side of [-1,1]) for (let i=0;i<210;i++) {
+  for (const side of [-1,1]) for (let i=0;i<238;i++) {
     const depth = 4.75 + (rand()**1.45)*23;
     points.push(side*depth,rand()*8 - .35,(rand()-.5)*54);
     phases.push(rand());
@@ -400,8 +475,8 @@ function lightSnow(time) {
         p.z+=sin(time*0.22+phase*21.0)*0.46;
         vec4 view=modelViewMatrix*vec4(p,1.0);
         gl_Position=projectionMatrix*view;
-        gl_PointSize=clamp((21.0+phase*11.7)/max(1.0,-view.z),0.95,2.65);
-        alpha=(0.28+phase*.37)*smoothstep(0.03,.7,cycle)*
+        gl_PointSize=clamp((25.0+phase*15.5)/max(1.0,-view.z),1.05,3.25);
+        alpha=(0.37+phase*.40)*smoothstep(0.03,.7,cycle)*
           (1.0-smoothstep(7.2,8.0,cycle))*(1.0-smoothstep(25.0,43.0,-view.z));
       }
     `,
@@ -409,7 +484,7 @@ function lightSnow(time) {
       varying float alpha;
       void main(){
         float shape=1.0-smoothstep(.12,.49,length(gl_PointCoord-.5));
-        gl_FragColor=vec4(.64,.77,.96,alpha*shape);
+        gl_FragColor=vec4(.74,.85,.99,alpha*shape);
         #include <colorspace_fragment>
       }
     `,
@@ -428,7 +503,7 @@ export function buildIcelandAurora(scene) {
   tile.add(lake(time));
   for(const side of [-1,1]){
     for(let range=0;range<3;range++) tile.add(mountain(side,range,range+side*7));
-    tile.add(shore(side,false),shore(side,true),scatter(side,true),tundra(side),town(side,time));
+    tile.add(shore(side,false),shore(side,true),scatter(side,true),tundra(side),snowPlants(side),town(side,time));
     const ice = scatter(side,false);
     ice.name = 'Băng trôi'; tile.add(ice);
   }
