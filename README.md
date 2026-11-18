@@ -12,7 +12,7 @@ Mở trang bằng một local web server:
 python3 -m http.server 8000
 ```
 
-Sau đó truy cập `http://localhost:8000`. Cần Internet để tải Three.js từ CDN.
+Sau đó truy cập `http://localhost:8000` để đi lại trong toa lounge 3D. Cần Internet để tải Three.js từ CDN.
 
 ## Điều khiển
 
@@ -32,4 +32,4 @@ Sau đó truy cập `http://localhost:8000`. Cần Internet để tải Three.js
 4. Hoàn thiện va chạm, animation ngồi/đứng và điều khiển camera.
 5. Tối ưu đồ họa sau khi chốt chất lượng hình ảnh.
 
-Mã nguồn hiện tại nằm trong `index.html`.
+Cảnh lounge và phần điều khiển nằm trong `lounge.js`. `prototype.html` lưu bản thử nghiệm ban đầu.
