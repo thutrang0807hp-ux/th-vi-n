@@ -669,8 +669,8 @@ function buildMascot() {
   return { mascot, feet };
 }
 
-export async function start() {
-  const kit = await loadExteriorStudy();
+export async function start({ buildExterior } = {}) {
+  const kit = buildExterior ? null : await loadExteriorStudy();
   const renderer = new T.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.35));
   renderer.toneMapping = T.ACESFilmicToneMapping;
@@ -687,7 +687,7 @@ export async function start() {
   buildBooths();
   buildBulkhead(-17.33, false);
   buildBulkhead(13.42, true);
-  const scenery = buildScenery(kit);
+  const scenery = buildExterior ? buildExterior(scene) : buildScenery(kit);
   batchScenery();
   play(renderer, buildMascot(), scenery);
   status.remove();
@@ -903,9 +903,9 @@ function play(renderer, { mascot, feet }, { layers, animateAmbient }) {
         strip.position.z = (strip.position.z + dt * speed) % length;
       }
     }
-    if (!needsRender && !cameraMoving && now - lastSceneryRender < 1000 / 30) return;
+    if (!needsRender && !cameraMoving && (!animateAmbient || now - lastSceneryRender < 1000 / 30)) return;
     lastSceneryRender = now;
-    animateAmbient(ambientTime);
+    animateAmbient?.(ambientTime);
     needsRender = false;
 
     const { x, y, z } = follow;

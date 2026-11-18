@@ -45,7 +45,14 @@
   <script type="module">
     try {
       const { start } = await import('../village-scene.js?v=pastel-stream');
-      await start();
+      const triTon = new URLSearchParams(location.search).get('scene') === 'tri-ton';
+      if (triTon) {
+        const { buildTriTon } = await import('../tri-ton-scene.js');
+        document.querySelector('.route').textContent = '— Mùa vàng Tri Tôn';
+        await start({ buildExterior: buildTriTon });
+      } else {
+        await start();
+      }
     } catch (error) {
       const preview = document.querySelector('#scene-preview');
       document.querySelector('#load-message').textContent =
