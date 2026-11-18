@@ -111,7 +111,10 @@ function transact(db, action) {
   });
 }
 
+const mountedTimers = new WeakSet();
 export function mountFocusTimer(panel, widget) {
+  if (mountedTimers.has(panel)) return;
+  mountedTimers.add(panel);
   let state = initialTimer();
   let db = openStorage().catch(() => null);
   let queue = Promise.resolve();

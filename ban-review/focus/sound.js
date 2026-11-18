@@ -57,7 +57,9 @@ function glide(parameter, target, context, fade = 0.12) {
   parameter.setTargetAtTime(target,now,fade);
 }
 
+const mountedMixers = new WeakMap();
 export function mountFocusSound(panel, { moving, route }) {
+  if (mountedMixers.has(panel)) return mountedMixers.get(panel);
   const view = panel.querySelector('[data-focus-view="sound"]');
   const list = view.querySelector('#focus-audio-list');
   const masterInput = view.querySelector('#focus-audio-master');
@@ -271,10 +273,12 @@ export function mountFocusSound(panel, { moving, route }) {
     applyAll();
   });
   applyAll();
-  return {
+  const mixer = {
     setTrainMoving(value) {
       trainMoving = value;
       apply(channels.get('rail'));
     },
   };
+  mountedMixers.set(panel,mixer);
+  return mixer;
 }

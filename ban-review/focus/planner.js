@@ -23,7 +23,10 @@ function readPlanner(db, edit) {
   });
 }
 
+const mountedPlanners = new WeakSet();
 export function mountFocusPlanner(panel) {
+  if (mountedPlanners.has(panel)) return;
+  mountedPlanners.add(panel);
   const get = id => panel.querySelector('#' + id);
   const tabs = [...panel.querySelectorAll('[data-focus-tab]')];
   const views = [...panel.querySelectorAll('[data-focus-view]')];

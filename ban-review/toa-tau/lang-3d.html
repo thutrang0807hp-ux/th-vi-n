@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lofi Train — Thung lũng Tulip</title>
   <meta name="color-scheme" content="dark">
-  <link rel="stylesheet" href="../lounge.css?v=companion-guide">
+  <link rel="stylesheet" href="../lounge.css?v=focus-integrated">
 <style>
 #table-lamp-tool { position: fixed; z-index: 5; width: 152px; padding: 9px;
   border: 1px solid #bd9468; border-radius: 11px; background: #291c17f4;
@@ -252,7 +252,7 @@
     window.addEventListener('pageshow', () => { picker.value = scene; });
 
     try {
-      const { start } = await import('../village-scene.js?v=companion-guide');
+      const { start } = await import('../village-scene.js?v=focus-integrated');
       if (scene === 'tri-ton') {
         const { buildTriTon } = await import('../tri-ton-scene.js');
         document.querySelector('.route').textContent = '— Mùa vàng Tri Tôn';
@@ -271,7 +271,7 @@
     } catch (error) {
       const preview = document.querySelector('#scene-preview');
       document.querySelector('#load-message').textContent =
-        'Không mở được chế độ 3D trên trình duyệt này. Đây là ảnh xem trước của toa tàu.';
+        'Chế độ 3D không khả dụng. Bạn vẫn có thể dùng đồng hồ, công việc, ghi chú và âm thanh.';
       if (scene === 'iceland') {
         preview.alt = 'Ảnh xem trước hồ băng cực quang qua cửa sổ toa tàu';
         preview.src = '../assets/iceland-preview.webp';
@@ -282,6 +282,8 @@
         preview.src = '../assets/tulip-train-preview.webp?v=pastel-stream';
       }
       preview.hidden = false;
+      const { mountFocusFallback } = await import('../focus/fallback.js');
+      mountFocusFallback();
       console.error(error);
     }
   </script>
