@@ -643,19 +643,145 @@ function batchScenery(root = scene, useSections = true) {
 }
 
 const mascotColors = {
-  peach: ['#ff9f9d', '#e16a70'],
+  peach: ['#f5a0a3', '#db6269'],
   cream: ['#ffd0aa', '#d88668'],
   lilac: ['#cba7e6', '#aa77bc'],
   sky: ['#9bcbef', '#689dc5'],
   mint: ['#a7d8b6', '#6dac90'],
 };
-const mascotDefaults = { color: 'peach', accessory: 'pilot', expression: 'gentle' };
+const mascotDefaults = { color: 'peach', accessory: 'plain', expression: 'gentle' };
 const mascotStorageKey = 'lofi-train-avatar-v1';
+
+// Superellipsoid with a broader lower face and a slightly tilted crown.
+const mochiHeadY = 1.077;
+const mochiPower = 3.65;
+const mochiYRadius = 0.433;
+function mochiHeadProfile(y) {
+  const height = y / mochiYRadius;
+  return {
+    width: 0.516 * (1 - 0.037 * height - 0.018 * height ** 2),
+    depth: 0.362 * (1 - 0.045 * height),
+    center: 0.009 * height,
+  };
+}
+function mochiFaceDepth(x, y) {
+  const { width, depth, center } = mochiHeadProfile(y);
+  const surface = 1 - Math.abs((x - center) / width) ** mochiPower
+    - Math.abs(y / mochiYRadius) ** mochiPower;
+  return -depth * Math.max(0, surface) ** (1 / mochiPower);
+}
+function makeMochiHead() {
+  const shape = new T.SphereGeometry(1, 80, 56);
+  const vertices = shape.attributes.position;
+  for (let i = 0; i < vertices.count; i++) {
+    const x = vertices.getX(i);
+    const y = vertices.getY(i);
+    const z = vertices.getZ(i);
+    const radius = (Math.abs(x) ** mochiPower + Math.abs(y) ** mochiPower
+      + Math.abs(z) ** mochiPower) ** (1 / mochiPower);
+    const height = y / radius * mochiYRadius;
+    const { width, depth, center } = mochiHeadProfile(height);
+    vertices.setXYZ(i, center + x / radius * width, height, z / radius * depth);
+  }
+  shape.computeVertexNormals();
+  // Smooth the duplicated vertices at the longitude seam and the two poles.
+  const normals = shape.attributes.normal;
+  const smooth = (from, to) => {
+    const normal = new T.Vector3();
+    for (const index of from) {
+      normal.x += normals.getX(index);
+      normal.y += normals.getY(index);
+      normal.z += normals.getZ(index);
+    }
+    normal.normalize();
+    for (const index of to) normals.setXYZ(index, normal.x, normal.y, normal.z);
+  };
+  for (let row = 1; row < 56; row++) {
+    const pair = [row * 81, row * 81 + 80];
+    smooth(pair, pair);
+  }
+  for (const row of [0, 56]) {
+    const ring = Array.from({ length: 81 }, (_, col) => row * 81 + col);
+    smooth(ring, ring);
+  }
+  return shape;
+}
+function mochiFacePatch() {
+  const patch = new T.PlaneGeometry(0.82, 0.46, 36, 24).rotateY(Math.PI);
+  const points = patch.attributes.position;
+  for (let i = 0; i < points.count; i++) {
+    const x = points.getX(i);
+    const y = points.getY(i) - 0.105;
+    points.setXYZ(i, x, y, mochiFaceDepth(x, y) - 0.0018);
+  }
+  patch.computeVertexNormals();
+  return patch;
+}
+function mochiFaceTexture(expression) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 288;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#472323';
+  ctx.strokeStyle = '#472323';
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  const ellipse = (x, y, w, h) => {
+    ctx.beginPath();
+    ctx.ellipse(x, y, w, h, 0, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  if (expression === 'blush') {
+    for (const x of [82, 430]) {
+      ctx.save();
+      ctx.translate(x, 173);
+      ctx.scale(1, 0.55);
+      const color = ctx.createRadialGradient(0, 0, 0, 0, 0, 54);
+      color.addColorStop(0, 'rgba(255,255,255,.52)');
+      color.addColorStop(0.44, 'rgba(255,255,255,.34)');
+      color.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = color;
+      ellipse(0, 0, 54, 54);
+      ctx.restore();
+    }
+  } else {
+    for (const x of [160, 352]) {
+      if (expression === 'happy' || expression === 'sleepy' || expression === 'blink') {
+        const curve = expression === 'happy' ? -19 : 13;
+        ctx.beginPath();
+        ctx.moveTo(x - 17, 115);
+        ctx.quadraticCurveTo(x, 115 + curve, x + 17, 115);
+        ctx.stroke();
+      } else {
+        ellipse(x, 112, 14, 27);
+        ctx.fillStyle = '#a7635b';
+        ellipse(x - 2, 102, 3, 6);
+        ctx.fillStyle = '#472323';
+      }
+    }
+    if (expression === 'happy') {
+      ellipse(256, 158, 20, 13);
+      ctx.fillStyle = '#ee8688';
+      ellipse(256, 164, 11, 5);
+    } else if (expression === 'surprised') {
+      ellipse(256, 154, 9, 10);
+    } else {
+      ctx.strokeStyle = '#9d5654';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(250, 151);
+      ctx.quadraticCurveTo(256, 155, 262, 151);
+      ctx.stroke();
+    }
+  }
+  const texture = new T.CanvasTexture(canvas);
+  texture.colorSpace = T.SRGBColorSpace;
+  return texture;
+}
 
 function buildMascot() {
   const start = scene.children.length;
-  const skin = material('#ff9f9d', 0.56);
-  const blush = material('#e16a70');
+  const skin = material('#f5a0a3', 0.78);
   const ink = material('#432320', 0.47);
   const capLeather = material('#683825', 0.73);
   const trim = material('#af7040', 0.61);
@@ -665,7 +791,7 @@ function buildMascot() {
   const scarfShade = material('#782723', 0.85);
   const feet = [];
   const arms = [];
-  const blinkingEyes = [];
+
   const mascot = new T.Group();
   const group = build => {
     const first = scene.children.length;
@@ -675,64 +801,34 @@ function buildMascot() {
     mascot.add(result);
     return result;
   };
-  const stroke = (points, radius, surface) => mesh(new T.TubeGeometry(
-    new T.CatmullRomCurve3(points.map(point => new T.Vector3(...point))), 10, radius, 6, false),
-  surface, 0, 0, 0);
 
-  oval(new T.MeshBasicMaterial({ color: '#220c12', transparent: true, opacity: 0.28, depthWrite: false }),
-    0, 0.017, 0, 0.44, 0.009, 0.42);
-  const body = oval(skin, 0, 0.465, 0, 0.351, 0.31, 0.25);
-  const head = new RoundedBoxGeometry(1.02, 0.735, 0.72, 5, 0.245);
-  const vertices = head.attributes.position;
-  for (let i = 0; i < vertices.count; i++) {
-    const x = vertices.getX(i);
-    const y = vertices.getY(i);
-    const z = vertices.getZ(i);
-    const fullness = Math.max(0, 1 - (x / 0.53) ** 2 - (y / 0.42) ** 2);
-    const crown = T.MathUtils.smoothstep(y, 0.19, 0.3675);
-    vertices.setX(i, x * (1 - 0.15 * crown));
-    vertices.setZ(i, z * (1 + 0.085 * fullness - 0.16 * crown));
-  }
-  mesh(head, skin, 0, 1.103, 0);
+  oval(new T.MeshBasicMaterial({ color: '#32151a', transparent: true, opacity: 0.22, depthWrite: false }),
+    0, 0.017, 0, 0.37, 0.007, 0.33);
+  const body = oval(skin, 0, 0.423, 0.025, 0.302, 0.284, 0.208);
+  mesh(makeMochiHead(), skin, 0, mochiHeadY, 0);
   for (const side of [-1, 1]) {
-    feet.push(oval(skin, side * 0.175, 0.16, -0.025, 0.149, 0.16, 0.19));
-    const arm = oval(skin, side * 0.348, 0.48, -0.015, 0.111, 0.193, 0.126);
-    arm.rotation.z = side * 0.31;
+    feet.push(oval(skin, side * 0.135, 0.16, -0.025, 0.132, 0.152, 0.157));
+    const arm = oval(skin, side * 0.292, 0.426, 0.003, 0.102, 0.159, 0.115);
+    arm.rotation.z = side * 0.24;
     arms.push(arm);
-    oval(blush, side * 0.299, 0.978, -0.378, 0.072, 0.027, 0.01).rotation.y = side * -0.16;
   }
 
-  const expressions = {
-    gentle: group(() => {
-      for (const x of [-0.18, 0.18]) {
-        const eye = new T.Group();
-        const pupil = oval(ink, 0, 0, 0, 0.034, 0.066, 0.013);
-        const glint = oval(material('#eac0ab'), -0.009, 0.026, -0.013, 0.008, 0.014, 0.004);
-        eye.add(pupil, glint);
-        eye.position.set(x, 1.09, -0.385);
-        scene.add(eye);
-        blinkingEyes.push(eye);
-      }
-      stroke([[-0.031, 1.001, -0.388], [0, 0.991, -0.392], [0.031, 1.001, -0.388]], 0.008, ink);
-    }),
-    happy: group(() => {
-      for (const x of [-0.18, 0.18]) {
-        stroke([[x - 0.049, 1.082, -0.388], [x, 1.119, -0.395], [x + 0.049, 1.082, -0.388]], 0.014, ink);
-      }
-      oval(ink, 0, 1.008, -0.386, 0.058, 0.043, 0.02);
-      oval(blush, 0, 0.987, -0.401, 0.032, 0.015, 0.008);
-    }),
-    surprised: group(() => {
-      for (const x of [-0.18, 0.18]) oval(ink, x, 1.097, -0.388, 0.032, 0.061, 0.014);
-      oval(ink, 0, 0.997, -0.389, 0.031, 0.035, 0.012);
-    }),
-    sleepy: group(() => {
-      for (const x of [-0.18, 0.18]) {
-        stroke([[x - 0.046, 1.087, -0.36], [x, 1.068, -0.395], [x + 0.046, 1.087, -0.36]], 0.012, ink);
-      }
-      oval(ink, 0, 0.995, -0.388, 0.016, 0.019, 0.007);
-    }),
-  };
+  const patch = mochiFacePatch();
+  // Surface decals keep the soft blush and features flush with the curved head.
+  const blush = new T.MeshBasicMaterial({
+    color: '#db6269', map: mochiFaceTexture('blush'), transparent: true, depthWrite: false,
+  });
+  mesh(patch, blush, 0, mochiHeadY, 0).renderOrder = 1;
+  const expressions = Object.fromEntries(['gentle', 'happy', 'sleepy', 'surprised', 'blink'].map(name => {
+    const surface = new T.MeshBasicMaterial({
+      map: mochiFaceTexture(name), transparent: true, depthWrite: false,
+    });
+    const face = mesh(patch, surface, 0, mochiHeadY, 0);
+    face.renderOrder = 2;
+    return [name, face];
+  }));
+  let selectedExpression = 'gentle';
+
   const scarf = group(() => {
     oval(scarfShade, 0, 0.726, -0.103, 0.364, 0.087, 0.265);
     oval(scarfRed, 0, 0.785, -0.091, 0.389, 0.074, 0.284);
@@ -803,13 +899,17 @@ function buildMascot() {
     accessories.pilot.visible = accessory === 'pilot' || accessory === 'cap';
     accessories.satchel.visible = accessory === 'pilot' || accessory === 'satchel';
     accessories.headphones.visible = accessory === 'headphones';
+    selectedExpression = expression;
     for (const [name, item] of Object.entries(expressions)) item.visible = name === expression;
     scarf.visible = accessory === 'pilot' || accessory === 'scarf';
   }
   function animateIdle(time, walking) {
-    const blink = 1 - 0.91 * Math.pow(Math.max(0, Math.cos((time - 1.4) * 1.53)), 110);
-    for (const eye of blinkingEyes) eye.scale.y = blink;
-    body.scale.y = 0.31 + (walking ? 0 : Math.sin(time * 2.25) * 0.005);
+    if (selectedExpression === 'gentle') {
+      const blink = (time + 3.2) % 4.4 < 0.115;
+      expressions.gentle.visible = !blink;
+      expressions.blink.visible = blink;
+    }
+    body.scale.y = 0.284 + (walking ? 0 : Math.sin(time * 2.25) * 0.004);
   }
   return { mascot, feet, arms, applyStyle, animateIdle };
 }
@@ -850,7 +950,7 @@ function setupMascotCustomizer(avatar, renderer, onChange, onOpen) {
     const { display, studio, camera, turntable } = preview;
     const model = avatar.mascot.clone();
     model.position.set(0, 0, 0);
-    model.rotation.set(0, -0.37, 0);
+    model.rotation.set(0, -0.22, 0);
     model.visible = true;
     turntable.clear();
     turntable.add(model);
