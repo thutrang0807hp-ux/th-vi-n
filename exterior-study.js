@@ -86,11 +86,15 @@ function grassCard() {
   })];
 }
 
-function distantCherryCard() {
+function distantCherryCard(profile) {
   const canvas = document.createElement('canvas');
   canvas.width = 160;
   canvas.height = 144;
   const ctx = canvas.getContext('2d');
+  const [width, height, lean] = profile;
+  ctx.translate(80, 144);
+  ctx.transform(width, 0, -lean * 0.38, height, 0, 0);
+  ctx.translate(-80, -144);
   ctx.filter = 'blur(1px)';
   ctx.fillStyle = '#655052';
   ctx.beginPath();
@@ -292,7 +296,8 @@ export function plantExteriorStudy(scene, kit, ground, length) {
   const blossom = surface('#ffffff', { flatShading: true, emissive: '#ffb9bc', emissiveIntensity: 0.26 });
   const anchors = [[0, 14, 0], [-2.0, 11.7, 0.6], [3.6, 11, 0], [2.5, 9.6, -3.2],
     [-2.9, 9.2, 2.8], [0.4, 11.8, -3.9], [1.6, 13, 2.6]];
-  const cherries = [[10.1, -2.7, 0.44, 1.27], [30, 18, 0.42, -1.0], [38, -16, 0.42, 3.0]];
+  const cherries = [[10.1, -2.7, 0.44, 1.27], [30, 18, 0.42, -1.0], [38, -16, 0.42, 3.0],
+    [-9.1, -7.2, 0.38, 2.3], [-31, 19.5, 0.41, -0.65]];
   const lobesPerAnchor = 69;
   const clusters = new T.InstancedMesh(crownGeometry, blossom, cherries.length * anchors.length * lobesPerAnchor);
   const pinks = ['#ed83a4', '#f99eb8', '#fbb4c4', '#ffd1da', '#ffe1d9'].map(color => new T.Color(color));
@@ -323,15 +328,16 @@ export function plantExteriorStudy(scene, kit, ground, length) {
   clusters.computeBoundingSphere();
   root.add(clusters);
 
-  const orchard = [];
+  const cherryProfiles = [[1.22, 0.82, -0.14], [0.79, 1.12, 0.32], [0.97, 0.96, -0.26]];
+  const orchard = cherryProfiles.map(() => []);
   for (const side of [-1, 1]) {
     for (let i = 0; i < 19; i++) {
       const z = -halfLength + (i + 0.5) * length / 19 + (random() - 0.5) * 2.2;
       const distance = 37 + random() * 17 + (side === 1 && Math.abs(z + 3.9) < 8 ? 7 : 0);
-      orchard.push([side * distance, z, 0.80 + random() * 0.58, random() * Math.PI * 2]);
+      orchard[Math.floor(random() * cherryProfiles.length)].push(
+        [side * distance, z, 0.80 + random() * 0.58, random() * Math.PI * 2]);
     }
   }
-  const branches = [];
   const branchEnds = [
     [[0, 0, 0], [-0.20, 1.13, 0.06], 0.18, 0.13],
     [[-0.20, 1.13, 0.06], [0.08, 2.45, 0], 0.13, 0.068],
@@ -340,56 +346,67 @@ export function plantExteriorStudy(scene, kit, ground, length) {
     [[0.01, 2.14, 0.01], [0.17, 2.75, 0.86], 0.055, 0.018],
   ];
   const up = new T.Vector3(0, 1, 0);
-  for (const [from, to, baseRadius, tipRadius] of branchEnds) {
-    const base = new T.Vector3(...from), tip = new T.Vector3(...to);
-    const span = tip.clone().sub(base);
-    const rotation = new T.Quaternion().setFromUnitVectors(up, span.clone().normalize());
-    const branch = new T.CylinderGeometry(tipRadius, baseRadius, span.length(), 5);
-    branch.applyQuaternion(rotation);
-    branch.translate(...base.lerp(tip, 0.5).toArray());
-    branches.push(branch);
-  }
-  const orchardBark = mergeGeometries(branches);
-  for (const branch of branches) branch.dispose();
-  const trunks = new T.InstancedMesh(orchardBark, tone('#785147', 0.17), orchard.length);
   const canopyPoints = [
     [-0.96, 2.54, 0.18, 0.74], [0.94, 2.63, -0.23, 0.74], [-0.24, 2.90, -0.69, 0.78],
     [0.16, 2.72, 0.87, 0.76], [0.08, 3.26, 0.06, 0.90], [0.63, 3.02, 0.28, 0.66],
     [-0.58, 3.10, 0.43, 0.65], [0.06, 2.53, 0.06, 0.89], [0.45, 2.83, -0.76, 0.58],
   ];
-  const sprays = new T.InstancedMesh(crownGeometry, blossom, orchard.length * canopyPoints.length);
-  orchard.forEach(([x, z, scale, turn], i) => {
-    const y = ground(x, z);
-    put(trunks, i, x, y, z, scale, turn);
-    canopyPoints.forEach(([dx, dy, dz, radius], part) => {
-      const rx = Math.cos(turn) * dx + Math.sin(turn) * dz;
-      const rz = -Math.sin(turn) * dx + Math.cos(turn) * dz;
-      put(sprays, i * canopyPoints.length + part, x + rx * scale, y + dy * scale, z + rz * scale,
-        scale * radius, random() * Math.PI * 2, pinks[(i + part) % pinks.length]);
+  const trunkMaterial = tone('#785147', 0.17);
+  for (const [variant, trees] of orchard.entries()) {
+    const [width, height, lean] = cherryProfiles[variant];
+    const form = (x, y, z) => new T.Vector3(x * width + lean * y * y * 0.26, y * height, z * width);
+    const branches = [];
+    for (const [from, to, baseRadius, tipRadius] of branchEnds) {
+      const base = form(...from), tip = form(...to);
+      const span = tip.clone().sub(base);
+      const rotation = new T.Quaternion().setFromUnitVectors(up, span.clone().normalize());
+      const branch = new T.CylinderGeometry(tipRadius, baseRadius, span.length(), 5);
+      branch.applyQuaternion(rotation);
+      branch.translate(...base.lerp(tip, 0.5).toArray());
+      branches.push(branch);
+    }
+    const orchardBark = mergeGeometries(branches);
+    for (const branch of branches) branch.dispose();
+    const trunks = new T.InstancedMesh(orchardBark, trunkMaterial, trees.length);
+    const sprays = new T.InstancedMesh(crownGeometry, blossom, trees.length * canopyPoints.length);
+    trees.forEach(([x, z, scale, turn], i) => {
+      const y = ground(x, z);
+      put(trunks, i, x, y, z, scale, turn);
+      canopyPoints.forEach(([dx, dy, dz, radius], part) => {
+        const center = form(dx, dy, dz);
+        const rx = Math.cos(turn) * center.x + Math.sin(turn) * center.z;
+        const rz = -Math.sin(turn) * center.x + Math.cos(turn) * center.z;
+        const pink = pinks[(i + part + variant) % pinks.length];
+        put(sprays, i * canopyPoints.length + part, x + rx * scale, y + center.y * scale, z + rz * scale,
+          scale * radius * (0.79 + random() * 0.38), random() * Math.PI * 2, pink);
+      });
     });
-  });
-  trunks.computeBoundingSphere();
-  sprays.computeBoundingSphere();
-  root.add(trunks, sprays);
+    trunks.computeBoundingSphere();
+    sprays.computeBoundingSphere();
+    root.add(trunks, sprays);
+  }
 
   const distantRows = 2, distantTreesPerRow = 26;
-  const silhouette = new T.InstancedMesh(new T.PlaneGeometry(4.8, 4.3).translate(0, 2.04, 0),
-    distantCherryCard(), 2 * distantRows * distantTreesPerRow);
-  let distantIndex = 0;
+  const distant = cherryProfiles.map(() => []);
   for (const side of [-1, 1]) {
     for (let row = 0; row < distantRows; row++) {
       for (let i = 0; i < distantTreesPerRow; i++) {
         const z = -halfLength + (i + 0.3 + row * 0.42 + random() * 0.26) * length / distantTreesPerRow;
         const x = side * (56 + row * 9 + random() * 4.2);
-        put(silhouette, distantIndex++, x, ground(x, z), z,
-          0.62 + random() * 0.58, Math.PI / 2 + (random() - 0.5) * 0.22);
+        distant[(i + row + Math.floor(random() * 2)) % cherryProfiles.length].push(
+          [x, z, 1.12 + random() * 0.43, Math.PI / 2 + (random() - 0.5) * 0.22]);
       }
     }
   }
-  silhouette.computeBoundingSphere();
-  root.add(silhouette);
+  const card = new T.PlaneGeometry(4.8, 4.3).translate(0, 2.04, 0);
+  distant.forEach((trees, variant) => {
+    const silhouette = new T.InstancedMesh(card, distantCherryCard(cherryProfiles[variant]), trees.length);
+    trees.forEach(([x, z, scale, turn], i) => put(silhouette, i, x, ground(x, z), z, scale, turn));
+    silhouette.computeBoundingSphere();
+    root.add(silhouette);
+  });
 
-  const millX = 27, millZ = -3.9;
+  const millX = 31.5, millZ = -3.9;
   const base = ground(millX, millZ);
   add(new T.CylinderGeometry(0.78, 1.22, 4.0, 10), ivory, millX, base + 2, millZ);
   add(new T.ConeGeometry(1.13, 1.55, 10), tile, millX, base + 4.60, millZ);
@@ -447,26 +464,31 @@ export function plantExteriorStudy(scene, kit, ground, length) {
   scene.add(skyClouds);
 
   const ridges = [
-    { x: 59, width: 53, relief: 5.8, offset: 0.7, shade: '#536b36', light: '#a0b654' },
-    { x: 70, width: 62, relief: 20, offset: 1.8, shade: '#3d632b', light: '#a9c441' },
-    { x: 90, width: 52, relief: 30, offset: 3.4, shade: '#506e45', light: '#a5be6e' },
+    { x: 60, width: 52, relief: 8, offset: 0.7, shade: '#3e6234', light: '#8cb544' },
+    { x: 72, width: 53, relief: 25, offset: 1.8, shade: '#2d5a26', light: '#a8ca37' },
+    { x: 91, width: 57, relief: 31, offset: 3.4, shade: '#466c3b', light: '#8bb456' },
   ];
   const sun = new T.Vector3(-0.66, 0.60, -0.44).normalize();
-  const profiles = [0, 0.30, 0.61, 0.84, 1];
+  const profiles = [0, 0.23, 0.49, 0.75, 1];
+  const mountainRange = new T.Group();
+  mountainRange.name = 'Mountain ranges';
+  scene.add(mountainRange);
+  const crest = [0.19, 0.31, 0.75, 0.61, 0.92, 0.53, 0.32, 0.68, 0.98, 0.80, 0.46, 0.79, 0.61, 0.24];
   for (const ridge of ridges) {
     const { x, width, relief, offset } = ridge;
     const points = [], triangles = [];
     const peaks = Array.from({ length: width }, (_, i) => {
-      const z = i / (width - 1) * 9.3;
-      const mass = Math.pow(0.5 + 0.5 * Math.sin(z * 2.6 + offset), 2.1);
-      const spur = 0.08 * Math.sin(z * 13.0 + offset) + 0.08 * Math.cos(z * 6.3);
-      return relief * Math.max(0.20, 0.22 + mass * 0.78 + spur);
+      const along = i / (width - 1) * (crest.length - 2) + offset * 0.66;
+      const left = Math.floor(along);
+      const mass = T.MathUtils.lerp(crest[left % crest.length], crest[(left + 1) % crest.length], along - left);
+      const spur = 0.052 * Math.sin(i * 1.45 + offset);
+      return relief * Math.max(0.19, mass + spur);
     });
     for (let row = 0; row < profiles.length; row++) {
       for (let i = 0; i < width; i++) {
         const z = -120 + i * 240 / (width - 1) + (random() - 0.5) * 2.4;
         const height = -1.10 + peaks[i] * profiles[row] + (random() - 0.5) * (0.6 + relief * 0.07);
-        const slope = (Math.cos(i * 0.61 + offset) * 2.4 + Math.sin(i * 0.27) * 2.3) * Math.sin(row * 0.77);
+        const slope = (Math.cos(i * 0.72 + offset) * 3.6 + Math.sin(i * 0.27) * 2.6) * Math.sin(row * 0.77);
         points.push(x + row * (relief * 0.115 + 0.82) + slope, height, z);
         if (row && i) {
           const d = row * width + i, c = d - 1, b = d - width, a = b - 1;
@@ -490,7 +512,7 @@ export function plantExteriorStudy(scene, kit, ground, length) {
     for (let i = 0; i < positions.count; i += 3) {
       normal.fromBufferAttribute(normals, i);
       if (normal.dot(front) < 0) normal.negate();
-      const daylight = T.MathUtils.clamp(0.50 + normal.dot(sun) * 0.53 + (random() - 0.5) * 0.25, 0, 1);
+      const daylight = T.MathUtils.clamp(0.39 + normal.dot(sun) * 0.55 + (random() - 0.5) * 0.20, 0, 1);
       const color = shade.clone().lerp(light, daylight);
       for (let vertex = 0; vertex < 3; vertex++) colors.push(color.r, color.g, color.b);
     }
@@ -498,7 +520,13 @@ export function plantExteriorStudy(scene, kit, ground, length) {
     const mountain = new T.Mesh(faces,
       new T.MeshBasicMaterial({ side: T.DoubleSide, vertexColors: true, toneMapped: false }));
     mountain.name = 'Distant mountain ridge';
-    scene.add(mountain);
+    mountainRange.add(mountain);
+    const opposite = mountain.clone();
+    opposite.name = 'West mountain ridge';
+    opposite.scale.x = -1;
+    opposite.position.z = 14 - offset * 7.1;
+    opposite.rotation.y = 0.075;
+    mountainRange.add(opposite);
   }
   return root;
 }

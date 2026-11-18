@@ -495,13 +495,15 @@ function buildScenery(kit) {
   const pebble = new T.IcosahedronGeometry(1, 0);
   const stone = material('#b2a9a1');
   const glint = new T.MeshBasicMaterial({ color: '#e1fbf1', transparent: true, opacity: 0.44, depthWrite: false });
-  const treeBark = material('#92745c');
-  const blossomColors = ['#eaaac2', '#f6bfd2', '#fbd8e5'].map(color => material(color));
-  const blossomGeometry = new T.IcosahedronGeometry(1, 1);
-
   function riverCenter(z, length, side) {
     const phase = z / length * Math.PI * 2;
     return 19.6 + Math.sin(phase + side * 0.42) * 4.7 + Math.sin(phase * 2 - 0.3) * 1.25;
+  }
+
+  const riverFarBank = 2.75;
+  function riverBankDistance(x, z, length, side) {
+    const offset = x - riverCenter(z, length, side);
+    return offset <= 0 ? -offset : Math.max(0, offset - riverFarBank);
   }
 
   function terrain(x, z, length, side, distant) {
@@ -509,23 +511,8 @@ function buildScenery(kit) {
     const slope = -0.39 + Math.min((x - 4) * 0.018, 0.73);
     const meadow = slope + 0.155 * Math.sin(phase * 2 + x * 0.13);
     if (distant) return meadow - 0.11;
-    const fromRiver = Math.abs(x - riverCenter(z, length, side));
+    const fromRiver = riverBankDistance(x, z, length, side);
     return T.MathUtils.lerp(waterLevel - 0.52, meadow, T.MathUtils.smoothstep(fromRiver, 3.55, 5.6));
-  }
-
-  function cherryTree(x, y, z, scale) {
-    cylinder(0.10 * scale, 0.20 * scale, 2.0 * scale, treeBark, x, y + scale, z);
-    for (const [dx, dy, dz, radius] of [[0, 2.74, 0, 1.05], [-0.76, 2.34, 0.13, 0.86],
-      [0.73, 2.43, 0.34, 0.91], [0.22, 2.42, -0.73, 0.81], [-0.26, 2.89, -0.44, 0.73]]) {
-      const branch = cylinder(0.046 * scale, 0.085 * scale, 0.91 * scale, treeBark,
-        x + dx * scale * 0.53, y + 1.78 * scale, z + dz * scale * 0.53);
-      branch.rotation.x = dz * 0.60;
-      branch.rotation.z = -dx * 0.65;
-      const crown = mesh(blossomGeometry, blossomColors[Math.floor(random() * blossomColors.length)],
-        x + dx * scale, y + dy * scale, z + dz * scale);
-      crown.scale.set(radius * scale, radius * scale * 0.72, radius * scale * 0.97);
-      crown.rotation.y = random() * Math.PI;
-    }
   }
 
   function field(length, minX, maxX, distant) {
@@ -567,7 +554,7 @@ function buildScenery(kit) {
           const x = centerX + Math.cos(angle) * radius * spreadX + bow;
           if (x < 16.2) continue;
           if (x < minX + 0.75 || x > maxX - 0.7) continue;
-          if (Math.abs(x - riverCenter(z, length, side)) < 5.1) continue;
+          if (riverBankDistance(x, z, length, side) < 5.1) continue;
           dummy.position.set(side * x, terrain(x, z, length, side, false), z);
           const scale = 0.84 + random() * 0.46;
           dummy.scale.set(scale, scale * (0.78 + random() * 0.38), scale);
@@ -595,7 +582,8 @@ function buildScenery(kit) {
             const offset = (col / columns - 0.5) * 7.5 +
               (edge || seam ? 0 : Math.sin(col * 8.1 + row * 7.3) * 0.52);
             const lift = edge || seam ? 0 : Math.sin(row * 5.9 - col * 3.7) * 0.035;
-            vertices.push([side * (riverCenter(z, length, side) + offset), waterLevel + lift, z]);
+            const widened = offset > 0 ? offset * (1 + riverFarBank / 3.75) : offset;
+            vertices.push([side * (riverCenter(z, length, side) + widened), waterLevel + lift, z]);
             bankFactors.push(T.MathUtils.smoothstep(Math.abs(offset), 1.20, 3.75));
           }
         }
@@ -634,7 +622,8 @@ function buildScenery(kit) {
         for (let i = 0; i < 26; i++) {
           const z = (random() - 0.5) * length;
           const bankSide = i % 2 === 0 ? -1 : 1;
-          const x = riverCenter(z, length, side) + bankSide * (4.1 + random() * 0.83);
+          const x = riverCenter(z, length, side) + bankSide * (4.1 + random() * 0.83)
+            + (bankSide > 0 ? riverFarBank : 0);
           const size = 0.14 + random() * 0.37;
           mesh(pebble, stone, side * x, terrain(x, z, length, side, false) + size * 0.25, z)
             .scale.set(size, size * 0.51, size * 1.08);
@@ -642,12 +631,7 @@ function buildScenery(kit) {
             waterLevel + 0.012, z + 0.28, 0.26 + random() * 0.46, 0.006, 0.05 + random() * 0.12);
           sparkle.rotation.y = 0.18;
         }
-        for (const [x, z, scale] of [[12, -25, 1.02], [31, -8, 1.28], [9, 17, 0.88], [31, 29, 1.10]]) {
-          const along = z + side * 4;
-          const shoreX = Math.abs(x - riverCenter(along, length, side)) < 5.6 ? x + (x < 20 ? -4.5 : 4.5) : x;
-          if (side === 1) continue;
-          cherryTree(side * shoreX, terrain(shoreX, along, length, side, false), along, scale);
-        }
+
       }
 
       for (const object of [blooms, stems, blades].filter(Boolean)) {
