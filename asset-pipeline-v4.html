@@ -9,9 +9,9 @@ kbd{border:1px solid #ffffff55;border-radius:4px;padding:2px 5px;background:#fff
 #loading{position:fixed;inset:0;background:#171b20;display:grid;place-items:center;z-index:9}
 @media(max-width:700px){#help{bottom:75px;font-size:10px}#actions{bottom:10px;right:8px;max-width:70%;flex-wrap:wrap;justify-content:end}button{padding:8px}#status{top:90px;right:10px}}
 </style></head><body><div id="loading">Đang chuẩn bị toa tàu Golden Hour…</div><div id="ui"><div class="panel" id="brand"><strong>🚂 Lofi Train · Asset Test</strong><small>V4 · thử nghiệm mô hình GLB thật</small></div><div class="panel" id="status"><span id="assetStatus">Đang tải GLB…</span> · Camera: <span id="camlabel">Theo sau</span></div><div class="panel" id="help"><kbd>W A S D</kbd> Di chuyển · <kbd>Shift</kbd> Chạy<br>Kéo chuột xoay · Cuộn zoom<br><kbd>V</kbd> POV · <kbd>E</kbd> Ngồi · <kbd>F</kbd> Focus</div><div id="actions"><button id="cam">📷 Camera</button><button id="seat">🪑 Ngồi</button><button id="focusBtn">⏱ Focus</button></div><div class="panel" id="focus">Phiên tập trung<div id="digits">25:00</div><button id="start">Bắt đầu</button><button id="reset">Đặt lại</button><button id="close">Đóng</button></div></div>
-<script type="module">
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"}}</script><script type="module">
 import * as T from 'https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js';
-import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/loaders/GLTFLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 const scene=new T.Scene();scene.background=new T.Color('#c7c8bd');scene.fog=new T.Fog('#b4c3bb',75,260);
 const renderer=new T.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.8));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;document.body.appendChild(renderer.domElement);
 const camera=new T.PerspectiveCamera(65,innerWidth/innerHeight,.08,350);scene.add(new T.HemisphereLight(0xe5edff,0x4b352e,2.15));
