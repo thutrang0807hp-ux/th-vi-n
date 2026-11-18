@@ -304,72 +304,149 @@ function buildEndWall() {
 }
 
 function buildScenery() {
-  box(220, 0.15, 250, material('#496361'), 0, -2.48, -26);
-  const lake = material('#588a98', 0.26, 0.18);
-  const foothill = material('#485c58');
-  const rock = material('#657780');
-  const snow = material('#e8e1dd');
-  const pine = [material('#233f35'), material('#324e3b'), material('#445a41')];
-  const tree = new T.ConeGeometry(1, 1, 5);
-  const cloud = new T.MeshBasicMaterial({ color: '#f5c8bb' });
-  const ripples = new T.MeshBasicMaterial({ color: '#aacac8', transparent: true, opacity: 0.39 });
-  const stone = material('#908074');
+  const layers = [];
+  const ground = material('#334c48');
+  const lake = material('#528e9b', 0.32, 0.12);
+  const stone = material('#9c8b83');
+  const trunks = material('#554639');
+  const gravel = material('#9b8162');
+  const pines = ['#234c49', '#355b48', '#557253'].map(color => material(color));
+  const conifer = new T.ConeGeometry(1, 1, 7);
+  const ripple = new T.MeshBasicMaterial({ color: '#86b2bb' });
+
+  scene.fog.color.set('#c1a4b0');
+  const sky = new T.ShaderMaterial({
+    side: T.BackSide,
+    uniforms: {
+      horizon: { value: new T.Color('#f5b28f') },
+      zenith: { value: new T.Color('#727cae') }
+    },
+    vertexShader: `
+      varying vec3 direction;
+      void main() {
+        direction = position;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 horizon;
+      uniform vec3 zenith;
+      varying vec3 direction;
+      void main() {
+        float height = smoothstep(-0.04, 0.42, normalize(direction).y);
+        gl_FragColor = vec4(mix(horizon, zenith, height), 1.0);
+        #include <colorspace_fragment>
+      }
+    `
+  });
+  mesh(new T.SphereGeometry(142, 32, 16), sky, 0, 0, -2);
+  box(220, 0.15, 300, ground, 0, -2.48, 0);
   for (const side of [-1, 1]) {
-    box(26, 0.12, 170, lake, side * 26, -2.35, -27);
-    for (let i = 0; i < 18; i++) {
-      const x = side * (63 + random() * 20);
-      const y = 17 + random() * 11;
-      const z = -104 + random() * 105;
-      oval(cloud, x, y, z, 2 + random() * 2, 0.35 + random(), 4 + random() * 8);
+    box(35, 0.12, 300, lake, side * 28.5, -2.36, 0);
+  }
+
+  function loop(length, speed, copies, build) {
+    const start = scene.children.length;
+    build(length);
+    const tile = new T.Group();
+    for (const object of scene.children.slice(start)) tile.add(object);
+    batchScenery(tile, false);
+    const strip = new T.Group();
+    for (let i = -copies; i <= copies; i++) {
+      const copy = tile.clone();
+      copy.position.z = i * length;
+      strip.add(copy);
     }
-    for (let i = 0; i < 56; i++) {
-      box(0.1 + random() * 0.35, 0.009, 0.4 + random() * 2.2, ripples,
-        side * (15 + random() * 23), -2.281, -105 + random() * 148);
+    scene.add(strip);
+    layers.push({ strip, length, speed });
+  }
+
+  function grove(x, z, height, variety) {
+    const trunk = mesh(conifer, trunks, x, -2.39 + height * 0.22, z);
+    trunk.scale.set(0.115, height * 0.44, 0.115);
+    for (let level = 0; level < 4; level++) {
+      const branch = mesh(conifer, pines[(variety + Number(level === 3)) % pines.length], x,
+        -2.39 + height * (0.34 + level * 0.166), z);
+      const width = height * (0.22 - level * 0.043);
+      branch.scale.set(width, height * (0.47 - level * 0.043), width);
+      branch.rotation.y = variety + level * 0.53;
     }
-    for (let i = 0; i < 14; i++) {
-      const x = side * (47 + random() * 24);
-      const z = -100 + i * 13;
-      const peak = 13 + random() * 18;
-      const mountain = mesh(new T.ConeGeometry(14 + random() * 12, peak, 6), rock, x, peak / 2 - 2.4, z);
-      mountain.rotation.y = random() * Math.PI;
-      const cap = mesh(new T.ConeGeometry(mountain.geometry.parameters.radius * 0.32, peak * 0.32, 6), snow,
-        x, peak * 0.84 - 2.37, z);
-      cap.rotation.y = mountain.rotation.y;
-      oval(foothill, side * 42, -2.25, z + 3, 13, 4 + random() * 3.6, 13);
-    }
-    for (let i = 0; i < 160; i++) {
-      const near = i < 55;
-      const x = side * (near ? 6 + random() * 8 : 40 + random() * 10);
-      const z = 22 - random() * 142;
-      const height = 2 + random() * 4.8;
-      for (let layer = 0; layer < 2; layer++) {
-        const o = mesh(tree, pine[i % 3], x, (near ? -2.1 : 0.1) + height * (0.38 + layer * 0.27), z);
-        o.scale.set(height * (0.235 - layer * 0.055), height * 0.74, height * (0.235 - layer * 0.055));
-        o.rotation.y = i;
+  }
+
+  loop(74, 9.2, 3, length => {
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 16; i++) {
+        grove(side * (7.7 + random() * 2.7), -length / 2 + (i + random()) * length / 16,
+          2 + random() * 3.8, i % 3);
+      }
+      for (let i = 0; i < 9; i++) {
+        const z = -length / 2 + 3 + i * 8;
+        oval(gravel, side * (5.8 + random() * 0.7), -2.26, z, 0.45, 0.19, 0.75);
       }
     }
-  }
-  const bridgeX = -27;
-  const bridgeStart = -46;
-  box(1.35, 0.49, 31, stone, bridgeX, 1.86, bridgeStart + 14.5);
-  box(1.49, 0.12, 31, stone, bridgeX, 2.14, bridgeStart + 14.5);
-  for (let i = 0; i < 9; i++) {
-    const z = bridgeStart + i * 3.65;
-    box(1.12, 2.59, 0.51, stone, bridgeX, -1.05, z);
-    if (i === 8) continue;
-    const arch = mesh(new T.TorusGeometry(1.82, 0.22, 8, 18, Math.PI), stone,
-      bridgeX, -0.06, z + 1.82);
-    arch.rotation.y = Math.PI / 2;
-  }
+  });
 
+  loop(98, 3.25, 2, length => {
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 36; i++) {
+        box(0.23 + random() * 0.64, 0.009, 0.45 + random() * 2.7, ripple,
+          side * (12 + random() * 32), -2.293, (random() - 0.5) * length);
+      }
+      for (let i = 0; i < 19; i++) {
+        grove(side * (45.9 + random() * 8), (random() - 0.5) * length, 3.1 + random() * 4.6, i % 3);
+      }
+    }
+    const bridgeX = -29;
+    box(1.4, 0.37, 31, stone, bridgeX, 1.76, -4);
+    for (let i = 0; i < 9; i++) {
+      const z = -19 + i * 3.75;
+      box(1.09, 2.45, 0.56, stone, bridgeX, -1.14, z);
+      if (i < 8) {
+        mesh(new T.TorusGeometry(1.875, 0.22, 7, 16, Math.PI), stone,
+          bridgeX, -0.06, z + 1.875).rotation.y = Math.PI / 2;
+      }
+    }
+  });
+
+  const ridge = new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.98, flatShading: true, side: T.DoubleSide });
+  const warmRock = new T.Color('#637b90');
+  const highRock = new T.Color('#9b9db3');
+  const snow = new T.Color('#efe8f0');
+  const tint = new T.Color();
+  loop(116, 0.65, 2, length => {
+    for (const side of [-1, 1]) {
+      for (let row = 0; row < 2; row++) {
+        const geometry = new T.PlaneGeometry(length, 32, 48, 12);
+        const vertices = geometry.attributes.position;
+        const colors = [];
+        for (let i = 0; i < vertices.count; i++) {
+          const z = vertices.getX(i);
+          const slope = vertices.getY(i) / 32 + 0.5;
+          const angle = z / length * Math.PI * 2;
+          const jagged = 0.46 * Math.sin(angle * 5 + side) + 0.28 * Math.cos(angle * 11 + row);
+          const peak = 15 + 9 * row + 11 * Math.sin(angle * 3 + row * 1.4) ** 2 + jagged * 6;
+          const height = Math.sin(slope * Math.PI) ** 1.4 * peak + Math.sin(angle * 17 + slope * 17)
+            * Math.sin(slope * Math.PI) * 1.6;
+          vertices.setXYZ(i, side * (46 + row * 24 + slope * 32), -2.45 + height, z);
+          tint.copy(warmRock).lerp(highRock, T.MathUtils.smoothstep(height, 4, 19));
+          tint.lerp(snow, T.MathUtils.smoothstep(height + jagged * 5, 19 + row * 3, 26 + row * 3));
+          colors.push(tint.r, tint.g, tint.b);
+        }
+        geometry.setAttribute('color', new T.Float32BufferAttribute(colors, 3));
+        geometry.computeVertexNormals();
+        mesh(geometry, ridge, 0, 0, 0);
+      }
+    }
+  });
+  return layers;
 }
 
-function batchScenery() {
+function batchScenery(root = scene, useSections = true) {
   const batches = new Map();
-  for (const object of scene.children) {
+  for (const object of root.children) {
     if (!object.isMesh || object.material.transparent) continue;
-    const section = Math.floor(object.position.z / 14);
-    const key = [object.material.id, Boolean(object.geometry.index), section].join('/');
+    const section = useSections ? Math.floor(object.position.z / 14) : 0;
+    const key = [object.material.id, Boolean(object.geometry.index), Object.keys(object.geometry.attributes).sort().join(), section].join('/');
     if (!batches.has(key)) batches.set(key, []);
     batches.get(key).push(object);
   }
@@ -383,8 +460,8 @@ function batchScenery() {
     for (const geometry of geometries) geometry.dispose();
     if (!merged) continue;
     merged.computeBoundingSphere();
-    scene.remove(...objects);
-    mesh(merged, objects[0].material, 0, 0, 0);
+    root.remove(...objects);
+    root.add(new T.Mesh(merged, objects[0].material));
   }
 }
 
@@ -430,13 +507,23 @@ function start() {
   buildShell();
   buildBooths();
   buildEndWall();
-  buildScenery();
+  const scenery = buildScenery();
   batchScenery();
-  play(renderer, buildMascot());
+  play(renderer, buildMascot(), scenery);
   status.remove();
 }
 
-function play(renderer, { mascot, feet }) {
+function play(renderer, { mascot, feet }, scenery) {
+  const motionButton = document.querySelector('#motion-toggle');
+  let trainMoving = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function updateMotionButton() {
+    motionButton.textContent = trainMoving ? 'Dừng tàu' : 'Chạy tàu';
+  }
+  motionButton.addEventListener('click', () => {
+    trainMoving = !trainMoving;
+    updateMotionButton();
+  });
+  updateMotionButton();
   const keys = new Set();
   const cameraButton = document.querySelector('#camera-toggle');
   const seatButton = document.querySelector('#seat-toggle');
@@ -583,6 +670,7 @@ function play(renderer, { mascot, feet }) {
   window.addEventListener('resize', resize);
   const pressed = (letter, arrow) => Number(keys.has(letter) || keys.has(arrow));
   let lastFrame = performance.now();
+  let lastSceneryRender = 0;
 
   renderer.setAnimationLoop(now => {
     const dt = clamp((now - lastFrame) / 1000, 0, 0.08);
@@ -628,7 +716,13 @@ function play(renderer, { mascot, feet }) {
     if (firstPerson) follow.copy(position);
     else follow.lerp(position, 1 - Math.exp(-dt * 15));
     updateTimer();
-    if (!needsRender && !cameraMoving) return;
+    if (trainMoving) {
+      for (const { strip, speed, length } of scenery) {
+        strip.position.z = (strip.position.z + dt * speed) % length;
+      }
+    }
+    if (!needsRender && !cameraMoving && (!trainMoving || now - lastSceneryRender < 1000 / 30)) return;
+    lastSceneryRender = now;
     needsRender = false;
 
     const { x, y, z } = follow;

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lofi Train — Mountain Route</title>
-  <link rel="stylesheet" href="../lounge.css">
+  <link rel="stylesheet" href="../lounge.css?v=alpine-motion">
 </head>
 <body>
   <main aria-label="Toa lounge Lofi Train">
@@ -12,7 +12,10 @@
     <p id="status" role="status">Đang dựng toa tàu…</p>
     <header>
       <span>Lofi Train <span class="route">— Mountain Route</span></span>
-      <button id="camera-toggle" type="button" aria-pressed="false">Camera POV</button>
+      <div class="view-controls">
+        <button id="motion-toggle" type="button">Dừng tàu</button>
+        <button id="camera-toggle" type="button" aria-pressed="false">Camera POV</button>
+      </div>
     </header>
     <div class="actions" aria-label="Điều khiển">
       <button id="seat-toggle" type="button" aria-pressed="false">Ngồi</button>
@@ -36,6 +39,6 @@
     </dialog>
   </main>
   <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js"}}</script>
-  <script type="module" src="../lounge.js?v=free-orbit"></script>
+  <script type="module" src="../lounge.js?v=alpine-motion"></script>
 </body>
 </html>

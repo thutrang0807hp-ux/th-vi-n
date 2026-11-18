@@ -88,3 +88,5 @@ dialog h2 { margin: 0 0 12px; font-size: 1.1rem; }
   .touch-controls button:nth-child(2) { grid-column: 1; }
   .actions { right: 12px; bottom: 12px; }
 }
+
+.view-controls { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
