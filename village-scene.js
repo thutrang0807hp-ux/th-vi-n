@@ -844,6 +844,104 @@ function buildMochiBody(surface) {
   return { body, feet, arms };
 }
 
+function buildFocusProps() {
+  const props = new T.Group();
+  const paper = material('#fce6bd', 0.85);
+  const pageEdge = material('#ccb18d', 0.88);
+  const print = material('#937e6a', 0.88);
+  const cover = material('#536346', 0.79);
+  const laptop = material('#706365', 0.48, 0.22);
+  const keys = material('#3b2f32', 0.74);
+  const screen = new T.MeshStandardMaterial({
+    color: '#607b83', emissive: '#3b5a68', emissiveIntensity: 0.65, roughness: 0.65,
+  });
+  const variants = {};
+  function collect(name, build) {
+    const first = scene.children.length;
+    build();
+    const model = new T.Group();
+    model.add(...scene.children.slice(first));
+    model.visible = false;
+    variants[name] = model;
+    props.add(model);
+    return model;
+  }
+
+  const book = collect('read', () => {
+    box(0.42, 0.024, 0.282, cover, 0, 0, 0, 0.009);
+    for (const side of [-1, 1]) {
+      box(0.191, 0.029, 0.257, pageEdge, side * 0.101, 0.024, 0, 0.008);
+      box(0.189, 0.009, 0.253, paper, side * 0.101, 0.041, 0, 0.004);
+      for (let line = 0; line < 6; line++) {
+        box(line === 5 ? 0.088 : 0.137, 0.0016, 0.003, print,
+          side * 0.102, 0.046, -0.085 + line * 0.031);
+      }
+    }
+  });
+  book.position.set(0, 0.464, -0.252);
+  book.rotation.set(0.65, 0, -0.075);
+
+  const notebook = collect('write', () => {
+    box(0.29, 0.015, 0.28, cover, 0, 0, 0, 0.005);
+    box(0.273, 0.018, 0.26, paper, 0, 0.014, 0, 0.006);
+    for (let line = 0; line < 7; line++) {
+      box(0.217, 0.0015, 0.0025, print, 0, 0.024, -0.098 + line * 0.031);
+    }
+  });
+  notebook.position.set(0.145, 0.374, -0.397);
+  notebook.rotation.y = -0.16;
+
+  const computer = collect('work', () => {
+    box(0.425, 0.025, 0.27, laptop, 0, 0, 0, 0.009);
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col < 9; col++) {
+        box(0.031, 0.004, 0.024, keys, (col - 4) * 0.039, 0.015, -0.068 + row * 0.031, 0.002);
+      }
+    }
+    box(0.1, 0.002, 0.054, keys, 0, 0.014, 0.09, 0.003);
+    const first = scene.children.length;
+    box(0.425, 0.282, 0.024, laptop, 0, 0.141, 0, 0.012);
+    box(0.377, 0.231, 0.006, screen, 0, 0.146, 0.013, 0.004);
+    const lid = new T.Group();
+    lid.add(...scene.children.slice(first));
+    lid.position.set(0, 0.009, -0.126);
+    lid.rotation.x = -0.19;
+    scene.add(lid);
+  });
+  computer.position.set(0, 0.378, -0.447);
+
+  const checklist = collect('plan', () => {
+    box(0.27, 0.023, 0.32, leather, 0, 0, 0, 0.014);
+    box(0.247, 0.01, 0.289, paper, 0, 0.017, 0, 0.008);
+    box(0.076, 0.018, 0.031, bronze, 0, 0.027, -0.132, 0.007);
+    for (let row = 0; row < 4; row++) {
+      const z = -0.082 + row * 0.054;
+      box(0.029, 0.002, 0.029, print, -0.083, 0.023, z, 0.002);
+      box(0.021, 0.002, 0.021, paper, -0.083, 0.025, z, 0.001);
+      box(row % 2 ? 0.102 : 0.129, 0.002, 0.004, print, 0.022, 0.024, z, 0.001);
+    }
+    box(0.012, 0.004, 0.022, cover, -0.086, 0.029, -0.079, 0.002).rotation.y = 0.52;
+    box(0.012, 0.004, 0.035, cover, -0.074, 0.029, -0.089, 0.002).rotation.y = -0.51;
+  });
+  checklist.position.set(0.091, 0.425, -0.387);
+  checklist.rotation.set(-0.32, -0.13, 0);
+
+  const tea = collect('tea', () => {
+    const profile = [[0, 0], [0.041, 0], [0.049, 0.01], [0.058, 0.068],
+      [0.058, 0.078], [0.053, 0.078], [0.048, 0.016], [0, 0.016]];
+    mesh(new T.LatheGeometry(profile.map(([r, y]) => new T.Vector2(r, y)), 28), paper, 0, 0, 0);
+    cylinder(0.05, 0.05, 0.004, leather, 0, 0.06, 0);
+    mesh(new T.TorusGeometry(0.026, 0.008, 8, 20), paper, 0.067, 0.047, 0);
+  });
+
+  const pencil = new T.Group();
+  pencil.add(cylinder(0.008, 0.008, 0.122, bronze, 0, 0.061, 0));
+  pencil.add(cylinder(0.008, 0.001, 0.023, darkWood, 0, -0.0115, 0));
+  notebook.add(pencil);
+  scene.add(props);
+  return { props, variants, pencil, book, checklist, tea };
+}
+
 function buildMascot() {
   const start = scene.children.length;
   const skin = material('#f5a0a3', 0.78);
@@ -959,6 +1057,13 @@ function buildMascot() {
   accessories.satchel.scale.set(0.78, 0.73, 0.78);
   accessories.satchel.position.y = -0.027;
   mascot.add(...scene.children.slice(start));
+  const headPivot = new T.Group();
+  headPivot.position.y = mochiHeadY;
+  for (const part of [head, cheekDecal, ...Object.values(expressions), accessories.pilot, accessories.headphones]) {
+    part.position.y -= mochiHeadY;
+    headPivot.add(part);
+  }
+  mascot.add(headPivot);
   mascot.position.z = 5.95;
   scene.add(mascot);
   function applyStyle({ color, accessory, expression }) {
@@ -984,7 +1089,53 @@ function buildMascot() {
     }
     body.scale.y = 1 + (walking ? 0 : Math.sin(time * 2.25) * 0.004);
   }
-  return { mascot, feet, arms, applyStyle, animateIdle };
+  const { props, variants, pencil, book, checklist, tea } = buildFocusProps();
+  function setActivity(activity) {
+    headPivot.rotation.set(0, 0, 0);
+    for (const arm of arms) arm.rotation.z = 0;
+    props.position.copy(mascot.position);
+    props.visible = Boolean(variants[activity]);
+    for (const [name, item] of Object.entries(variants)) item.visible = name === activity;
+  }
+  function animateActivity(activity, time) {
+    const wave = Math.sin(time * 2.2);
+    headPivot.rotation.x = activity === 'work' ? -0.08 : -0.18 + wave * 0.018;
+    if (activity === 'read') {
+      arms[0].rotation.x = 1.71 + wave * 0.035;
+      arms[1].rotation.x = 1.68 + wave * 0.04;
+      arms[0].rotation.z = 0.14;
+      arms[1].rotation.z = -0.14;
+      book.position.y = 0.464 + wave * 0.004;
+      book.rotation.x = 0.65 + wave * 0.025;
+      book.rotation.z = -0.075 + wave * 0.013;
+    } else if (activity === 'write') {
+      arms[0].rotation.x = 0.95;
+      arms[1].rotation.x = 1.15 + Math.sin(time * 9) * 0.09;
+      pencil.position.set(0.084 + Math.sin(time * 8.5) * 0.021, 0.029, 0.093 + wave * 0.025);
+      pencil.rotation.set(0.28 + wave * 0.04, 0, -0.35);
+    } else if (activity === 'plan') {
+      arms[0].rotation.x = 1.03 + wave * 0.025;
+      arms[1].rotation.x = 1.21 + Math.sin(time * 4.4) * 0.065;
+      checklist.rotation.x = -0.32 + wave * 0.032;
+    } else if (activity === 'think') {
+      headPivot.rotation.set(0.045 + wave * 0.045, 0.15 + wave * 0.09, -0.075);
+      arms[0].rotation.x = 0.15;
+      arms[1].rotation.x = 2.02 + wave * 0.09;
+      arms[1].rotation.z = -0.45;
+    } else if (activity === 'tea') {
+      const lift = T.MathUtils.smoothstep(Math.sin(time * 0.93), 0.08, 0.76);
+      headPivot.rotation.x = -0.09 + lift * 0.09;
+      arms[0].rotation.x = 0.36;
+      arms[1].rotation.x = 1.11 + lift * 0.84;
+      tea.position.set(0.234 - lift * 0.093, 0.379 + lift * 0.142, -0.326 + lift * 0.062);
+      tea.rotation.x = -0.32 * lift;
+    } else {
+      arms[0].rotation.x = 1.16 + Math.sin(time * 9.3) * 0.095;
+      arms[1].rotation.x = 1.16 + Math.sin(time * 10.4 + 1.1) * 0.095;
+    }
+  }
+  setActivity('idle');
+  return { mascot, feet, arms, props, applyStyle, animateIdle, setActivity, animateActivity };
 }
 
 function setupMascotCustomizer(avatar, renderer, onChange, onOpen) {
@@ -1081,7 +1232,7 @@ export async function start({ buildExterior } = {}) {
     batchScenery();
   }
   const avatar = buildMascot();
-  cabin?.add(avatar.mascot);
+  cabin?.add(avatar.mascot, avatar.props);
   play(renderer, avatar, scenery, cabin);
   status.remove();
 }
@@ -1103,6 +1254,7 @@ function play(renderer, avatar,
   const keys = new Set();
   const cameraButton = document.querySelector('#camera-toggle');
   const seatButton = document.querySelector('#seat-toggle');
+  const activityPicker = document.querySelector('#activity-picker');
   const panel = document.querySelector('#focus-panel');
   const timer = document.querySelector('#focus-clock');
   const timerButton = document.querySelector('#timer-start');
@@ -1111,6 +1263,8 @@ function play(renderer, avatar,
   let deadline = null;
   let firstPerson = false;
   let seated = false;
+  let activity = 'idle';
+  let activityTime = 0;
   let yaw = 0;
   let pitch = 0;
   let drag = null;
@@ -1142,6 +1296,9 @@ function play(renderer, avatar,
     } else {
       mascot.position.set(aisleLimit - 0.18, 0, mascot.position.z);
       mascot.rotation.y = 0;
+      activity = 'idle';
+      activityPicker.value = activity;
+      avatar.setActivity(activity);
     }
     follow.copy(mascot.position);
     strideWeight = 0;
@@ -1178,6 +1335,16 @@ function play(renderer, avatar,
 
   cameraButton.addEventListener('click', toggleCamera);
   seatButton.addEventListener('click', toggleSeat);
+  activityPicker.value = activity;
+  activityPicker.disabled = false;
+  activityPicker.addEventListener('change', () => {
+    activity = activityPicker.value;
+    if (activity !== 'idle' && !seated) toggleSeat();
+    activityTime = 0;
+    avatar.setActivity(activity);
+    for (const arm of arms) arm.rotation.x = 0.10;
+    needsRender = true;
+  });
   document.querySelector('#focus-toggle').addEventListener('click', toggleFocus);
   timerButton.addEventListener('click', () => {
     if (deadline !== null) {
@@ -1203,7 +1370,7 @@ function play(renderer, avatar,
 
   const movement = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'ShiftLeft', 'ShiftRight']);
   window.addEventListener('keydown', event => {
-    if (event.ctrlKey || event.metaKey || event.altKey || avatarPanel.open) return;
+    if (event.ctrlKey || event.metaKey || event.altKey || avatarPanel.open || event.target === activityPicker) return;
     if (!event.repeat && event.code === 'KeyF') toggleFocus();
     if (panel.open) return;
     if (movement.has(event.code)) {
@@ -1310,6 +1477,8 @@ function play(renderer, avatar,
     else follow.lerp(position, 1 - Math.exp(-dt * 15));
     updateTimer();
     ambientTime += dt;
+    const working = seated && activity !== 'idle';
+    if (working && !reduceMotion) activityTime += dt;
     if (trainMoving) {
       if (cabin) cabin.position.z -= sceneryDt * trainSpeed;
       for (const { strip, speed, length } of layers) {
@@ -1320,6 +1489,7 @@ function play(renderer, avatar,
     lastSceneryRender = now;
     const trainZ = cabin?.position.z ?? 0;
     animateAmbient?.(ambientTime, trainZ);
+    if (working) avatar.animateActivity(activity, activityTime);
     needsRender = false;
 
     const { x, y, z } = follow;
@@ -1332,7 +1502,7 @@ function play(renderer, avatar,
       camera.position.set(x, eyeHeight, z);
       look.set(x + sinYaw * Math.cos(pitch), eyeHeight + Math.sin(pitch), z - cosYaw * Math.cos(pitch));
     } else if (seated) {
-      const reach = clamp(distance * 0.57, 1.65, 2.85);
+      const reach = clamp(distance * (working ? 0.51 : 0.57), 1.65, 2.85);
       camera.position.set(clamp(0.65 - sinYaw * 1.05, -1.15, 1.47),
         clamp(y + 1.37 - pitch * 0.9, 1.55, 2.8),
         clamp(z - reach + (1 - cosYaw) * 1.24, -16.8, 12.95));

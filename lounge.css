@@ -52,7 +52,7 @@ button:hover, button:focus-visible, button[aria-pressed="true"] { background: #7
   position: fixed;
   left: 22px;
   bottom: 20px;
-  max-width: calc(100% - 220px);
+  max-width: calc(100% - 440px);
   margin: 0;
   padding: 9px 14px;
   background: #261813ed;
@@ -89,7 +89,7 @@ dialog h2 { margin: 0 0 12px; font-size: 1.1rem; }
   .actions { right: 12px; bottom: 12px; }
 }
 
-#route-picker {
+#route-picker, #activity-picker {
   max-width: 46vw;
   padding: 7px 9px;
   border: 1px solid #dfab6880;
@@ -99,7 +99,7 @@ dialog h2 { margin: 0 0 12px; font-size: 1.1rem; }
   font: inherit;
   cursor: pointer;
 }
-#route-picker:focus-visible { outline: 2px solid #efb87c; outline-offset: 2px; }
+#route-picker:focus-visible, #activity-picker:focus-visible { outline: 2px solid #efb87c; outline-offset: 2px; }
 .view-controls { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
 
 #status { z-index: 2; }
@@ -139,3 +139,11 @@ dialog h2 { margin: 0 0 12px; font-size: 1.1rem; }
   border-radius: 8px;
 }
 #avatar-toggle:disabled { opacity: 0.55; cursor: default; }
+
+#activity-picker { max-width: min(39vw, 190px); }
+@media (max-width: 640px) {
+  .keyboard-help { display: none; }
+}
+@media (pointer: coarse) and (max-width: 540px) {
+  .actions { flex-wrap: wrap; justify-content: flex-end; max-width: calc(100% - 150px); }
+}
