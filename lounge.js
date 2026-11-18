@@ -7,6 +7,11 @@ scene.background = new T.Color('#d8a899');
 scene.fog = new T.FogExp2('#d8a899', 0.012);
 
 const status = document.querySelector('#status');
+const halfCabin = 4.05;
+const boothCenter = 2.86;
+const aisleLimit = 1.49;
+const cameraAisleLimit = 1.59;
+
 const camera = new T.PerspectiveCamera(56, 1, 0.05, 155);
 camera.position.set(0, 1.91, 10.8);
 camera.lookAt(0, 1.67, -12);
@@ -98,27 +103,27 @@ function textile() {
 }
 
 function buildShell() {
-  box(6.8, 0.24, 31, darkWood, 0, -0.15, -2);
+  box(halfCabin * 2 + 0.24, 0.24, 31, darkWood, 0, -0.15, -2);
   const planks = Array.from({ length: 7 }, (_, i) => material(new T.Color('#744327').multiplyScalar(0.8 + i * 0.066), 0.47));
   for (let row = 0; row < 20; row++) {
-    for (let col = 0; col < 18; col++) {
+    for (let col = 0; col < 22; col++) {
       box(0.365, 0.035, 1.53, planks[Math.floor(random() * planks.length)],
-        (col - 8.5) * 0.374, -0.025, -16.7 + row * 1.55);
+        (col - 10.5) * 0.374, -0.025, -16.7 + row * 1.55);
     }
   }
-  const carpet = mesh(new T.PlaneGeometry(1.86, 30.7), textile(), 0, 0.005, -2);
+  const carpet = mesh(new T.PlaneGeometry(2.78, 30.7), textile(), 0, 0.005, -2);
   carpet.rotation.x = -Math.PI / 2;
 
   const vault = new T.CylinderGeometry(1, 1, 31, 48, 1, true, Math.PI / 2, Math.PI);
   vault.rotateX(Math.PI / 2);
-  vault.scale(3.31, 1.03, 1);
+  vault.scale(halfCabin + 0.03, 1.03, 1);
   const vaultLining = ceiling.clone();
   vaultLining.side = T.BackSide;
   mesh(vault, vaultLining, 0, 3, -2);
   for (let z = -16; z <= 13; z += 3.6) {
     const arch = new T.CatmullRomCurve3(Array.from({ length: 25 }, (_, i) => {
       const angle = i * Math.PI / 24;
-      return new T.Vector3(Math.cos(angle) * 3.28, 2.98 + Math.sin(angle) * 1.02, z);
+      return new T.Vector3(Math.cos(angle) * halfCabin, 2.98 + Math.sin(angle) * 1.02, z);
     }));
     mesh(new T.TubeGeometry(arch, 32, 0.05, 7, false), bronze, 0, 0, 0);
     cylinder(0.055, 0.055, 0.18, bronze, 0, 3.88, z);
@@ -127,7 +132,7 @@ function buildShell() {
     if (z < 10 && z > -13) point('#ffc284', 12, 5.3, 0, 3.57, z);
   }
   for (const side of [-1, 1]) {
-    const x = side * 3.28;
+    const x = side * halfCabin;
     box(0.19, 0.89, 31, walnut, x, 0.43, -2);
     box(0.29, 0.14, 31, darkWood, x, 0.92, -2);
     box(0.21, 0.38, 31, walnut, x, 3.08, -2);
@@ -220,29 +225,12 @@ function tableLamp(x, z) {
   oval(bronze, x, 1.503, z, 0.041, 0.025, 0.041);
 }
 
-const tuftGeometry = new T.SphereGeometry(1, 9, 6);
 function boothPadding(x, back, direction) {
-  const panel = box(1.78, 1.02, 0.37, green, x, 1.075, back, 0.145);
-  panel.rotation.x = direction * 0.045;
-  for (const face of [-1, 1]) {
-    for (let row = 0; row < 3; row++) {
-      for (let column = 0; column < 5; column++) {
-        const px = x + (column - 2) * 0.29 + (row % 2 ? 0.145 : 0);
-        const y = 0.83 + row * 0.23;
-        const z = back + face * 0.185 - direction * (y - 1.075) * 0.045;
-        mesh(tuftGeometry, seam, px, y, z + face * 0.004).scale.set(0.024, 0.023, 0.01);
-        if (row === 2) continue;
-        const offsets = row % 2 ? [-0.145, 0.145] : [0.145, -0.145];
-        for (const offset of offsets) {
-          if (Math.abs(px + offset - x) > 0.73) continue;
-          const stitch = new T.LineCurve3(
-            new T.Vector3(px, y, z + face * 0.002),
-            new T.Vector3(px + offset, y + 0.23, z + face * 0.002 - direction * 0.01)
-          );
-          mesh(new T.TubeGeometry(stitch, 1, 0.0019, 4, false), seam, 0, 0, 0);
-        }
-      }
-    }
+  box(1.83, 1.15, 0.30, seam, x, 1.03, back, 0.14);
+  for (let channel = 0; channel < 5; channel++) {
+    const cushion = box(0.34, 0.93, 0.32, green, x + (channel - 2) * 0.334,
+      1.06, back - direction * 0.075, 0.11);
+    cushion.rotation.x = direction * 0.055;
   }
 }
 
@@ -261,7 +249,7 @@ function buildBooths() {
   const shadowGeometry = new T.PlaneGeometry(2.7, 1.65);
   shadowGeometry.rotateX(-Math.PI / 2);
   for (const side of [-1, 1]) for (let z = -13.3; z <= 12; z += 3.6) {
-    const x = side * 2.09;
+    const x = side * boothCenter;
     for (const direction of [-1, 1]) {
       const back = z + direction * 1.29;
       mesh(shadowGeometry, shadowMaterial, x, 0.004, back - direction * 0.2);
@@ -298,7 +286,7 @@ function buildBooths() {
 
 function buildEndWall() {
   const z = -17.2;
-  box(6.7, 3.85, 0.18, darkWood, 0, 1.9, z);
+  box(halfCabin * 2 + 0.12, 3.85, 0.18, darkWood, 0, 1.9, z);
   box(1.43, 2.63, 0.26, bronze, 0, 1.32, z + 0.12, 0.09);
   box(1.31, 2.52, 0.24, walnut, 0, 1.29, z + 0.16, 0.075);
   box(0.88, 1.12, 0.07, material('#6c8581', 0.24), 0, 1.73, z + 0.3, 0.06);
@@ -484,6 +472,7 @@ function play(renderer, { mascot, feet }) {
   function toggleCamera() {
     firstPerson = !firstPerson;
     yaw = 0;
+    pitch = 0;
     needsRender = true;
     cameraButton.setAttribute('aria-pressed', firstPerson);
     cameraButton.textContent = firstPerson ? 'Camera theo sau' : 'Camera POV';
@@ -495,10 +484,10 @@ function play(renderer, { mascot, feet }) {
     needsRender = true;
     if (seated) {
       const booth = clamp(Math.round((mascot.position.z + 13.3) / 3.6), 0, 7);
-      mascot.position.set(1.61, 0.28, -13.3 + booth * 3.6 + 0.95);
+      mascot.position.set(boothCenter - 0.48, 0.28, -13.3 + booth * 3.6 + 0.95);
       mascot.rotation.y = Math.PI;
     } else {
-      mascot.position.set(0.48, 0, mascot.position.z);
+      mascot.position.set(aisleLimit - 0.18, 0, mascot.position.z);
       mascot.rotation.y = 0;
     }
     yaw = 0;
@@ -578,8 +567,8 @@ function play(renderer, { mascot, feet }) {
   canvas.addEventListener('pointermove', event => {
     if (drag?.id !== event.pointerId) return;
     yaw -= (event.clientX - drag.x) * 0.004;
-    if (!firstPerson) yaw = clamp(yaw, -0.9, 0.9);
-    pitch = clamp(pitch - (event.clientY - drag.y) * 0.003, -0.32, 0.43);
+    if (!firstPerson) yaw = clamp(yaw, -1.27, 1.27);
+    pitch = clamp(pitch - (event.clientY - drag.y) * 0.003, -0.55, 0.62);
     needsRender = true;
     drag.x = event.clientX;
     drag.y = event.clientY;
@@ -587,8 +576,11 @@ function play(renderer, { mascot, feet }) {
   canvas.addEventListener('lostpointercapture', event => {
     if (drag?.id === event.pointerId) drag = null;
   });
+  canvas.addEventListener('dblclick', toggleCamera);
   canvas.addEventListener('wheel', event => {
-    distance = clamp(distance + event.deltaY * 0.004, 2.5, 5.4);
+    if (firstPerson) return;
+    const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? innerHeight : 1);
+    distance = clamp(distance + delta * 0.004, 2.2, 5.8);
     needsRender = true;
   }, { passive: true });
 
@@ -622,7 +614,7 @@ function play(renderer, { mascot, feet }) {
     const oldX = position.x;
     const oldZ = position.z;
     if (!seated && velocity.lengthSq() > 0.001) {
-      position.x = clamp(position.x + velocity.x * dt, -0.72, 0.72);
+      position.x = clamp(position.x + velocity.x * dt, -aisleLimit, aisleLimit);
       position.z = clamp(position.z + velocity.y * dt, -15.6, 7.7);
     }
     const travel = Math.hypot(position.x - oldX, position.z - oldZ);
@@ -649,10 +641,18 @@ function play(renderer, { mascot, feet }) {
     mascot.visible = !firstPerson;
     if (firstPerson) {
       cameraGoal.set(x, y + 1.18, z);
-      lookGoal.set(x + Math.sin(yaw), y + 1.18 + pitch, z - Math.cos(yaw));
+      lookGoal.set(x + Math.sin(yaw) * Math.cos(pitch), y + 1.18 + Math.sin(pitch),
+        z - Math.cos(yaw) * Math.cos(pitch));
     } else {
-      cameraGoal.set(clamp(x + Math.sin(yaw) * distance, -1.06, 1.06), 1.91 + pitch * 0.4, z + Math.cos(yaw) * distance);
-      lookGoal.set(x + Math.sin(yaw) * 3.6, 1.68 + pitch * 5, z - 16);
+      const pivotX = clamp(x, -cameraAisleLimit + 0.08, cameraAisleLimit - 0.08);
+      const orbitX = Math.sin(yaw) * Math.cos(pitch);
+      const orbitZ = Math.cos(yaw) * Math.cos(pitch);
+      const toSide = orbitX > 0 ? cameraAisleLimit - pivotX : cameraAisleLimit + pivotX;
+      const orbitRadius = Math.min(distance, toSide / Math.max(Math.abs(orbitX), 0.001),
+        (12.95 - z) / Math.max(orbitZ, 0.001));
+      cameraGoal.set(pivotX + orbitX * orbitRadius,
+        clamp(1.91 + Math.sin(pitch) * orbitRadius, 1.45, 3.14), z + orbitZ * orbitRadius);
+      lookGoal.set(pivotX + Math.sin(yaw) * 1.6, 1.15, z - Math.cos(yaw) * 2.5);
     }
     const cameraMoving = camera.position.distanceToSquared(cameraGoal) > 0.000002 ||
       follow.distanceToSquared(lookGoal) > 0.000002;

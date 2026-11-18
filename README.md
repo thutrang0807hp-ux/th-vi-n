@@ -20,7 +20,7 @@ Sau đó truy cập `http://localhost:8000` để đi lại trong toa lounge 3D.
 - `Shift`: Chạy
 - Kéo chuột: Xoay góc nhìn
 - Con lăn: Zoom
-- `V`: Chuyển giữa camera theo sau / POV
+- Nhấp đúp vào cảnh hoặc nhấn `V`: Chuyển giữa camera theo sau / POV
 - `E`: Thử ngồi / đứng
 - `F`: Mở đồng hồ tập trung
 
