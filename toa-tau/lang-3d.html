@@ -44,13 +44,13 @@
   </main>
   <script type="module">
     try {
-      const { start } = await import('../village-scene.js?v=local-three');
+      const { start } = await import('../village-scene.js?v=pastel-stream');
       start();
     } catch (error) {
       const preview = document.querySelector('#scene-preview');
       document.querySelector('#load-message').textContent =
         'Không mở được chế độ 3D trên trình duyệt này. Đây là ảnh xem trước của toa tàu.';
-      preview.src = '../assets/tulip-train-preview.webp';
+      preview.src = '../assets/tulip-train-preview.webp?v=pastel-stream';
       preview.hidden = false;
       console.error(error);
     }

@@ -331,15 +331,15 @@ function buildBulkhead(z, facesFront) {
 
 function buildScenery() {
   const layers = [];
-  const skyColor = new T.Color('#bddbcf');
+  const skyColor = new T.Color('#c7e5e3');
   scene.background.copy(skyColor);
   scene.fog = new T.FogExp2(skyColor, 0.0105);
   const sky = new T.ShaderMaterial({
     side: T.BackSide,
     depthWrite: false,
     uniforms: {
-      horizon: { value: new T.Color('#f9e5c8') },
-      zenith: { value: new T.Color('#79c4ed') },
+      horizon: { value: new T.Color('#e6eff0') },
+      zenith: { value: new T.Color('#80c8f3') },
       cloudColor: { value: new T.Color('#fff2dc') }
     },
     vertexShader: `
@@ -394,15 +394,36 @@ function buildScenery() {
     layers.push({ strip, length, speed });
   }
 
-  const pasture = new T.MeshStandardMaterial({ color: '#b0cc82', vertexColors: true, side: T.DoubleSide });
-  const fieldPath = new T.MeshStandardMaterial({ color: '#bc9e77', roughness: 1, side: T.DoubleSide });
-  const stemMaterial = material('#6e983f');
-  const petalMaterial = new T.MeshStandardMaterial({ color: '#ffffff', roughness: 0.76, side: T.DoubleSide });
-  const palette = ['#f688ae', '#f8cf6b', '#ef7b7f', '#ad93df', '#fff0ce', '#f5a5c5'].map(color => new T.Color(color));
+  const pasture = new T.MeshStandardMaterial({
+    color: '#b6d482', emissive: '#718b47', emissiveIntensity: 0.26, vertexColors: true, side: T.DoubleSide
+  });
+  const stemMaterial = material('#79a451');
+  const petalMaterial = new T.MeshStandardMaterial({
+    color: '#ffffff', roughness: 0.79, emissive: '#ffe7ed', emissiveIntensity: 0.12, side: T.DoubleSide
+  });
+  const palette = ['#ff91b8', '#ffe39a', '#ffa38c', '#bf9ce3', '#fff2dc'].map(color => new T.Color(color));
+  const breeze = { value: 0 };
+
+  function addBreeze(surface) {
+    surface.onBeforeCompile = shader => {
+      shader.uniforms.breeze = breeze;
+      shader.vertexShader = 'uniform float breeze;\n' + shader.vertexShader.replace('#include <begin_vertex>', `
+        #include <begin_vertex>
+        #ifdef USE_INSTANCING
+          vec3 root = instanceMatrix[3].xyz;
+          float phase = breeze * 1.25 + root.z * 0.21 + root.x * 0.44;
+          float bend = transformed.y * transformed.y;
+          transformed.x += bend * sin(phase) * 0.15;
+          transformed.z += bend * cos(phase * 0.82) * 0.095;
+        #endif
+      `);
+    };
+  }
   const stem = new T.CylinderGeometry(0.017, 0.023, 0.53, 4);
   stem.translate(0, 0.265, 0);
   const blade = new T.PlaneGeometry(0.13, 0.34, 2, 3);
-  const leaves = new T.MeshStandardMaterial({ color: '#8ab458', roughness: 0.94, side: T.DoubleSide });
+  const leaves = new T.MeshStandardMaterial({ color: '#9abe60', roughness: 0.94, side: T.DoubleSide });
+  for (const surface of [stemMaterial, leaves, petalMaterial]) addBreeze(surface);
   const bladePositions = blade.attributes.position;
   for (let i = 0; i < bladePositions.count; i++) {
     const y = bladePositions.getY(i) / 0.34 + 0.5;
@@ -421,7 +442,7 @@ function buildScenery() {
   for (let i = 0; i < bloomPositions.count; i++) {
     if (bloomPositions.getY(i) < 0.69) continue;
     const angle = Math.atan2(bloomPositions.getX(i), bloomPositions.getZ(i));
-    bloomPositions.setY(i, bloomPositions.getY(i) + Math.cos(angle * 6) * 0.026);
+    bloomPositions.setY(i, bloomPositions.getY(i) + Math.cos(angle * 6) * 0.013);
   }
   bloom.computeVertexNormals();
   const distantBloom = new T.LatheGeometry([
@@ -429,73 +450,136 @@ function buildScenery() {
     new T.Vector2(0.15, 0.65), new T.Vector2(0.115, 0.72)
   ], 6);
 
-  function terrain(x, z, length) {
+  const waterLevel = -0.62;
+  const riverMaterial = new T.MeshStandardMaterial({
+    color: '#82d5db', emissive: '#438a9a', emissiveIntensity: 0.26,
+    vertexColors: true, roughness: 0.58, side: T.DoubleSide
+  });
+  const pebble = new T.IcosahedronGeometry(1, 0);
+  const stone = material('#b2a9a1');
+  const glint = new T.MeshBasicMaterial({ color: '#e1fbf1', transparent: true, opacity: 0.44, depthWrite: false });
+  const treeBark = material('#92745c');
+  const blossomColors = ['#eaaac2', '#f6bfd2', '#fbd8e5'].map(color => material(color));
+  const blossomGeometry = new T.IcosahedronGeometry(1, 1);
+
+  function riverCenter(z, length, side) {
     const phase = z / length * Math.PI * 2;
-    const rise = Math.min((x - 4) * 0.022, 0.75);
-    return -0.65 + rise + 0.14 * Math.sin(phase * 2 + x * 0.18) + 0.09 * Math.cos(phase * 3 - x * 0.23);
+    return 19.6 + Math.sin(phase + side * 0.42) * 4.7 + Math.sin(phase * 2 - 0.3) * 1.25;
   }
 
-  function field(length, minX, maxX, rows, count, distant) {
+  function terrain(x, z, length, side, distant) {
+    const phase = z / length * Math.PI * 2;
+    const slope = -0.39 + Math.min((x - 4) * 0.018, 0.73);
+    const meadow = slope + 0.155 * Math.sin(phase * 2 + x * 0.13);
+    if (distant) return meadow - 0.11;
+    const fromRiver = Math.abs(x - riverCenter(z, length, side));
+    return T.MathUtils.lerp(waterLevel - 0.52, meadow, T.MathUtils.smoothstep(fromRiver, 3.55, 5.6));
+  }
+
+  function cherryTree(x, y, z, scale) {
+    cylinder(0.10 * scale, 0.20 * scale, 2.0 * scale, treeBark, x, y + scale, z);
+    for (const [dx, dy, dz, radius] of [[0, 2.74, 0, 1.05], [-0.76, 2.34, 0.13, 0.86],
+      [0.73, 2.43, 0.34, 0.91], [0.22, 2.42, -0.73, 0.81], [-0.26, 2.89, -0.44, 0.73]]) {
+      const branch = cylinder(0.046 * scale, 0.085 * scale, 0.91 * scale, treeBark,
+        x + dx * scale * 0.53, y + 1.78 * scale, z + dz * scale * 0.53);
+      branch.rotation.x = dz * 0.60;
+      branch.rotation.z = -dx * 0.65;
+      const crown = mesh(blossomGeometry, blossomColors[Math.floor(random() * blossomColors.length)],
+        x + dx * scale, y + dy * scale, z + dz * scale);
+      crown.scale.set(radius * scale, radius * scale * 0.72, radius * scale * 0.97);
+      crown.rotation.y = random() * Math.PI;
+    }
+  }
+
+  function field(length, minX, maxX, distant) {
     const dummy = new T.Object3D();
     const tint = new T.Color();
     for (const side of [-1, 1]) {
-      const blooms = new T.InstancedMesh(distant ? distantBloom : bloom, petalMaterial, rows * count);
+      const drifts = distant
+        ? [[39, -30, 4.6, 14, 0], [48, 8, 5.4, 23, 3], [59, 32, 6.5, 17, 2], [64, -15, 4.3, 19, 1]]
+        : [[7.5, -28, 2.4, 13, 0], [9.6, -8, 2.8, 10, 1], [7.2, 14, 2.6, 12, 3],
+          [11.1, 29, 2.2, 12, 2], [27, -19, 3.1, 15, 1], [29.7, 10, 3.0, 17, 0]];
+      const perDrift = distant ? 175 : 235;
+      const blooms = new T.InstancedMesh(distant ? distantBloom : bloom, petalMaterial, drifts.length * perDrift);
       const stems = distant ? null : new T.InstancedMesh(stem, stemMaterial, blooms.count);
       const blades = distant ? null : new T.InstancedMesh(blade, leaves, blooms.count);
       let index = 0;
-      const ground = new T.PlaneGeometry(length, maxX - minX, 62, 12);
+
+      const ground = new T.PlaneGeometry(length, maxX - minX, 84, distant ? 12 : 30);
       const nodes = ground.attributes.position;
       const colors = [];
-      const low = new T.Color('#a1ad83');
-      const high = new T.Color('#eef1c4');
+      const low = new T.Color('#aabf8c');
+      const high = new T.Color('#f3f1c7');
       for (let i = 0; i < nodes.count; i++) {
         const z = nodes.getX(i);
         const x = minX + nodes.getY(i) + (maxX - minX) / 2;
-        nodes.setXYZ(i, side * x, terrain(x, z, length) - (distant ? 0.12 : 0), z);
-        tint.copy(low).lerp(high, 0.47 + Math.sin(x * 0.21 + z * Math.PI * 4 / length) * 0.24);
+        nodes.setXYZ(i, side * x, terrain(x, z, length, side, distant), z);
+        tint.copy(low).lerp(high, 0.52 + Math.sin(x * 0.25 + z * Math.PI * 4 / length) * 0.23);
         colors.push(tint.r, tint.g, tint.b);
       }
       ground.setAttribute('color', new T.Float32BufferAttribute(colors, 3));
       ground.computeVertexNormals();
       mesh(ground, pasture, 0, 0, 0);
 
-      for (let row = 0; row < rows; row++) {
-        const band = Math.floor(row / 3);
-        const rowX = minX + 1.45 + row * (distant ? 1.74 : 0.95) + band * (distant ? 1.10 : 1.25);
-        for (let n = 0; n < count; n++) {
-          const z = -length / 2 + (n + random()) * length / count;
-          const phase = z / length * Math.PI * 2;
-          const openGreen = 0.58 * Math.sin(phase * 2 + band * 0.99 + side)
-            + 0.42 * Math.cos(phase * 3 - band * 0.56);
-          if (openGreen > 0.54 && (band + 1) % 3 !== 0) continue;
-          const bend = Math.sin(phase + band * 0.12) * (distant ? 2.5 : 1.25)
-            + Math.sin(phase * 2 + side) * 0.49;
-          const x = rowX + bend + (random() - 0.5) * 0.53;
-          dummy.position.set(side * x, terrain(x, z, length) - (distant ? 0.12 : 0), z);
-          const scale = (distant ? 1.18 : 0.91) + random() * 0.36;
-          dummy.scale.set(scale, scale * (0.89 + random() * 0.28), scale);
-          dummy.rotation.set((random() - 0.5) * 0.29, random() * Math.PI * 2, (random() - 0.5) * 0.22);
+      for (const [centerX, centerZ, spreadX, spreadZ, color] of drifts) {
+        const driftZ = centerZ + side * 4.5;
+        for (let n = 0; n < perDrift; n++) {
+          const angle = random() * Math.PI * 2;
+          const radius = Math.sqrt(random());
+          const along = Math.sin(angle) * radius;
+          const z = driftZ + along * spreadZ;
+          const bow = Math.sin(along * 2.1) * spreadX * 0.54;
+          const x = centerX + Math.cos(angle) * radius * spreadX + bow;
+          if (x < minX + 0.75 || x > maxX - 0.7) continue;
+          if (!distant && Math.abs(x - riverCenter(z, length, side)) < 5.1) continue;
+          dummy.position.set(side * x, terrain(x, z, length, side, distant), z);
+          const scale = (distant ? 1.32 : 0.84) + random() * 0.46;
+          dummy.scale.set(scale, scale * (0.78 + random() * 0.38), scale);
+          dummy.rotation.set((random() - 0.5) * 0.36, random() * Math.PI * 2, (random() - 0.5) * 0.30);
           dummy.updateMatrix();
           blooms.setMatrixAt(index, dummy.matrix);
-          tint.copy(palette[(band + (side > 0 ? 1 : 0)) % palette.length]).multiplyScalar(0.85 + random() * 0.23);
+          tint.copy(palette[color]).lerp(palette[4], random() * 0.29).multiplyScalar(0.90 + random() * 0.16);
           blooms.setColorAt(index, tint);
           stems?.setMatrixAt(index, dummy.matrix);
           blades?.setMatrixAt(index, dummy.matrix);
           index++;
         }
       }
+
       if (!distant) {
-        const path = new T.PlaneGeometry(length, 0.78, 62, 1);
-        const p = path.attributes.position;
-        for (let i = 0; i < p.count; i++) {
-          const z = p.getX(i);
-          const x = 12.10 + Math.sin(z / length * Math.PI * 2) * 0.95
-            + Math.sin(z / length * Math.PI * 4 + side) * 0.37 + p.getY(i);
-          p.setXYZ(i, side * x, terrain(x, z, length) + 0.018, z);
+        const ribbon = new T.PlaneGeometry(length, 7.5, 84, 12);
+        const points = ribbon.attributes.position;
+        const shades = [];
+        const edgeColor = new T.Color('#caf1dc');
+        const streamColor = new T.Color('#68bfcf');
+        for (let i = 0; i < points.count; i++) {
+          const z = points.getX(i);
+          const offset = points.getY(i);
+          points.setXYZ(i, side * (riverCenter(z, length, side) + offset), waterLevel, z);
+          tint.copy(streamColor).lerp(edgeColor, 0.18 + T.MathUtils.smoothstep(Math.abs(offset), 0.6, 3.75) * 0.69);
+          shades.push(tint.r, tint.g, tint.b);
         }
-        path.computeVertexNormals();
-        mesh(path, fieldPath, 0, 0, 0);
+        ribbon.setAttribute('color', new T.Float32BufferAttribute(shades, 3));
+        ribbon.computeVertexNormals();
+        mesh(ribbon, riverMaterial, 0, 0, 0);
+        for (let i = 0; i < 26; i++) {
+          const z = (random() - 0.5) * length;
+          const bankSide = i % 2 === 0 ? -1 : 1;
+          const x = riverCenter(z, length, side) + bankSide * (4.1 + random() * 0.83);
+          const size = 0.14 + random() * 0.37;
+          mesh(pebble, stone, side * x, terrain(x, z, length, side, false) + size * 0.25, z)
+            .scale.set(size, size * 0.51, size * 1.08);
+          const sparkle = oval(glint, side * (riverCenter(z, length, side) + (random() - 0.5) * 5.3),
+            waterLevel + 0.012, z + 0.28, 0.26 + random() * 0.46, 0.006, 0.05 + random() * 0.12);
+          sparkle.rotation.y = 0.18;
+        }
+        for (const [x, z, scale] of [[12, -25, 1.02], [31, -8, 1.28], [9, 17, 0.88], [31, 29, 1.10]]) {
+          const along = z + side * 4;
+          const shoreX = Math.abs(x - riverCenter(along, length, side)) < 5.6 ? x + (x < 20 ? -4.5 : 4.5) : x;
+          cherryTree(side * shoreX, terrain(shoreX, along, length, side, false), along, scale);
+        }
       }
+
       for (const object of [blooms, stems, blades].filter(Boolean)) {
         object.count = index;
         object.computeBoundingSphere();
@@ -504,8 +588,41 @@ function buildScenery() {
     }
   }
 
-  loop(88, 7.8, 2, length => field(length, 4, 31, 18, 105, false));
-  loop(112, 4.15, 2, length => field(length, 30, 76, 18, 80, true));
+  loop(96, 6.9, 2, length => field(length, 4, 36, false));
+  loop(112, 4.15, 2, length => field(length, 35, 76, true));
+
+  const petal = new T.Shape();
+  petal.moveTo(0, -0.082);
+  petal.quadraticCurveTo(-0.105, -0.01, -0.061, 0.075);
+  petal.quadraticCurveTo(-0.027, 0.105, 0, 0.071);
+  petal.quadraticCurveTo(0.041, 0.12, 0.069, 0.059);
+  petal.quadraticCurveTo(0.086, -0.016, 0, -0.082);
+  const drifting = new T.InstancedMesh(new T.ShapeGeometry(petal, 4),
+    new T.MeshBasicMaterial({ color: '#f7a7cc', side: T.DoubleSide }), 104);
+  drifting.frustumCulled = false;
+  const petalPose = new T.Object3D();
+  const petalSeeds = Array.from({ length: drifting.count }, () => [random(), random(), random(), random()]);
+  for (let i = 0; i < petalSeeds.length; i++) {
+    drifting.setColorAt(i, new T.Color().lerpColors(new T.Color('#eda5b7'), new T.Color('#fff1f5'), petalSeeds[i][3]));
+  }
+  scene.add(drifting);
+  function driftPetals(time) {
+    breeze.value = time;
+    for (let i = 0; i < petalSeeds.length; i++) {
+      const [a, b, c, d] = petalSeeds[i];
+      const side = i % 2 === 0 ? -1 : 1;
+      const flutter = time * (0.63 + d * 0.76) + a * 40;
+      const z = -35 + (b * 73 + time * (2.6 + d * 1.45)) % 73;
+      const y = 0.15 + ((c * 4.1 + time * (0.36 + a * 0.21)) % 4.1);
+      petalPose.position.set(side * (4.72 + a * 8.2 + Math.sin(flutter) * 0.57), 4.5 - y, z);
+      petalPose.rotation.set(flutter, flutter * 0.77, flutter * 1.23);
+      petalPose.scale.setScalar(0.74 + d * 0.65);
+      petalPose.updateMatrix();
+      drifting.setMatrixAt(i, petalPose.matrix);
+    }
+    drifting.instanceMatrix.needsUpdate = true;
+  }
+  driftPetals(0);
 
   const ridgeMaterials = ['#8fac77', '#a8bd88', '#b4c991'].map(color => material(color, 1));
   const roundedHill = new T.SphereGeometry(1, 18, 9);
@@ -531,7 +648,7 @@ function buildScenery() {
       }
     }
   });
-  return layers;
+  return { layers, driftPetals };
 }
 
 function batchScenery(root = scene, useSections = true) {
@@ -607,7 +724,7 @@ export function start() {
   status.remove();
 }
 
-function play(renderer, { mascot, feet }, layers) {
+function play(renderer, { mascot, feet }, { layers, driftPetals }) {
   const motionButton = document.querySelector('#motion-toggle');
   let trainMoving = !matchMedia('(prefers-reduced-motion: reduce)').matches;
   function updateMotionButton() {
@@ -765,6 +882,7 @@ function play(renderer, { mascot, feet }, layers) {
   const pressed = (letter, arrow) => Number(keys.has(letter) || keys.has(arrow));
   let lastFrame = performance.now();
   let lastSceneryRender = 0;
+  let sceneryTime = 0;
 
   renderer.setAnimationLoop(now => {
     const dt = clamp((now - lastFrame) / 1000, 0, 0.08);
@@ -811,12 +929,14 @@ function play(renderer, { mascot, feet }, layers) {
     else follow.lerp(position, 1 - Math.exp(-dt * 15));
     updateTimer();
     if (trainMoving) {
+      sceneryTime += dt;
       for (const { strip, speed, length } of layers) {
         strip.position.z = (strip.position.z + dt * speed) % length;
       }
     }
     if (!needsRender && !cameraMoving && (!trainMoving || now - lastSceneryRender < 1000 / 30)) return;
     lastSceneryRender = now;
+    if (trainMoving) driftPetals(sceneryTime);
     needsRender = false;
 
     const { x, y, z } = follow;
