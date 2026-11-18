@@ -2,6 +2,7 @@ import * as T from './vendor/three-r164/three.module.min.js';
 
 const tint = hex => new T.Color(hex);
 const travelLength = 132;
+const cloudLength = 222;
 const daylight = new T.Vector3(0.95, 0.18, 0.57).normalize();
 
 function sky() {
@@ -49,8 +50,8 @@ const shoreMath = `
   float nearPhase(float z) { return z * coastUnit; }
   float shore(float z) {
     float a = nearPhase(z);
-    return 10.5 + 2.18 * sin(a * 3.0 + 0.35)
-      + 0.83 * sin(a * 5.0 + 1.11) + 0.23 * sin(a * 9.0 - 0.2);
+    return 14.1 + 2.85 * sin(a * 3.0 + 0.35)
+      + 1.15 * sin(a * 5.0 + 1.11) + 0.34 * sin(a * 9.0 - 0.2);
   }
   float wavePhase(float depth, float z) {
     float a = z * coastUnit;
@@ -90,7 +91,7 @@ function coastalSurface(cloudDrift, waveTime, surfaceTravel) {
         float swell = pow(0.5 + 0.5 * sin(wavePhase(waveDepth, p.z)), 6.0);
         float breaks = smoothstep(0.0, 1.3, depth) * (1.0 - smoothstep(16.0, 30.0, waveDepth));
         breaks *= 0.78 + 0.22 * sin(waveTime * 0.48 + p.z * 0.08);
-        p.y = -0.48 + (1.0 - smoothstep(-5.0, -0.2, depth)) * 0.17 + swell * breaks * 0.22;
+        p.y = -0.48 + (1.0 - smoothstep(-6.0, -0.2, depth)) * 0.36 + swell * breaks * 0.22;
         surfPoint = p;
         gl_Position = projectionMatrix * viewMatrix * vec4(surfPoint, 1.0);
       }
@@ -105,7 +106,9 @@ function coastalSurface(cloudDrift, waveTime, surfaceTravel) {
       float cloudShadow(vec2 point, vec3 caster, vec2 size) {
         vec2 projected = caster.xz - sun.xz * ((caster.y + 0.48) / sun.y);
         projected.y += cloudDrift;
-        vec2 offset = (point - projected) / size;
+        vec2 delta = point - projected;
+        delta.y = mod(delta.y + ${cloudLength}.0 * 0.5, ${cloudLength}.0) - ${cloudLength}.0 * 0.5;
+        vec2 offset = delta / size;
         float shape = dot(offset, offset);
         return (1.0 - smoothstep(0.18, 1.55, shape)) * 0.33;
       }
@@ -347,11 +350,11 @@ function cumulus() {
   const banks = [
     [84, 7.2, 37, 15, 16], [101, 5.8, 61, 11.8, 6], [87, 6.6, -34, 13.5, 10.2],
     [107, 3.8, -58, 15.2, 5], [116, 2.8, -13, 15, 4.1], [117, 3.1, 11, 13, 4.0],
-    [114, 3.6, 85, 12, 5.4], [118, 3.4, -79, 15, 4.6], [63, 9, -93, 11, 6.6],
+    [114, 3.6, 85, 12, 5.4], [118, 3.4, -79, 15, 4.6], [52, 8.1, -83, 11, 7.2],
   ];
   for (const side of [1, -1]) {
     for (const [x, y, z, width, height] of banks) {
-      const centerZ = side > 0 ? z : (z < -90 ? z : -z + 8.5);
+      const centerZ = side > 0 || z < -80 ? z : -z + 8.5;
       const lobes = [];
       clusterGroups.push(lobes);
       const core = [];
@@ -430,7 +433,13 @@ function cumulus() {
   });
   const clouds = new T.Group();
   for (const lobes of clusterGroups) clouds.add(new T.Mesh(cloudMesh(lobes), material));
-  return clouds;
+  const strip = new T.Group();
+  for (let i = -2; i <= 1; i++) {
+    const tile = clouds.clone();
+    tile.position.z = i * cloudLength;
+    strip.add(tile);
+  }
+  return strip;
 }
 
 function oceanLife(scene) {
@@ -593,15 +602,15 @@ export function buildOceanCoast(scene) {
   const layers = [
     { strip: beach, length: travelLength, speed: 6.9 },
     { strip: middleWater, length: travelLength, speed: 3.15 },
-    { strip: skyTravel, length: travelLength, speed: 0.58 },
+    { strip: skyTravel, length: cloudLength, speed: 0.45 },
   ];
   scene.add(sky(), offshore, beach, clouds);
   return {
     layers,
+    sceneryFrameLimit: 0.45,
     animateAmbient(time) {
       waveTime.value = time;
-      const skyPhase = skyTravel.position.z * 2 * Math.PI / travelLength;
-      cloudDrift.value = Math.sin(time * 0.044) * 12.6 + Math.sin(skyPhase) * 5.6;
+      cloudDrift.value = (time * 1.55 + skyTravel.position.z) % cloudLength;
       clouds.position.z = cloudDrift.value;
       animateLife(time);
     },

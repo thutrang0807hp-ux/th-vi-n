@@ -693,7 +693,7 @@ export async function start({ buildExterior } = {}) {
   status.remove();
 }
 
-function play(renderer, { mascot, feet }, { layers, animateAmbient }) {
+function play(renderer, { mascot, feet }, { layers, animateAmbient, sceneryFrameLimit = 0.08 }) {
   const motionButton = document.querySelector('#motion-toggle');
   let trainMoving = !matchMedia('(prefers-reduced-motion: reduce)').matches;
   function updateMotionButton() {
@@ -854,7 +854,9 @@ function play(renderer, { mascot, feet }, { layers, animateAmbient }) {
   let ambientTime = 0;
 
   renderer.setAnimationLoop(now => {
-    const dt = clamp((now - lastFrame) / 1000, 0, 0.08);
+    const elapsed = (now - lastFrame) / 1000;
+    const dt = clamp(elapsed, 0, 0.08);
+    const sceneryDt = clamp(elapsed, 0, sceneryFrameLimit);
     lastFrame = now;
     const dx = pressed('KeyD', 'ArrowRight') - pressed('KeyA', 'ArrowLeft');
     const dz = pressed('KeyS', 'ArrowDown') - pressed('KeyW', 'ArrowUp');
@@ -897,10 +899,10 @@ function play(renderer, { mascot, feet }, { layers, animateAmbient }) {
     if (firstPerson) follow.copy(position);
     else follow.lerp(position, 1 - Math.exp(-dt * 15));
     updateTimer();
-    ambientTime += dt;
+    ambientTime += sceneryDt;
     if (trainMoving) {
       for (const { strip, speed, length } of layers) {
-        strip.position.z = (strip.position.z + dt * speed) % length;
+        strip.position.z = (strip.position.z + sceneryDt * speed) % length;
       }
     }
     if (!needsRender && !cameraMoving && (!animateAmbient || now - lastSceneryRender < 1000 / 30)) return;
