@@ -1,7 +1,6 @@
 import * as T from 'https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js';
 import { RoundedBoxGeometry } from 'https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/utils/BufferGeometryUtils.js';
-import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/loaders/GLTFLoader.js';
 
 const scene = new T.Scene();
 scene.background = new T.Color('#d8a899');
@@ -330,24 +329,19 @@ function buildBulkhead(z, facesFront) {
   scene.add(wall);
 }
 
-function buildScenery(buildings) {
+function buildScenery() {
   const layers = [];
-  const grass = new T.MeshStandardMaterial({ color: '#596553', roughness: 1, side: T.DoubleSide });
-  const rock = material('#736a77');
-  const trunks = material('#58464d');
-  const foliage = ['#566859', '#484e56', '#744c67'].map(color => material(color));
-  const firGeometry = new T.ConeGeometry(1, 1, 7);
-  const crownGeometry = new T.IcosahedronGeometry(1, 1);
-  const panorama = new T.TextureLoader().load(new URL('./assets/village-horizon.webp', import.meta.url).href);
-  panorama.colorSpace = T.SRGBColorSpace;
-  panorama.anisotropy = 4;
-
-  scene.background.set('#8584a9');
-  scene.fog.color.set('#8584a9');
-  const backdrop = new T.ShaderMaterial({
+  const skyColor = new T.Color('#adccc2');
+  scene.background.copy(skyColor);
+  scene.fog = new T.FogExp2(skyColor, 0.0105);
+  const sky = new T.ShaderMaterial({
     side: T.BackSide,
     depthWrite: false,
-    uniforms: { panorama: { value: panorama } },
+    uniforms: {
+      horizon: { value: new T.Color('#fae3b9') },
+      zenith: { value: new T.Color('#7bbbd2') },
+      cloudColor: { value: new T.Color('#fff2dc') }
+    },
     vertexShader: `
       varying vec3 direction;
       void main() {
@@ -356,62 +350,33 @@ function buildScenery(buildings) {
       }
     `,
     fragmentShader: `
-      uniform sampler2D panorama;
+      uniform vec3 horizon;
+      uniform vec3 zenith;
+      uniform vec3 cloudColor;
       varying vec3 direction;
+      float cloud(vec2 uv, vec2 center, vec2 size) {
+        vec2 q = (uv - center) / size;
+        return exp(-dot(q, q) * 2.25);
+      }
       void main() {
         vec3 ray = normalize(direction);
-        float longitude = atan(ray.z, max(abs(ray.x), 0.0001));
-        float latitude = asin(clamp(ray.y, -1.0, 1.0));
-        vec2 uv = vec2(0.5 + longitude / 3.18, 0.39 + latitude / 0.90);
-        gl_FragColor = texture2D(panorama, clamp(uv, vec2(0.0), vec2(1.0)));
+        vec2 uv = vec2(atan(ray.z, max(abs(ray.x), 0.0001)), ray.y);
+        vec3 color = mix(horizon, zenith, smoothstep(-0.08, 0.36, ray.y));
+        float band = cloud(uv, vec2(-0.60, 0.24), vec2(0.35, 0.058))
+          + cloud(uv, vec2(-0.50, 0.27), vec2(0.18, 0.069))
+          + cloud(uv, vec2(0.61, 0.30), vec2(0.30, 0.063))
+          + cloud(uv, vec2(0.81, 0.23), vec2(0.36, 0.035));
+        color = mix(color, cloudColor, min(band, 1.0) * 0.59);
+        vec3 sun = normalize(vec3(1.0, 0.32, -0.50));
+        float angle = distance(vec3(abs(ray.x), ray.yz), sun);
+        color = mix(color, cloudColor, 0.27 * exp(-angle * 7.0) + 0.70 * (1.0 - smoothstep(0.025, 0.031, angle)));
+        gl_FragColor = vec4(color, 1.0);
         #include <colorspace_fragment>
       }
     `
   });
-  const horizon = mesh(new T.SphereGeometry(125, 36, 18), backdrop, 0, 1.25, -2);
-  horizon.renderOrder = -1;
-
-  const waterLevel = -1.62;
-  const waterTime = { value: 0 };
-  const water = new T.ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    uniforms: {
-      time: waterTime,
-      nearColor: { value: new T.Color('#526783') },
-      farColor: { value: new T.Color('#8987ad') }
-    },
-    vertexShader: `
-      varying vec3 worldPoint;
-      void main() {
-        worldPoint = (modelMatrix * vec4(position, 1.0)).xyz;
-        gl_Position = projectionMatrix * viewMatrix * vec4(worldPoint, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform float time;
-      uniform vec3 nearColor;
-      uniform vec3 farColor;
-      varying vec3 worldPoint;
-      void main() {
-        vec2 p = worldPoint.xz;
-        vec2 relative = p - cameraPosition.xz;
-        float distanceToEye = length(relative);
-        float fade = smoothstep(15.0, 70.0, distanceToEye);
-        float lap = sin(p.x * 1.6 + p.y * 0.37 - time * 0.85);
-        float crossing = sin(p.x * 0.67 - p.y * 0.74 + time * 0.49);
-        float reflection = exp(-abs(relative.y + abs(relative.x) * 0.58) * 0.19);
-        vec3 color = mix(nearColor, farColor, fade);
-        color *= 1.0 + (lap + crossing * 0.65) * 0.044 * (1.0 - fade);
-        color += vec3(0.17, 0.082, 0.055) * reflection * (0.58 + 0.15 * lap);
-        gl_FragColor = vec4(color, (1.0 - smoothstep(45.0, 91.0, distanceToEye)) * 0.89);
-        #include <colorspace_fragment>
-      }
-    `
-  });
-  const river = mesh(new T.PlaneGeometry(215, 250), water, 0, waterLevel, 0);
-  river.rotation.x = -Math.PI / 2;
-  river.renderOrder = 1;
+  const dome = mesh(new T.SphereGeometry(138, 32, 16), sky, 0, 1.35, 0);
+  dome.renderOrder = -1;
 
   function loop(length, speed, copies, build) {
     const start = scene.children.length;
@@ -429,178 +394,142 @@ function buildScenery(buildings) {
     layers.push({ strip, length, speed });
   }
 
-  loop(88, 6.3, 3, length => {
+  const pasture = new T.MeshStandardMaterial({ color: '#a2ba78', vertexColors: true, side: T.DoubleSide });
+  const fieldPath = new T.MeshStandardMaterial({ color: '#bc9e77', roughness: 1, side: T.DoubleSide });
+  const stemMaterial = material('#4c813e');
+  const petalMaterial = new T.MeshStandardMaterial({ color: '#ffffff', roughness: 0.76, side: T.DoubleSide });
+  const palette = ['#ee6b84', '#f7bf55', '#e7595b', '#ad83d1', '#ffeace', '#ed809d'].map(color => new T.Color(color));
+  const stem = new T.CylinderGeometry(0.017, 0.023, 0.53, 4);
+  stem.translate(0, 0.265, 0);
+  const blade = new T.PlaneGeometry(0.13, 0.34, 2, 3);
+  const leaves = new T.MeshStandardMaterial({ color: '#76a451', roughness: 0.94, side: T.DoubleSide });
+  const bladePositions = blade.attributes.position;
+  for (let i = 0; i < bladePositions.count; i++) {
+    const y = bladePositions.getY(i) / 0.34 + 0.5;
+    bladePositions.setXYZ(i, bladePositions.getX(i) * Math.sin(y * Math.PI),
+      0.15 + y * 0.33, y * y * 0.19);
+  }
+  blade.computeVertexNormals();
+
+  // A scalloped cup silhouette reads as tulip petals even at a distance.
+  const bloom = new T.LatheGeometry([
+    new T.Vector2(0.026, 0.47), new T.Vector2(0.102, 0.49), new T.Vector2(0.147, 0.59),
+    new T.Vector2(0.153, 0.66), new T.Vector2(0.125, 0.724), new T.Vector2(0.106, 0.70),
+    new T.Vector2(0.093, 0.58)
+  ], 12);
+  const bloomPositions = bloom.attributes.position;
+  for (let i = 0; i < bloomPositions.count; i++) {
+    if (bloomPositions.getY(i) < 0.69) continue;
+    const angle = Math.atan2(bloomPositions.getX(i), bloomPositions.getZ(i));
+    bloomPositions.setY(i, bloomPositions.getY(i) + Math.cos(angle * 6) * 0.026);
+  }
+  bloom.computeVertexNormals();
+  const distantBloom = new T.LatheGeometry([
+    new T.Vector2(0.023, 0.50), new T.Vector2(0.13, 0.55),
+    new T.Vector2(0.15, 0.65), new T.Vector2(0.115, 0.72)
+  ], 6);
+
+  function terrain(x, z, length) {
+    const phase = z / length * Math.PI * 2;
+    const rise = Math.min((x - 4) * 0.022, 0.75);
+    return -0.65 + rise + 0.14 * Math.sin(phase * 2 + x * 0.18) + 0.09 * Math.cos(phase * 3 - x * 0.23);
+  }
+
+  function field(length, minX, maxX, rows, count, distant) {
+    const dummy = new T.Object3D();
+    const tint = new T.Color();
     for (const side of [-1, 1]) {
-      const bank = new T.PlaneGeometry(length, 1, 48, 8);
-      const nodes = bank.attributes.position;
+      const blooms = new T.InstancedMesh(distant ? distantBloom : bloom, petalMaterial, rows * count);
+      const stems = distant ? null : new T.InstancedMesh(stem, stemMaterial, blooms.count);
+      const blades = distant ? null : new T.InstancedMesh(blade, leaves, blooms.count);
+      let index = 0;
+      const ground = new T.PlaneGeometry(length, maxX - minX, 62, 12);
+      const nodes = ground.attributes.position;
+      const colors = [];
+      const low = new T.Color('#a1ad83');
+      const high = new T.Color('#eef1c4');
       for (let i = 0; i < nodes.count; i++) {
         const z = nodes.getX(i);
-        const t = nodes.getY(i) + 0.5;
-        const wave = z / length * Math.PI * 2;
-        const edge = 7.7 + 2.8 * Math.cos(wave * 2 + side) + Math.sin(wave * 3) * 0.9;
-        nodes.setXYZ(i, side * (4.2 + t * (edge - 4.2)),
-          -0.65 - t * 1.85 + Math.sin(t * Math.PI) * (0.24 + Math.sin(wave) * 0.15), z);
+        const x = minX + nodes.getY(i) + (maxX - minX) / 2;
+        nodes.setXYZ(i, side * x, terrain(x, z, length) - (distant ? 0.12 : 0), z);
+        tint.copy(low).lerp(high, 0.47 + Math.sin(x * 0.21 + z * Math.PI * 4 / length) * 0.24);
+        colors.push(tint.r, tint.g, tint.b);
       }
-      bank.computeVertexNormals();
-      mesh(bank, grass, 0, 0, 0);
-      for (let group = 0; group < 3; group++) {
-        const middle = -length / 2 + 12 + group * 27 + random() * 7;
-        for (let j = 0; j < 3; j++) {
-          const x = side * (5.45 + random() * 1.65);
-          const z = middle + (random() - 0.5) * 7;
-          const height = 0.9 + random() * 1.35;
-          const trunk = mesh(firGeometry, trunks, x, -1.4 + height * 0.23, z);
-          trunk.scale.set(0.10, height * 0.55, 0.10);
-          if (group === 1) {
-            const crown = mesh(crownGeometry, foliage[2], x, -1.4 + height * 0.78, z);
-            crown.scale.set(height * 0.31, height * 0.31, height * 0.39);
-            crown.rotation.y = j * 0.86;
-          } else {
-            for (let tier = 0; tier < 3; tier++) {
-              const branch = mesh(firGeometry, foliage[tier % 2], x, -1.4 + height * (0.39 + tier * 0.22), z);
-              const width = height * (0.24 - tier * 0.047);
-              branch.scale.set(width, height * 0.53, width);
-              branch.rotation.y = tier * 0.45 + j;
-            }
-          }
+      ground.setAttribute('color', new T.Float32BufferAttribute(colors, 3));
+      ground.computeVertexNormals();
+      mesh(ground, pasture, 0, 0, 0);
+
+      for (let row = 0; row < rows; row++) {
+        const band = Math.floor(row / 3);
+        const rowX = minX + 1.45 + row * (distant ? 1.74 : 0.95) + band * (distant ? 1.10 : 1.25);
+        for (let n = 0; n < count; n++) {
+          const z = -length / 2 + (n + random()) * length / count;
+          const bend = Math.sin(z / length * Math.PI * 2) * (distant ? 2.2 : 0.95)
+            + Math.sin(z / length * Math.PI * 4 + side) * 0.37;
+          const x = rowX + bend + (random() - 0.5) * 0.53;
+          dummy.position.set(side * x, terrain(x, z, length) - (distant ? 0.12 : 0), z);
+          const scale = (distant ? 1.18 : 0.91) + random() * 0.36;
+          dummy.scale.set(scale, scale * (0.89 + random() * 0.28), scale);
+          dummy.rotation.set((random() - 0.5) * 0.29, random() * Math.PI * 2, (random() - 0.5) * 0.22);
+          dummy.updateMatrix();
+          blooms.setMatrixAt(index, dummy.matrix);
+          tint.copy(palette[(band + (side > 0 ? 1 : 0)) % palette.length]).multiplyScalar(0.85 + random() * 0.23);
+          blooms.setColorAt(index, tint);
+          stems?.setMatrixAt(index, dummy.matrix);
+          blades?.setMatrixAt(index, dummy.matrix);
+          index++;
         }
       }
-      for (let i = 0; i < 11; i++) {
-        const z = (random() - 0.5) * length;
-        const size = 0.16 + random() * 0.28;
-        const boulder = mesh(crownGeometry, rock, side * (6 + random() * 1.4), -1.46, z);
-        boulder.scale.set(size * 1.4, size * 0.62, size);
+      if (!distant) {
+        const path = new T.PlaneGeometry(length, 0.78, 62, 1);
+        const p = path.attributes.position;
+        for (let i = 0; i < p.count; i++) {
+          const z = p.getX(i);
+          const x = 12.10 + Math.sin(z / length * Math.PI * 2) * 0.95
+            + Math.sin(z / length * Math.PI * 4 + side) * 0.37 + p.getY(i);
+          p.setXYZ(i, side * x, terrain(x, z, length) + 0.018, z);
+        }
+        path.computeVertexNormals();
+        mesh(path, fieldPath, 0, 0, 0);
       }
-    }
-  });
-  const meadow = material('#616455');
-  const soil = material('#6a5c60');
-  const gravel = new T.MeshStandardMaterial({ color: '#988379', roughness: 1, side: T.DoubleSide });
-  const pierWood = material('#694443');
-  const pierBoards = [material('#876153'), material('#785349'), material('#93705d')];
-  const glow = new T.MeshBasicMaterial({ color: '#f0b897', transparent: true, opacity: 0.35, depthWrite: false });
-
-  function shoreline(length, side, origin) {
-    const geometry = new T.PlaneGeometry(length, 1, 104, 13);
-    const nodes = geometry.attributes.position;
-    const colors = [];
-    const turf = new T.Color('#ffffff');
-    const shore = new T.Color('#9d8a79');
-    const tint = new T.Color();
-    function edge(z) {
-      const phase = (z - origin) / length * Math.PI * 2;
-      return 30.2 - 2.55 * Math.cos(phase * 2) + 1.65 * Math.sin(phase * 3 + side);
-    }
-    function groundY(z, offset) {
-      return -2.02 + 1.31 * T.MathUtils.smoothstep(offset, 0, 5.1)
-        + 0.65 * T.MathUtils.smoothstep(offset, 7.5, 24)
-        + Math.sin((z - origin) / length * Math.PI * 6) * 0.17 * T.MathUtils.smoothstep(offset, 8, 20);
-    }
-    for (let i = 0; i < nodes.count; i++) {
-      const z = nodes.getX(i);
-      const offset = (nodes.getY(i) + 0.5) * 32;
-      nodes.setXYZ(i, side * (edge(z) + offset), groundY(z, offset), z);
-      tint.copy(shore).lerp(turf, T.MathUtils.smoothstep(offset, 1.6, 7));
-      colors.push(tint.r, tint.g, tint.b);
-    }
-    geometry.setAttribute('color', new T.Float32BufferAttribute(colors, 3));
-    geometry.computeVertexNormals();
-    const bankMaterial = meadow.clone();
-    bankMaterial.vertexColors = true;
-    bankMaterial.side = T.DoubleSide;
-    mesh(geometry, bankMaterial, 0, 0, 0);
-
-    const path = new T.PlaneGeometry(52, 1, 52, 1);
-    const pathNodes = path.attributes.position;
-    for (let i = 0; i < pathNodes.count; i++) {
-      const along = pathNodes.getX(i);
-      const z = origin + along;
-      const offset = 4.85 + 0.55 * Math.sin(along * 0.17) + pathNodes.getY(i) * 0.87;
-      pathNodes.setXYZ(i, side * (edge(z) + offset), groundY(z, offset) + 0.035, z);
-    }
-    path.computeVertexNormals();
-    mesh(path, gravel, 0, 0, 0);
-    return { edge, elevation: (x, z) => groundY(z, x - edge(z)) };
-  }
-
-  function pier(side, shoreX, z) {
-    const length = 4.2;
-    const deck = waterLevel + 0.39;
-    for (let plank = 0; plank < 14; plank++) {
-      box(0.276, 0.105, 1.44, pierBoards[plank % pierBoards.length],
-        side * (shoreX - plank * 0.30), deck, z);
-    }
-    for (const offset of [-0.61, 0.61]) {
-      box(length, 0.14, 0.14, pierWood, side * (shoreX - length / 2 + 0.12), deck - 0.12, z + offset);
-      for (let post = 0; post < 3; post++) {
-        const x = side * (shoreX - 0.35 - post * 1.72);
-        box(0.16, 1.08, 0.16, pierWood, x, deck - 0.22, z + offset);
+      for (const object of [blooms, stems, blades].filter(Boolean)) {
+        object.computeBoundingSphere();
+        scene.add(object);
       }
     }
   }
 
-  function placeBuilding(model, side, x, y, z, width, turn) {
-    const building = model.clone(true);
-    const bounds = new T.Box3().setFromObject(building);
-    const center = bounds.getCenter(new T.Vector3());
-    const size = bounds.getSize(new T.Vector3());
-    const scale = width / size.x;
-    building.position.sub(center);
-    building.position.y += center.y - bounds.min.y;
-    const placement = new T.Group();
-    placement.add(building);
-    placement.scale.setScalar(scale);
-    placement.rotation.y = -side * Math.PI / 2 + turn;
-    placement.position.set(side * x, y, z);
-    scene.add(placement);
-  }
+  loop(88, 7.8, 2, length => field(length, 4, 31, 18, 105, false));
+  loop(112, 4.15, 2, length => field(length, 30, 76, 18, 80, true));
 
-  loop(128, 2.05, 2, length => {
+  const ridgeMaterials = ['#8fac77', '#a8bd88', '#b4c991'].map(color => material(color, 1));
+  const roundedHill = new T.SphereGeometry(1, 18, 9);
+  const treeCanopy = material('#779b65');
+  const treeTrunk = material('#85654f');
+  const canopy = new T.IcosahedronGeometry(1, 1);
+  loop(120, 0.8, 2, length => {
     for (const side of [-1, 1]) {
-      const origin = -16 + side * 4;
-      const { edge: shoreEdge, elevation } = shoreline(length, side, origin);
-      const pierZ = origin + 2.7;
-      pier(side, shoreEdge(pierZ) + 2.5, pierZ);
-      for (let i = 0; i < 21; i++) {
-        const z = origin - 24 + i * 2.3 + random();
-        const offset = 0.8 + random() * 2.2;
-        const size = 0.15 + random() * 0.40;
-        const stone = mesh(crownGeometry, i % 3 === 0 ? soil : rock,
-          side * (shoreEdge(z) + offset), -1.62 + offset * 0.15, z);
-        stone.scale.set(size * 1.2, size * 0.65, size);
-      }
-      for (const [variant, dz, x, width, turn] of [
-        [0, -8.2, 33.5, 4.0, 0.19],
-        [1, -2.9, 37.1, 3.4, -0.32],
-        [2, 2.7, 33.8, 5.2, -0.12],
-        [0, 11.0, 35.2, 3.1, 0.34]
-      ]) {
-        const z = origin + dz;
-        placeBuilding(buildings[variant], side, x, elevation(x, z), z, width, turn);
+      for (let i = 0; i < 8; i++) {
+        const z = -length / 2 + (i + 0.5) * length / 8;
+        mesh(roundedHill, ridgeMaterials[i % 3], side * (80 + random() * 20), -1.75, z)
+          .scale.set(22 + random() * 9, 4.5 + random() * 5.5, 14 + random() * 12);
         for (let j = 0; j < 3; j++) {
-          const glint = oval(glow, side * (shoreEdge(z) + 0.75 - j * 1.02), waterLevel + 0.012,
-            z + 0.18 * Math.sin(j * 2), 0.30 + j * 0.105, 0.003, width * (0.10 - j * 0.017));
-          glint.rotation.y = j * 0.18;
-          glint.renderOrder = 2;
+          const x = side * (71 + random() * 8);
+          const along = z + (random() - 0.5) * 8;
+          const size = 0.82 + random() * 0.68;
+          cylinder(0.095, 0.13, size * 1.65, treeTrunk, x, size * 0.81, along);
+          mesh(canopy, treeCanopy, x, size * 1.85, along).scale.set(size, size * 1.18, size);
         }
-      }
-      for (const [dz, x, size] of [[-14, 33.6, 1.12], [-5, 38.1, 1.47], [7.5, 35.8, 1.08], [17.3, 34, 1.29]]) {
-        const z = origin + dz;
-        const treeX = side * x;
-        const base = elevation(x, z);
-        mesh(firGeometry, trunks, treeX, base + size * 0.45, z).scale.set(0.15, size, 0.15);
-        mesh(crownGeometry, foliage[2], treeX, base + size * 1.16, z).scale.set(size, size * 0.65, size * 0.9);
-        mesh(crownGeometry, foliage[2], treeX, base + size * 1.02, z + size * 0.47).scale.set(size * 0.70, size * 0.53, size * 0.7);
       }
     }
   });
-  return { layers, waterTime };
+  return layers;
 }
 
 function batchScenery(root = scene, useSections = true) {
   const batches = new Map();
   for (const object of root.children) {
-    if (!object.isMesh || object.material.transparent) continue;
+    if (!object.isMesh || object.isInstancedMesh || object.material.transparent) continue;
     const section = useSections ? Math.floor(object.position.z / 14) : 0;
     const key = [object.material.id, Boolean(object.geometry.index), Object.keys(object.geometry.attributes).sort().join(), section].join('/');
     if (!batches.has(key)) batches.set(key, []);
@@ -647,7 +576,7 @@ function buildMascot() {
   return { mascot, feet };
 }
 
-async function start() {
+function start() {
   const renderer = new T.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.35));
   renderer.toneMapping = T.ACESFilmicToneMapping;
@@ -664,18 +593,13 @@ async function start() {
   buildBooths();
   buildBulkhead(-17.33, false);
   buildBulkhead(13.42, true);
-  const loader = new GLTFLoader();
-  const buildings = await Promise.all(['cottage', 'longhouse', 'inn'].map(async name => {
-    const url = new URL(`./assets/kaykit-village/${name}.glb`, import.meta.url);
-    return (await loader.loadAsync(url.href)).scene;
-  }));
-  const scenery = buildScenery(buildings);
+  const scenery = buildScenery();
   batchScenery();
   play(renderer, buildMascot(), scenery);
   status.remove();
 }
 
-function play(renderer, { mascot, feet }, { layers, waterTime }) {
+function play(renderer, { mascot, feet }, layers) {
   const motionButton = document.querySelector('#motion-toggle');
   let trainMoving = !matchMedia('(prefers-reduced-motion: reduce)').matches;
   function updateMotionButton() {
@@ -879,7 +803,6 @@ function play(renderer, { mascot, feet }, { layers, waterTime }) {
     else follow.lerp(position, 1 - Math.exp(-dt * 15));
     updateTimer();
     if (trainMoving) {
-      waterTime.value = (waterTime.value + dt) % 4096;
       for (const { strip, speed, length } of layers) {
         strip.position.z = (strip.position.z + dt * speed) % length;
       }
@@ -915,7 +838,9 @@ function play(renderer, { mascot, feet }, { layers, waterTime }) {
   });
 }
 
-start().catch(error => {
+try {
+  start();
+} catch (error) {
   status.textContent = 'Không dựng được cảnh 3D. Hãy thử trình duyệt có hỗ trợ WebGL.';
   console.error(error);
-});
+}
