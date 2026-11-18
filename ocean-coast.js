@@ -5,11 +5,6 @@ const travelLength = 132;
 const cloudLength = 222;
 const coastUnit = 2 * Math.PI / travelLength;
 
-function shoreRadius(z) {
-  const phase = z * coastUnit;
-  return 14.1 + 2.85 * Math.sin(phase * 3 + 0.35)
-    + 1.15 * Math.sin(phase * 5 + 1.11) + 0.34 * Math.sin(phase * 9 - 0.2);
-}
 const daylight = new T.Vector3(0.95, 0.18, 0.57).normalize();
 
 function sky() {
@@ -246,38 +241,12 @@ function coastalSurface(cloudDrift, waveTime) {
     placeBand(tile, side, 12, offshoreStart, 86, travelLength, 92);
     placeBand(tile, side, offshoreStart, 157, 35, travelLength, 58);
   }
-  tile.add(shoreRocks());
   for (let i = -1; i <= 2; i++) {
     const copy = tile.clone();
     copy.position.z = i * travelLength;
     beach.add(copy);
   }
   return beach;
-}
-
-function shoreRocks() {
-  const clusters = [-51, -31, -14, 6, 24, 44, 57];
-  const rock = new T.InstancedMesh(new T.IcosahedronGeometry(1, 0),
-    new T.MeshStandardMaterial({ color: '#ffffff', flatShading: true, roughness: 0.92 }),
-    clusters.length * 6);
-  const pose = new T.Object3D();
-  const shades = ['#696760', '#847866', '#aa9278'];
-  let instance = 0;
-  for (const side of [-1, 1]) {
-    clusters.forEach((center, index) => {
-      for (let member = 0; member < 3; member++) {
-        const z = center + side * 2.6 + member * 1.28;
-        const scale = (member === 0 ? 1 : 0.62) * (0.78 + 0.13 * (index % 4));
-        pose.position.set(side * (shoreRadius(z) - 2.5 - member * 0.56), -0.12, z);
-        pose.rotation.set(0.13 * member, index * 1.7 + member, side * 0.14);
-        pose.scale.set(scale * 0.78, scale * 0.61, scale * 1.17);
-        pose.updateMatrix();
-        rock.setMatrixAt(instance, pose.matrix);
-        rock.setColorAt(instance++, tint(shades[(index + member) % shades.length]));
-      }
-    });
-  }
-  return rock;
 }
 
 function cloudMesh(lobes) {
