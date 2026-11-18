@@ -32,7 +32,6 @@ const lightShade = new T.MeshStandardMaterial({
 const pink = material('#ed859e', 0.49);
 const leather = material('#774828');
 const bookColors = ['#793e36', '#36514e', '#a98650', '#525930'].map(color => material(color));
-const leaves = ['#344b30', '#50643a', '#647445'].map(color => material(color));
 
 function mesh(geometry, surface, x, y, z) {
   const object = new T.Mesh(geometry, surface);
@@ -145,12 +144,6 @@ function buildShell() {
       box(0.075, 0.045, 3.45, bronze, x, 2.79, z + 1.8);
       for (const direction of [-1, 1]) drape(x, z, side, direction);
       box(0.36, 0.26, 0.67, leather, x - side * 0.2, 3.33, z + 0.9, 0.052);
-      for (let leaf = 0; leaf < 15; leaf++) {
-        const height = leaf * 0.031;
-        const blade = oval(leaves[leaf % 3], x - side * (0.49 + random() * 0.13), 3.29 - height,
-          z - 0.55 + Math.sin(leaf) * 0.14, 0.066, 0.047, 0.1);
-        blade.rotation.x = random() * 3;
-      }
     }
   }
 }
@@ -463,16 +456,12 @@ function play(renderer, { mascot, feet }) {
   let stride = 0;
   let strideWeight = 0;
   const velocity = new T.Vector2();
-  const cameraGoal = new T.Vector3();
-  const lookGoal = new T.Vector3();
-  const follow = new T.Vector3();
+  const follow = mascot.position.clone();
   const look = new T.Vector3();
   const clamp = T.MathUtils.clamp;
 
   function toggleCamera() {
     firstPerson = !firstPerson;
-    yaw = 0;
-    pitch = 0;
     needsRender = true;
     cameraButton.setAttribute('aria-pressed', firstPerson);
     cameraButton.textContent = firstPerson ? 'Camera theo sau' : 'Camera POV';
@@ -566,8 +555,7 @@ function play(renderer, { mascot, feet }) {
   });
   canvas.addEventListener('pointermove', event => {
     if (drag?.id !== event.pointerId) return;
-    yaw -= (event.clientX - drag.x) * 0.004;
-    if (!firstPerson) yaw = clamp(yaw, -1.27, 1.27);
+    yaw = (yaw - (event.clientX - drag.x) * 0.004) % (2 * Math.PI);
     pitch = clamp(pitch - (event.clientY - drag.y) * 0.003, -0.55, 0.62);
     needsRender = true;
     drag.x = event.clientX;
@@ -595,7 +583,6 @@ function play(renderer, { mascot, feet }) {
   window.addEventListener('resize', resize);
   const pressed = (letter, arrow) => Number(keys.has(letter) || keys.has(arrow));
   let lastFrame = performance.now();
-  follow.set(0, 1.68, mascot.position.z - 16);
 
   renderer.setAnimationLoop(now => {
     const dt = clamp((now - lastFrame) / 1000, 0, 0.08);
@@ -637,32 +624,35 @@ function play(renderer, { mascot, feet }) {
       needsRender = true;
     }
 
-    const { x, y, z } = position;
-    mascot.visible = !firstPerson;
-    if (firstPerson) {
-      cameraGoal.set(x, y + 1.18, z);
-      lookGoal.set(x + Math.sin(yaw) * Math.cos(pitch), y + 1.18 + Math.sin(pitch),
-        z - Math.cos(yaw) * Math.cos(pitch));
-    } else {
-      const pivotX = clamp(x, -cameraAisleLimit + 0.08, cameraAisleLimit - 0.08);
-      const orbitX = Math.sin(yaw) * Math.cos(pitch);
-      const orbitZ = Math.cos(yaw) * Math.cos(pitch);
-      const toSide = orbitX > 0 ? cameraAisleLimit - pivotX : cameraAisleLimit + pivotX;
-      const orbitRadius = Math.min(distance, toSide / Math.max(Math.abs(orbitX), 0.001),
-        (12.95 - z) / Math.max(orbitZ, 0.001));
-      cameraGoal.set(pivotX + orbitX * orbitRadius,
-        clamp(1.91 + Math.sin(pitch) * orbitRadius, 1.45, 3.14), z + orbitZ * orbitRadius);
-      lookGoal.set(pivotX + Math.sin(yaw) * 1.6, 1.15, z - Math.cos(yaw) * 2.5);
-    }
-    const cameraMoving = camera.position.distanceToSquared(cameraGoal) > 0.000002 ||
-      follow.distanceToSquared(lookGoal) > 0.000002;
-    const cameraBlend = firstPerson ? 1 : 1 - Math.exp(-dt * 13);
-    camera.position.lerp(cameraGoal, cameraBlend);
-    follow.lerp(lookGoal, cameraBlend);
+    const cameraMoving = follow.distanceToSquared(position) > 0.000002;
+    if (firstPerson) follow.copy(position);
+    else follow.lerp(position, 1 - Math.exp(-dt * 15));
     updateTimer();
     if (!needsRender && !cameraMoving) return;
     needsRender = false;
-    camera.lookAt(follow);
+
+    const { x, y, z } = follow;
+    const sinYaw = Math.sin(yaw);
+    const cosYaw = Math.cos(yaw);
+    mascot.visible = !firstPerson;
+    if (firstPerson) {
+      camera.position.set(x, y + 1.18, z);
+      look.set(x + sinYaw * Math.cos(pitch), y + 1.18 + Math.sin(pitch), z - cosYaw * Math.cos(pitch));
+    } else {
+      const pivotX = clamp(x, -cameraAisleLimit + 0.08, cameraAisleLimit - 0.08);
+      const elevation = clamp(0.14 - pitch, -0.33, 0.72);
+      const orbitX = -sinYaw * Math.cos(elevation);
+      const orbitZ = cosYaw * Math.cos(elevation);
+      const toSide = orbitX > 0 ? cameraAisleLimit - pivotX : cameraAisleLimit + pivotX;
+      const toEnd = orbitZ > 0 ? 12.95 - z : z + 16.8;
+      const radius = Math.min(distance, toSide / Math.max(Math.abs(orbitX), 0.001),
+        toEnd / Math.max(Math.abs(orbitZ), 0.001));
+      const lift = 0.65 * (1 - clamp(radius / 1.4, 0, 1));
+      camera.position.set(pivotX + orbitX * radius,
+        clamp(y + 1.3 + Math.sin(elevation) * radius + lift, 1.42, 3.14), z + orbitZ * radius);
+      look.set(pivotX + sinYaw * 0.42, y + 1.17, z - cosYaw * 0.42);
+    }
+    camera.lookAt(look);
     renderer.render(scene, camera);
   });
 }
