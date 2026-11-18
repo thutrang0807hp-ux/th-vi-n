@@ -3,6 +3,7 @@ import * as T from './vendor/three-r164/three.module.min.js';
 const span = 128;
 const tau = Math.PI * 2;
 const waterline = -0.52;
+const villageBank = 58.4;
 
 function randomSource(seed) {
   return () => {
@@ -85,7 +86,7 @@ function sky(time) {
 }
 
 function lake(time) {
-  const mesh = new T.Mesh(new T.PlaneGeometry(145, span).rotateX(-Math.PI / 2),
+  const mesh = new T.Mesh(new T.PlaneGeometry(170, span).rotateX(-Math.PI / 2),
     new T.ShaderMaterial({
       side: T.DoubleSide, uniforms: { time },
       vertexShader: `
@@ -181,15 +182,15 @@ function mountain(side, range, salt) {
     }
   }
 
-  const distance = [65, 86, 108][range];
-  const heights = [[4.8,10.7],[10.0,18.5],[12.4,25.0]][range];
-  const entries = 7;
+  const distance = [77, 100, 124][range];
+  const heights = [[3.4,7.3],[7.2,13.3],[10.2,17.9]][range];
+  const entries = [3,4,3][range];
   for(let i=0;i<entries;i++){
     const z = -span/2 + (i+.5)*span/entries + (rand()-.5)*8;
     const x = side*(distance+(rand()-.5)*5.8);
     const height = T.MathUtils.lerp(heights[0],heights[1],rand());
-    peak(x,z,height,12+rand()*7.4,9+rand()*5);
-    if((i+range)%3!==1) {
+    peak(x,z,height,14+rand()*6.8,9+rand()*5);
+    if(i === 1 || (range === 0 && i === 3)) {
       peak(x-side*(3+rand()*2),z+(rand()<.5?-1:1)*(5+rand()*4),
         height*(.45+rand()*.19),5.5+rand()*4.0,6.0+rand()*3.0);
     }
@@ -206,8 +207,8 @@ function shore(side, far) {
   for (let i = 0; i < count; i++) {
     const z = -span/2 + i*span/(count-1);
     const wave = Math.cos(z/span*tau*4)*.83 + Math.sin(z/span*tau*7)*.34;
-    const bank = far ? 46 + wave : 8.6 + wave;
-    rows.push([[side*(far ? 52 : 4.12),0.10,z],
+    const bank = far ? villageBank + wave : 6.75 + wave * 0.70;
+    rows.push([[side*(far ? villageBank + 7.0 : 4.12),0.10,z],
       [side*bank,(i === count-1 ? rows[0][1][1] : rand()*.19-.13),z],
       [side*(bank+(far ? -0.65 : 0.85)),waterline-.025,z]]);
   }
@@ -263,8 +264,8 @@ function scatter(side, rock) {
     const mesh = new T.InstancedMesh(iceShape(67+shape,rock), colored, count);
     const pose = new T.Object3D();
     for(let i=0;i<count;i++){
-      const scale = rock ? .25 + rand()**2*1.04 : .36 + rand()**2*1.75;
-      pose.position.set(side*(rock ? 6.5 + rand()*1.5 : 12 + rand()*30),
+      const scale = rock ? .25 + rand()**2*1.04 : .39 + rand()**2*1.96;
+      pose.position.set(side*(rock ? 5.3 + rand()*1.0 : 9.9 + rand()*44),
         rock ? -.06 : waterline, -63 + rand()*126);
       pose.scale.set(scale,scale*(rock ? 1 : .85),scale*(.63+rand()*.51));
       pose.rotation.y = rand()*tau;
@@ -291,7 +292,7 @@ function tundra(side) {
     new T.MeshBasicMaterial({color:'#a48979',side:T.DoubleSide,fog:false}),48);
   const pose = new T.Object3D();
   for (let i=0;i<grass.count;i++) {
-    pose.position.set(side*(7.15 + rand()*.65),0.02,-63+rand()*126);
+    pose.position.set(side*(5.73 + rand()*.63),0.02,-63+rand()*126);
     pose.rotation.y=rand()*tau;
     pose.scale.setScalar(.55+rand()*.48);
     pose.updateMatrix();
@@ -331,11 +332,14 @@ function town(side,time) {
       }
     `,
   });
-  const houseCount = 27;
+  const houseCount = 21;
   const basic = new T.MeshBasicMaterial({color:'#ffffff',side:T.DoubleSide,fog:false});
   const houses = new T.InstancedMesh(walls,basic,houseCount);
   const roofs = new T.InstancedMesh(roof,basic,houseCount);
-  const windows = new T.InstancedMesh(lampGeometry,basic,houseCount*3);
+  const logs = new T.InstancedMesh(new T.CylinderGeometry(.5,.5,1,6,1).rotateX(Math.PI/2),
+    basic,houseCount*7);
+  const trim = new T.InstancedMesh(walls,basic,houseCount*5);
+  const windows = new T.InstancedMesh(lampGeometry,basic,houseCount*4);
   const reflections = new T.InstancedMesh(new T.PlaneGeometry(1,1).rotateX(-Math.PI/2),watercolor,houseCount);
   const pose = new T.Object3D();
   function stamp(mesh,index,x,y,z,sx,sy,sz,color) {
@@ -343,29 +347,40 @@ function town(side,time) {
     pose.updateMatrix(); mesh.setMatrixAt(index,pose.matrix);
     if(color) mesh.setColorAt(index,new T.Color(color));
   }
-  const clusters = [-52,-34,-7,13,36,50];
+  const clusters = [-53,-36,-7,14,36,52];
+  const roofColors = ['#8e514c','#785657','#3f647b','#586955','#655775'];
   for(let i=0;i<houseCount;i++){
-    const z = clusters[i%clusters.length]+(rand()-.5)*9.5;
-    const x = side*(47.25+rand()*1.5);
-    const h=.50+rand()*.49, w=.72+rand()*.74, d=.55+rand()*.37;
-    stamp(houses,i,x,h*.5,z,d,h,w,['#763f55','#4b566e','#805875','#63506c'][i%4]);
-    stamp(roofs,i,x,h+.17,z,d*1.15,.39,w*1.08,i%3?'#6f86a9':'#b2bdd9');
-    for(let j=0;j<3;j++){
-      stamp(windows,i*3+j,x-side*(d*.5+.006),h*.59,z+(j-1)*w*.25,1,.15+rand()*.06,.138,
-        j%2?'#ffaf64':'#ffe2a0');
+    const z = clusters[i%clusters.length]+(rand()-.5)*8.8;
+    const x = side*(villageBank+1.25+rand()*2.25);
+    const h=.69+rand()*.43, w=.94+rand()*.80, d=.70+rand()*.45;
+    const front = x-side*(d*.5+.07);
+    stamp(houses,i,x,h*.5+.035,z,d,h,w,'#6d4b43');
+    for(let row=0;row<7;row++){
+      stamp(logs,i*7+row,x-side*d*.51,h*(row+.53)/7+.035,z,.118,h*.158,w*1.065,
+        row%3===1?'#8b6351':'#765142');
     }
-    stamp(reflections,i,side*(42.4+rand()*2.0),waterline+.009,z,3.1+rand()*2.6,1,.57+rand()*.46);
+    stamp(roofs,i,x,h+.040,z,d*1.26,h*.67,w*1.17,roofColors[i%roofColors.length]);
+    stamp(trim,i*5,x+side*d*.22,h*1.51,z+w*.13,d*.16,h*.45,w*.13,'#453b46');
+    stamp(trim,i*5+1,front,h*.28,z-w*.255,.075,h*.50,w*.22,'#563832');
+    stamp(trim,i*5+2,front-side*.04,.036,z-w*.255,.16,.071,w*.30,'#6b534c');
+    stamp(trim,i*5+3,x,.032,z,d*1.06,.070,w*1.045,'#486081');
+    stamp(trim,i*5+4,front,h*.595,z+w*.195,.042,h*.30,w*.31,'#4b3739');
+    for(let j=0;j<4;j++){
+      stamp(windows,i*4+j,front-side*.024,h*(.534+Math.floor(j/2)*.123),
+        z+w*(.132+(j%2)*.127),1,h*.094,w*.101,j%2?'#ffc06e':'#ffe2a0');
+    }
+    stamp(reflections,i,side*(villageBank-3.1+rand()*1.2),waterline+.009,z+w*.19,3.2+rand()*1.9,1,.57+rand()*.46);
   }
-  group.add(houses,roofs,windows,reflections);
+  group.add(houses,roofs,logs,trim,windows,reflections);
   return group;
 }
 
 function lightSnow(time) {
   const rand = randomSource(8156);
   const points = [], phases = [];
-  for (const side of [-1,1]) for (let i=0;i<116;i++) {
-    const depth = 4.75 + (rand()**1.3)*29;
-    points.push(side*depth,rand()*8 - .35,(rand()-.5)*69);
+  for (const side of [-1,1]) for (let i=0;i<210;i++) {
+    const depth = 4.75 + (rand()**1.45)*23;
+    points.push(side*depth,rand()*8 - .35,(rand()-.5)*54);
     phases.push(rand());
   }
   const geometry = new T.BufferGeometry();
@@ -379,14 +394,14 @@ function lightSnow(time) {
       varying float alpha;
       void main(){
         vec3 p=position;
-        float cycle=mod(p.y+0.35-time*(0.19+phase*0.15),8.0);
+        float cycle=mod(p.y+0.35-time*(0.29+phase*0.21),8.0);
         p.y=cycle-0.35;
         p.x+=sin(time*0.45+phase*14.0)*0.23;
         p.z+=sin(time*0.22+phase*21.0)*0.46;
         vec4 view=modelViewMatrix*vec4(p,1.0);
         gl_Position=projectionMatrix*view;
-        gl_PointSize=clamp((15.0+phase*8.5)/max(1.0,-view.z),0.65,2.05);
-        alpha=(0.19+phase*.30)*smoothstep(0.03,.7,cycle)*
+        gl_PointSize=clamp((21.0+phase*11.7)/max(1.0,-view.z),0.95,2.65);
+        alpha=(0.28+phase*.37)*smoothstep(0.03,.7,cycle)*
           (1.0-smoothstep(7.2,8.0,cycle))*(1.0-smoothstep(25.0,43.0,-view.z));
       }
     `,
@@ -428,19 +443,24 @@ export function buildIcelandAurora(scene) {
     terrain.add(copy);
   }
   scene.add(dome,terrain,snow);
+  let seconds = 0;
+  let lastFrame = null;
   return {
     layers: [], trainSpeed: 6.9, sceneryFrameLimit: .16,
-    animateAmbient(seconds,trainZ) {
+    animateAmbient(_simulationTime,trainZ) {
+      const now = performance.now();
+      if (lastFrame !== null) seconds += Math.min((now-lastFrame)/1000,0.9);
+      lastFrame = now;
       time.value=seconds;
       dome.position.z=trainZ;
       snow.position.z=trainZ;
       terrain.position.z=Math.floor(trainZ/span)*span;
       for(const {mesh,phase} of floating){
         if (mesh.name === 'IceDrift') {
-          mesh.position.x=Math.sin(seconds*.09+phase)*.31;
-          mesh.position.z=Math.sin(seconds*.073+phase)*.58;
+          mesh.position.x=Math.sin(seconds*.12+phase+0.42)*.83;
+          mesh.position.z=Math.sin(seconds*.15+phase+0.75)*1.37;
         } else {
-          mesh.position.y=Math.sin(seconds*.58+phase)*.018;
+          mesh.position.y=Math.sin(seconds*.67+phase)*.028;
         }
       }
     },
