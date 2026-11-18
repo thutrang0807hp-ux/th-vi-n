@@ -346,25 +346,70 @@ function farmhouse(root, x, z, side, scale, materials) {
 }
 
 function strawStack(root, x, z, scale, random) {
+  const mound = new Facets();
   const straw = new Facets();
-  const rings = [[0.91, 0], [1, 0.25], [0.86, 0.63], [0.61, 1.0], [0.26, 1.39], [0.02, 1.52]];
-  const hay = color('#d6a345');
-  const sides = 23;
-  const jitter = Array.from({ length: sides }, () => 0.88 + random() * 0.23);
-  const point = (row, sector) => {
-    const angle = sector * fullTurn / sides;
-    const [radius, height] = rings[row];
-    const r = radius * jitter[sector % sides];
-    return [Math.cos(angle) * r, height + Math.sin(sector * 2.74) * 0.045, Math.sin(angle) * r];
-  };
-  for (let row = 0; row < rings.length - 1; row++) {
+  const sides = 30;
+  const courses = 9;
+  const hay = color('#ae803c');
+  const tones = ['#664a2d', '#8d602f', '#b08346', '#ca9c58', '#e2b96f'].map(color);
+  const oval = 0.82 + random() * 0.16;
+  const crownLean = (random() - 0.5) * 0.25;
+
+  function surfacePoint(t, angle, lift = 0) {
+    const spread = 1.23 * Math.pow(Math.cos(t * Math.PI / 2), 0.92);
+    const skirt = (1 - t) ** 2 * 0.14;
+    const lumps = 1 + Math.sin(angle * 3.0 + 0.34) * 0.065
+      + Math.cos(angle * 7.0 - t * 7.4) * 0.044;
+    const radius = (spread + skirt) * lumps + lift;
+    const height = 1.08 * t + (1 - t) * Math.sin(angle * 9.0 + t * 5.0) * 0.037;
+    return [Math.cos(angle) * radius + crownLean * t, height, Math.sin(angle) * radius * oval];
+  }
+
+  for (let row = 0; row < courses; row++) {
     for (let i = 0; i < sides; i++) {
-      const tint = hay.clone().multiplyScalar(0.79 + random() * 0.30 + row * 0.038);
-      straw.quad(point(row, i), point(row + 1, i), point(row + 1, i + 1), point(row, i + 1), tint);
+      const start = i * fullTurn / sides;
+      const end = (i + 1) * fullTurn / sides;
+      const bottom = row / courses, top = (row + 1) / courses;
+      const tint = hay.clone().multiplyScalar(0.62 + bottom * 0.39 + random() * 0.28);
+      mound.quad(surfacePoint(bottom, start), surfacePoint(top, start),
+        surfacePoint(top, end), surfacePoint(bottom, end), tint);
     }
   }
-  const stack = new T.Mesh(straw.geometry(), painted());
-  stack.position.set(x, groundAt(x, z), z);
+
+  // Coarse, crossed ribbons survive the distance from the carriage better than single-pixel lines.
+  for (let i = 0; i < 470; i++) {
+    const base = random() * 0.985;
+    const angle = random() * fullTurn;
+    const fall = 0.06 + random() * 0.20;
+    const end = Math.max(0.003, base - fall);
+    const bend = (random() - 0.5) * 0.36;
+    const width = (0.011 + random() * 0.016) / Math.max(0.37, Math.cos(base * Math.PI / 2));
+    const tint = tones[Math.floor(random() * tones.length)];
+    const lift = 0.018 + random() * 0.019;
+    const start = surfacePoint(base, angle, lift);
+    const middle = surfacePoint((base + end) / 2, angle + bend * 0.42, lift);
+    const tip = surfacePoint(end, angle + bend, lift);
+    const lip = surfacePoint((base + end) / 2, angle + bend * 0.42 + width, lift);
+    straw.triangle(start, middle, lip, tint);
+    straw.triangle(middle, tip, lip, tint);
+  }
+
+  for (let i = 0; i < 75; i++) {
+    const angle = random() * fullTurn;
+    const rootPoint = surfacePoint(0.08 + random() * 0.09, angle, 0.034);
+    const elbow = surfacePoint(0.019, angle + 0.025, 0.093 + random() * 0.11);
+    const tip = surfacePoint(0.0, angle + (random() - 0.5) * 0.12, 0.17 + random() * 0.23);
+    tip[1] = 0.014;
+    const edge = [elbow[0] + Math.sin(angle) * 0.034, elbow[1] + 0.015, elbow[2] - Math.cos(angle) * 0.034];
+    const tint = tones[Math.floor(random() * tones.length)];
+    straw.triangle(rootPoint, elbow, edge, tint);
+    straw.triangle(elbow, tip, edge, tint);
+  }
+
+  const geometry = mergeGeometries([mound.geometry(), straw.geometry()]);
+  const stack = new T.Mesh(geometry, painted({ emissive: '#73502a', emissiveIntensity: 0.12 }));
+  stack.name = 'Đống rơm khô';
+  stack.position.set(x, groundAt(x, z) + 0.023, z);
   stack.scale.setScalar(scale);
   root.add(stack);
 }
