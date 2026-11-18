@@ -337,7 +337,7 @@ function buildScenery() {
   const foliage = ['#566859', '#484e56', '#744c67'].map(color => material(color));
   const firGeometry = new T.ConeGeometry(1, 1, 7);
   const crownGeometry = new T.IcosahedronGeometry(1, 1);
-  const panorama = new T.TextureLoader().load(new URL('./assets/twilight-river.webp', import.meta.url).href);
+  const panorama = new T.TextureLoader().load(new URL('./assets/twilight-river.webp?v=3d-village', import.meta.url).href);
   panorama.colorSpace = T.SRGBColorSpace;
   panorama.anisotropy = 4;
 
@@ -361,7 +361,7 @@ function buildScenery() {
         vec3 ray = normalize(direction);
         float longitude = atan(ray.z, max(abs(ray.x), 0.0001));
         float latitude = asin(clamp(ray.y, -1.0, 1.0));
-        vec2 uv = vec2(0.5 + longitude / 3.18, 0.34 + latitude / 0.90);
+        vec2 uv = vec2(0.5 + longitude / 3.18, 0.39 + latitude / 0.90);
         gl_FragColor = texture2D(panorama, clamp(uv, vec2(0.0), vec2(1.0)));
         #include <colorspace_fragment>
       }
@@ -405,7 +405,7 @@ function buildScenery() {
         for (let j = 0; j < 3; j++) {
           const x = side * (5.45 + random() * 1.65);
           const z = middle + (random() - 0.5) * 7;
-          const height = 1.2 + random() * 1.95;
+          const height = 0.9 + random() * 1.35;
           const trunk = mesh(firGeometry, trunks, x, -1.4 + height * 0.23, z);
           trunk.scale.set(0.10, height * 0.55, 0.10);
           if (group === 1) {
@@ -427,6 +427,75 @@ function buildScenery() {
         const size = 0.16 + random() * 0.28;
         const boulder = mesh(crownGeometry, rock, side * (6 + random() * 1.4), -1.46, z);
         boulder.scale.set(size * 1.4, size * 0.62, size);
+      }
+    }
+  });
+  const meadow = material('#616455');
+  const soil = material('#6a5c60');
+  const plaster = ['#aa8974', '#8a7779', '#9c8490'].map(color => material(color));
+  const slate = ['#4c465c', '#634b58'].map(color => material(color));
+  const beam = material('#453743');
+  const glass = new T.MeshBasicMaterial({ color: '#ffd797' });
+  const glow = new T.MeshBasicMaterial({ color: '#a592b1' });
+
+  function chalet(side, x, z, width, finish) {
+    const floorY = -0.83;
+    const depth = width * 0.66;
+    const eaves = width * 0.47;
+    const gable = width * 0.29;
+    const facade = x - side * depth / 2;
+    box(depth, eaves, width, plaster[finish], x, floorY + eaves / 2, z);
+    box(depth + 0.07, 0.10, width + 0.10, soil, x, floorY, z);
+    const profile = new T.Shape();
+    profile.moveTo(-width / 2, 0);
+    profile.lineTo(width / 2, 0);
+    profile.lineTo(0, gable);
+    profile.closePath();
+    const gableWall = mesh(new T.ExtrudeGeometry(profile, { depth, bevelEnabled: false }),
+      plaster[finish], x - depth / 2, floorY + eaves, z);
+    gableWall.rotation.y = Math.PI / 2;
+    const pitch = Math.atan2(gable, width / 2);
+    for (const edge of [-1, 1]) {
+      const roof = box(depth + 0.33, 0.10, Math.hypot(width / 2, gable) + 0.16,
+        slate[finish % slate.length], x, floorY + eaves + gable / 2 + 0.05, z + edge * width / 4);
+      roof.rotation.x = edge * pitch;
+      box(0.085, eaves, 0.07, beam, facade - side * 0.025, floorY + eaves / 2, z + edge * width * 0.459);
+      const windowZ = z + edge * width * 0.282;
+      const windowY = floorY + eaves * 0.57;
+      box(0.085, width * 0.20, width * 0.19, beam, facade - side * 0.028, windowY, windowZ);
+      box(0.093, width * 0.155, width * 0.145, glass, facade - side * 0.048, windowY, windowZ);
+      box(0.103, width * 0.155, 0.026, beam, facade - side * 0.053, windowY, windowZ);
+      box(0.103, 0.025, width * 0.145, beam, facade - side * 0.053, windowY, windowZ);
+    }
+    box(0.09, 0.076, width, beam, facade - side * 0.025, floorY + eaves, z);
+    box(0.086, eaves * 0.79, width * 0.17, beam, facade - side * 0.035, floorY + eaves * 0.39, z);
+    box(0.11, gable * 0.33, width * 0.10, glass, facade - side * 0.047, floorY + eaves + gable * 0.39, z);
+    box(width * 0.105, width * 0.27, width * 0.10, soil, x + depth * 0.18,
+      floorY + eaves + gable * 0.67, z + width * 0.21);
+  }
+
+  loop(128, 2.05, 2, () => {
+    for (const side of [-1, 1]) {
+      const origin = -16 + side * 4;
+      for (const [dz, width, depth] of [[-8, 15, 6.5], [3, 18, 8.4], [14, 13, 6.2]]) {
+        oval(meadow, side * (33 + depth * 0.29), -2.0, origin + dz, depth, 1.35, width);
+        oval(soil, side * 30.5, -2.14, origin + dz + 1, 3.1, 0.43, width * 0.78);
+      }
+      for (const [i, [dz, x, width]] of [[-9, 33.7, 3.3], [-3.2, 35.6, 2.55], [3.0, 32.9, 4.05], [12.5, 35.4, 2.9]].entries()) {
+        const z = origin + dz;
+        chalet(side, side * x, z, width, i % plaster.length);
+        for (let j = 0; j < 3; j++) {
+          const glint = oval(glow, side * (26.6 - j * 0.86), -2.14, z + 0.18 * Math.sin(j * 2),
+            0.43 + j * 0.14, 0.004, width * (0.14 - j * 0.025));
+          glint.rotation.y = j * 0.18;
+        }
+      }
+      for (const [dz, x, size] of [[-14, 33.6, 1.12], [-5, 38.1, 1.47], [7.5, 35.8, 1.08], [17.3, 34, 1.29]]) {
+        const z = origin + dz;
+        const treeX = side * x;
+        mesh(firGeometry, trunks, treeX, -0.68 + size * 0.45, z).scale.set(0.15, size, 0.15);
+        mesh(crownGeometry, foliage[2], treeX, -0.68 + size * 1.16, z).scale.set(size, size * 0.65, size * 0.9);
+        mesh(crownGeometry, foliage[2], treeX, -0.68 + size * 1.02, z + size * 0.47).scale.set(size * 0.70, size * 0.53, size * 0.7);
       }
     }
   });
