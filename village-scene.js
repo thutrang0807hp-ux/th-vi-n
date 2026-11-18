@@ -934,20 +934,36 @@ function buildFocusProps() {
   checklist.position.set(0.045, 0.395, -0.445);
   checklist.rotation.set(0.14, -0.13, 0);
 
+  const porcelain = material('#ebd5b5', 0.39);
+  const teaGold = material('#ae8051', 0.43, 0.30);
   const tea = collect('tea', () => {
-    const profile = [[0, 0], [0.041, 0], [0.049, 0.01], [0.058, 0.068],
-      [0.058, 0.078], [0.053, 0.078], [0.048, 0.016], [0, 0.016]];
-    mesh(new T.LatheGeometry(profile.map(([r, y]) => new T.Vector2(r, y)), 28), paper, 0, 0, 0);
-    cylinder(0.05, 0.05, 0.004, leather, 0, 0.06, 0);
-    mesh(new T.TorusGeometry(0.026, 0.008, 8, 20), paper, 0.067, 0.047, 0);
+    const profile = [[0, 0], [0.063, 0], [0.083, 0.008], [0.088, 0.016],
+      [0.084, 0.019], [0.062, 0.013], [0.044, 0.009], [0, 0.009]];
+    mesh(new T.LatheGeometry(profile.map(([r, y]) => new T.Vector2(r, y)), 32),
+      porcelain, 0.148, 0.364, -0.394);
+    mesh(new T.TorusGeometry(0.077, 0.0014, 6, 32), teaGold,
+      0.148, 0.380, -0.394).rotation.x = Math.PI / 2;
   });
+  const cup = new T.Group();
+  const cupProfile = [[0, 0], [0.032, 0], [0.043, 0.007], [0.052, 0.023],
+    [0.055, 0.051], [0.055, 0.062], [0.051, 0.062], [0.048, 0.024], [0, 0.020]];
+  cup.add(mesh(new T.LatheGeometry(cupProfile.map(([r, y]) => new T.Vector2(r, y)), 32),
+    porcelain, 0, 0, 0));
+  cup.add(cylinder(0.049, 0.049, 0.003, material('#aa672f', 0.38), 0, 0.049, 0));
+  cup.add(mesh(new T.TorusGeometry(0.053, 0.0016, 7, 32), teaGold,
+    0, 0.061, 0));
+  cup.children.at(-1).rotation.x = Math.PI / 2;
+  const handle = mesh(new T.TorusGeometry(0.021, 0.0057, 8, 24), porcelain, 0.060, 0.033, 0);
+  handle.scale.y = 0.88;
+  cup.add(handle);
+  tea.add(cup);
 
   const pencil = new T.Group();
   pencil.add(cylinder(0.008, 0.008, 0.122, bronze, 0, 0.061, 0));
   pencil.add(cylinder(0.008, 0.001, 0.023, darkWood, 0, -0.0115, 0));
   notebook.add(pencil);
   scene.add(props);
-  return { props, variants, pencil, checklist, tea };
+  return { props, variants, pencil, checklist, cup };
 }
 
 function createMochiAnimator(mascot, pose, upper, head, arms, feet, showFace) {
@@ -1278,7 +1294,7 @@ function buildMascot() {
     visibleExpression = name;
   }
   const animator = createMochiAnimator(mascot, pose, upper, headPivot, arms, feet, showFace);
-  const { props, variants, pencil, checklist, tea } = buildFocusProps();
+  const { props, variants, pencil, checklist, cup } = buildFocusProps();
   // Each target is authored in the prop's own coordinates, so a moving prop carries its grip.
   const contactPoint = new T.Vector3();
   const armDirection = new T.Vector3();
@@ -1334,11 +1350,16 @@ function buildMascot() {
       headPivot.rotation.set(0.045 + wave * 0.045, 0.15 + wave * 0.09, -0.075);
       reach(1, headPivot, 0.188, -0.207 + wave * 0.006, -0.261);
     } else if (activity === 'tea') {
-      const lift = T.MathUtils.smoothstep(Math.sin(time * 0.93), 0.08, 0.76);
-      headPivot.rotation.x = -0.09 + lift * 0.10;
-      tea.position.set(0.154 - lift * 0.08, 0.365 + lift * 0.222, -0.317 + lift * 0.059);
-      tea.rotation.x = -0.32 * lift;
-      reach(1, tea, 0.084, 0.047, 0.002);
+      const phase = time % 9.2;
+      const ease = T.MathUtils.smootherstep;
+      const lift = ease(phase, 0.45, 1.85) * (1 - ease(phase, 3.10, 4.65));
+      const sip = ease(phase, 1.90, 2.42) * (1 - ease(phase, 2.70, 3.18));
+      headPivot.rotation.x = -0.06 - lift * 0.065 - sip * 0.04;
+      headPivot.rotation.z = -0.045 * lift;
+      cup.position.set(0.148 - lift * 0.077, 0.375 + lift * 0.154,
+        -0.394 + lift * 0.034 + sip * 0.004);
+      cup.rotation.set(sip * 0.19, -0.14 * lift, -0.05 * lift);
+      reach(1, cup, 0.079, 0.034, 0.002);
     } else if (activity === 'work') {
       const keyboard = variants.work;
       for (const index of [0, 1]) {
