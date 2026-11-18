@@ -341,16 +341,22 @@ function buildScenery() {
     shader.fragmentShader = 'varying vec3 lakePosition;\n' + shader.fragmentShader.replace(
       '#include <opaque_fragment>', `
         vec3 delta = lakePosition - cameraPosition;
-        float distanceToMoon = abs(delta.z + abs(delta.x) * 0.25);
-        float bands = 0.56 + 0.44 * sin(lakePosition.x * 8.0 + sin(lakePosition.z * 1.5));
-        float shimmer = exp(-distanceToMoon * 0.56) * bands;
-        float fade = smoothstep(10.0, 23.0, abs(delta.x)) * (1.0 - smoothstep(34.0, 49.0, abs(delta.x)));
-        outgoingLight += vec3(0.70, 0.40, 0.27) * shimmer * fade * 0.72;
+        float x = abs(delta.x);
+        float sideways = delta.z + x * 0.25;
+        float drift = 0.36 * sin(lakePosition.x * 0.57 + lakePosition.z * 0.30);
+        float width = mix(0.65, 1.9, smoothstep(12.0, 44.0, x));
+        float plume = exp(-pow(abs(sideways + drift) / width, 2.0));
+        float glow = exp(-abs(sideways) * 0.27);
+        float fade = smoothstep(12.0, 23.0, x) * (1.0 - smoothstep(35.0, 47.0, x));
+        float broken = smoothstep(-0.48, 0.9,
+          sin(lakePosition.x * 1.34 + lakePosition.z * 0.81)
+          + 0.64 * cos(lakePosition.x * 2.14 - lakePosition.z * 1.33));
+        outgoingLight += vec3(0.56, 0.37, 0.32) * fade * (0.12 * glow + plume * (0.10 + 0.18 * broken));
         #include <opaque_fragment>
       `
     );
   };
-  const siding = material('#886858');
+  const siding = ['#896b60', '#a78670', '#715c63'].map(color => material(color));
   const roof = material('#4a3f55');
   const timber = material('#4e3a39');
   const windowLight = new T.MeshBasicMaterial({ color: '#ffcf85' });
@@ -447,11 +453,11 @@ function buildScenery() {
     }
   }
 
-  function cottage(side, x, z, size) {
-    const groundLevel = -1.63;
+  function cottage(side, x, z, size, groundLevel, finish) {
+    const walls = siding[finish];
     const facade = x - side * size * 0.54;
     const eave = groundLevel + size * 0.65;
-    box(size * 1.07, size * 0.69, size * 1.32, siding, x, groundLevel + size * 0.34, z);
+    box(size * 1.07, size * 0.69, size * 1.32, walls, x, groundLevel + size * 0.34, z);
     for (const sign of [-1, 1]) {
       const slope = box(size * 1.21, size * 0.084, size * 0.81, roof,
         x, eave + size * 0.18, z + sign * size * 0.35);
@@ -469,7 +475,7 @@ function buildScenery() {
     gable.lineTo(0, size * 0.35);
     gable.closePath();
     const wall = mesh(new T.ExtrudeGeometry(gable, { depth: size * 1.05, bevelEnabled: false }),
-      siding, x - size * 0.525, eave, z);
+      walls, x - size * 0.525, eave, z);
     wall.rotation.y = Math.PI / 2;
     box(size * 0.19, size * 0.40, size * 0.18, timber, x + size * 0.24, eave + size * 0.30, z + size * 0.28);
     box(0.065, size * 0.45, size * 0.28, timber, facade - side * 0.03,
@@ -523,7 +529,7 @@ function buildScenery() {
 
   loop(98, 3.25, 2, length => {
     for (const side of [-1, 1]) {
-      for (let i = 0; i < 48; i++) {
+      for (let i = 0; i < 27; i++) {
         const glint = box(0.05 + random() * 0.17, 0.007, 0.45 + random() * 3.4, ripple,
           side * (14 + random() * 29), -2.293, (random() - 0.5) * length);
         glint.rotation.y = (random() - 0.5) * 0.4;
@@ -535,15 +541,18 @@ function buildScenery() {
           grove(side * (48 + random() * 5), z + (random() - 0.5) * 9, 2.1 + random() * 3.2, n % 3);
         }
       }
-      const villageZ = -28 + side * 3;
-      for (let i = 0; i < 4; i++) {
-        const z = villageZ + i * 8.3;
-        const x = side * (43.3 + (i % 2) * 1.7);
-        cottage(side, x, z, 2.2 + (i % 3) * 0.36);
-        maple(x + side * 1.7, -1.52, z - 3.25, 1.6 + i * 0.20, i % 3);
-        for (let gleam = 0; gleam < 6; gleam++) {
-          box(0.20 + random() * 0.38, 0.006, 0.17 + random() * 0.42, lanternReflection,
-            side * (39.8 - gleam * 0.62), -2.292, z + (random() - 0.5) * 1.1);
+      const villageZ = -24 + side * 4;
+      const homes = [[0, 0, 2.85, -1.55], [6.5, 4.0, 1.65, -0.72], [9.4, 0.8, 2.2, -1.47], [25.5, 6.4, 2.42, -0.52]];
+      for (const [i, [along, inland, size, terrace]] of homes.entries()) {
+        const z = villageZ + along;
+        const x = side * (42.5 + inland);
+        oval(grass, x + side * 0.9, -2.36, z, 3.1 + size, terrace + 2.36, 3.2 + size);
+        cottage(side, x, z, size, terrace, i % siding.length);
+        if (i !== 1) maple(x + side * 0.9, terrace - 0.12, z - 2.15 - (i % 2), 1.25 + size * 0.27, i % autumn.length);
+        for (let gleam = 0; gleam < 3; gleam++) {
+          const gap = 1.1 + random() * 3;
+          box(0.18 + random() * 0.33, 0.006, 0.13 + random() * 0.4, lanternReflection,
+            side * (Math.abs(x) - 5.6 - gap), -2.292, z + (random() - 0.5) * 1.1);
         }
       }
     }
@@ -566,11 +575,11 @@ function buildScenery() {
           const angle = z / length * Math.PI * 2;
           const jagged = 0.46 * Math.sin(angle * 5 + side) + 0.28 * Math.cos(angle * 11 + row);
           const rolling = 0.65 + 0.35 * Math.cos(angle * 2 - row * 1.6 + side);
-          const peak = 5 + 7 * row + 8 * rolling * Math.sin(angle * (2 + row) + row * 1.4) ** 2
-            + jagged * (2.8 + row * 1.5);
+          const peak = 4 + 6 * row + 7.4 * rolling * Math.sin(angle * (2 + row) + row * 1.4) ** 2
+            + jagged * (1.25 + row * 1.2);
           const height = Math.sin(slope * Math.PI) ** 1.4 * peak + Math.sin(angle * 17 + slope * 17)
-            * Math.sin(slope * Math.PI) * 1.6;
-          vertices.setXYZ(i, side * (46 + row * 24 + slope * 32), -2.45 + height, z);
+            * Math.sin(slope * Math.PI) * 0.60;
+          vertices.setXYZ(i, side * (52 + row * 28 + slope * 32), -2.45 + height, z);
           tint.copy(warmRock).lerp(highRock, T.MathUtils.smoothstep(height, 4, 19));
           tint.lerp(snow, T.MathUtils.smoothstep(height + jagged * 5, 19 + row * 3, 26 + row * 3));
           colors.push(tint.r, tint.g, tint.b);
