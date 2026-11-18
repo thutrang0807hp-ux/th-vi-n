@@ -784,6 +784,7 @@ function buildMochiBody(surface) {
   const shape = new T.SphereGeometry(1, 40, 28);
   const positions = shape.attributes.position;
   const power = 2.65;
+  const tones = [];
   for (let i = 0; i < positions.count; i++) {
     const x = positions.getX(i);
     const y = positions.getY(i);
@@ -791,26 +792,33 @@ function buildMochiBody(surface) {
     const radius = (Math.abs(x) ** power + Math.abs(y) ** power
       + Math.abs(z) ** power) ** (1 / power);
     const height = y / radius;
-    const width = 0.226 * (1 - 0.11 * height);
-    positions.setXYZ(i, x / radius * width, height * 0.221, z / radius * 0.167);
+    const width = 0.254 * (1 - 0.085 * height);
+    positions.setXYZ(i, x / radius * width, height * 0.23, z / radius * 0.167);
+    const side = T.MathUtils.smoothstep(Math.abs(x / radius), 0.60, 1);
+    const underside = 1 - T.MathUtils.smoothstep(height, -0.94, -0.58);
+    const shade = 0.075 * side + 0.065 * underside;
+    tones.push(1 - shade * 0.65, 1 - shade, 1 - shade * 0.91);
   }
   shape.computeVertexNormals();
-  const body = mesh(shape, surface, 0, 0.347, 0.012);
+  shape.setAttribute('color', new T.Float32BufferAttribute(tones, 3));
+  const shadedSurface = surface.clone();
+  shadedSurface.vertexColors = true;
+  const body = mesh(shape, shadedSurface, 0, 0.342, 0.012);
   const feet = [];
   const arms = [];
   for (const side of [-1, 1]) {
     // Each limb has its own joint, recessed into the body at its attachment.
     const shoulder = new T.Group();
-    shoulder.position.set(side * 0.203, 0.488, 0.008);
-    const arm = oval(surface, side * 0.054, -0.107, -0.004, 0.075, 0.145, 0.085);
+    shoulder.position.set(side * 0.223, 0.481, 0.065);
+    const arm = oval(surface, side * 0.054, -0.107, -0.015, 0.071, 0.139, 0.087);
     arm.rotation.z = side * 0.29;
     shoulder.add(arm);
     scene.add(shoulder);
     arms.push(shoulder);
 
     const hip = new T.Group();
-    hip.position.set(side * 0.12, 0.16, -0.025);
-    const foot = oval(surface, side * 0.01, -0.061, -0.026, 0.105, 0.091, 0.127);
+    hip.position.set(side * 0.118, 0.182, -0.022);
+    const foot = oval(surface, side * 0.009, -0.093, -0.022, 0.104, 0.079, 0.119);
     foot.rotation.y = -side * 0.13;
     hip.add(foot);
     scene.add(hip);
@@ -939,6 +947,9 @@ function buildMascot() {
     skin.color.set(mascotColors[color][0]);
     skin.emissive.copy(skin.color);
     skin.emissiveIntensity = 0.105;
+    body.material.color.copy(skin.color);
+    body.material.emissive.copy(skin.emissive);
+    body.material.emissiveIntensity = skin.emissiveIntensity;
     blush.color.set(mascotColors[color][1]);
     accessories.pilot.visible = accessory === 'pilot' || accessory === 'cap';
     accessories.satchel.visible = accessory === 'pilot' || accessory === 'satchel';
@@ -1260,8 +1271,8 @@ function play(renderer, avatar,
     if (previousWeight !== strideWeight || travel > 0.0001) {
       feet.forEach((foot, index) => {
         const step = Math.sin(stride + index * Math.PI) * strideWeight;
-        foot.position.y = 0.16 + Math.max(0, step) * 0.042;
-        foot.position.z = -0.025 + step * 0.058;
+        foot.position.y = 0.182 + Math.max(0, step) * 0.014;
+        foot.rotation.x = step * 0.39;
         arms[index].rotation.x = step * -0.34;
       });
       needsRender = true;
