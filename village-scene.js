@@ -18,19 +18,19 @@ camera.lookAt(0, 1.67, -12);
 
 const material = (color, roughness = 0.65, metalness = 0) =>
   new T.MeshStandardMaterial({ color, roughness, metalness });
-const walnut = material('#693921', 0.42);
-const darkWood = material('#351e17');
-const bronze = material('#b77b3b', 0.34, 0.58);
-const green = material('#31483a', 0.59);
-const seam = material('#182d23');
-const pillow = material('#c4a182');
-const curtain = material('#c29a79');
-const ceiling = material('#895942');
+const walnut = material('#b67b50', 0.42);
+const darkWood = material('#75533c');
+const bronze = material('#bb8a44', 0.34, 0.58);
+const green = material('#a0ad80', 0.59);
+const seam = material('#687b54');
+const pillow = material('#f2d8ad');
+const curtain = material('#f3d9b5');
+const ceiling = material('#dcb28f');
 const lightShade = new T.MeshStandardMaterial({
-  color: '#ffe4b2', emissive: '#ffac59', emissiveIntensity: 1.15, roughness: 0.45
+  color: '#ffe4b2', emissive: '#ffd28c', emissiveIntensity: 0.66, roughness: 0.45
 });
-const pink = material('#ed859e', 0.49);
-const leather = material('#774828');
+const pink = material('#f796ae', 0.49);
+const leather = material('#9e6549');
 const bookColors = ['#793e36', '#36514e', '#a98650', '#525930'].map(color => material(color));
 
 function mesh(geometry, surface, x, y, z) {
@@ -68,13 +68,13 @@ function textile() {
   canvas.width = 256;
   canvas.height = 320;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#721f2e';
+  ctx.fillStyle = '#aa5864';
   ctx.fillRect(0, 0, 256, 320);
   for (let i = 0; i < 12000; i++) {
-    ctx.fillStyle = random() > 0.6 ? '#f2b07c25' : '#160a1c22';
+    ctx.fillStyle = random() > 0.6 ? '#f2b07c25' : '#64364b16';
     ctx.fillRect(random() * 256, random() * 320, 1 + random() * 3, 1);
   }
-  ctx.strokeStyle = '#ce9464';
+  ctx.strokeStyle = '#e8af83';
   for (const offset of [5, 11, 30, 36]) {
     ctx.lineWidth = offset === 11 ? 3 : 1;
     ctx.strokeRect(offset, -3, 256 - 2 * offset, 326);
@@ -103,7 +103,7 @@ function textile() {
 
 function buildShell() {
   box(halfCabin * 2 + 0.24, 0.24, 31, darkWood, 0, -0.15, -2);
-  const planks = Array.from({ length: 7 }, (_, i) => material(new T.Color('#744327').multiplyScalar(0.8 + i * 0.066), 0.47));
+  const planks = Array.from({ length: 7 }, (_, i) => material(new T.Color('#bf8b62').multiplyScalar(0.91 + i * 0.032), 0.47));
   for (let row = 0; row < 20; row++) {
     for (let col = 0; col < 22; col++) {
       box(0.365, 0.035, 1.53, planks[Math.floor(random() * planks.length)],
@@ -128,7 +128,7 @@ function buildShell() {
     cylinder(0.055, 0.055, 0.18, bronze, 0, 3.88, z);
     oval(lightShade, 0, 3.72, z, 0.25, 0.13, 0.25);
     cylinder(0.26, 0.26, 0.035, bronze, 0, 3.77, z);
-    if (z < 10 && z > -13) point('#ffc284', 12, 5.3, 0, 3.57, z);
+    if (z < 10 && z > -13) point('#ffe0af', 3.2, 5.3, 0, 3.57, z);
   }
   for (const side of [-1, 1]) {
     const x = side * halfCabin;
@@ -174,8 +174,8 @@ function finishMaterials() {
   texture(green, false);
   texture(pillow, false);
   texture(curtain, false);
-  green.color.set('#405247');
-  walnut.color.set('#845035');
+  green.color.set('#a5b187');
+  walnut.color.set('#bd885e');
   curtain.side = T.DoubleSide;
 }
 
@@ -232,8 +232,8 @@ function buildBooths() {
   canvas.width = canvas.height = 64;
   const ctx = canvas.getContext('2d');
   const gradient = ctx.createRadialGradient(32, 32, 8, 32, 32, 32);
-  gradient.addColorStop(0, '#1f130cba');
-  gradient.addColorStop(1, '#1f130c00');
+  gradient.addColorStop(0, '#62513a66');
+  gradient.addColorStop(1, '#62513a00');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, 64, 64);
   const shadowMaterial = new T.MeshBasicMaterial({
@@ -273,7 +273,7 @@ function buildBooths() {
       saucer.position.z += 0.01;
       box(0.38, 0.018, 0.27, bookColors[0], x - side * 0.2, 1.031, z + 0.18, 0.006);
     }
-    if (z > 3 && z < 10) point('#ffc27d', 8, 2.6, lampX, 1.28, z);
+    if (z > 3 && z < 10) point('#ffe4bb', 2.0, 2.6, lampX, 1.28, z);
   }
 }
 
@@ -295,7 +295,7 @@ function buildBulkhead(z, facesFront) {
   box(1.45, 2.61, 0.19, bronze, 0, 1.36, 0.19, 0.075);
   box(1.33, 2.52, 0.21, walnut, 0, 1.33, 0.22, 0.075);
   box(0.93, 1.17, 0.06, bronze, 0, 1.77, 0.34, 0.07);
-  box(0.83, 1.07, 0.045, material('#354849', 0.28), 0, 1.77, 0.37, 0.065);
+  box(0.83, 1.07, 0.045, material('#566a63', 0.28), 0, 1.77, 0.37, 0.065);
   box(0.034, 1.07, 0.035, bronze, 0, 1.77, 0.401);
   box(0.83, 0.037, 0.035, bronze, 0, 1.77, 0.401);
   box(0.85, 0.42, 0.045, darkWood, 0, 0.49, 0.335, 0.035);
@@ -329,17 +329,57 @@ function buildBulkhead(z, facesFront) {
   scene.add(wall);
 }
 
+function addWindowSunlight() {
+  const pattern = new T.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    side: T.DoubleSide,
+    blending: T.AdditiveBlending,
+    uniforms: { sunlight: { value: new T.Color('#f1bc75') } },
+    vertexShader: `
+      varying vec2 pane;
+      void main() {
+        pane = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 sunlight;
+      varying vec2 pane;
+      void main() {
+        vec2 edge = min(pane, 1.0 - pane);
+        float edgeMask = smoothstep(0.01, 0.16, edge.x) * smoothstep(0.01, 0.10, edge.y);
+        float frame = smoothstep(0.018, 0.065, abs(pane.y - 0.52));
+        float falloff = mix(0.26, 1.0, smoothstep(0.02, 0.8, pane.x));
+        gl_FragColor = vec4(sunlight, 0.26 * edgeMask * frame * falloff);
+        #include <colorspace_fragment>
+      }
+    `
+  });
+  const pane = new T.PlaneGeometry(1, 1);
+  const positions = pane.attributes.position;
+  for (let i = 0; i < positions.count; i++) {
+    const u = positions.getX(i) + 0.5;
+    const v = positions.getY(i) + 0.5;
+    positions.setXYZ(i, -3.85 + u * 5.25, 0, v * 2.67 + u * 2.8);
+  }
+  pane.computeVertexNormals();
+  for (let z = -15.3; z < 13; z += 3.6) {
+    mesh(pane, pattern, 0, 0.009, z).renderOrder = 1;
+  }
+}
+
 function buildScenery() {
   const layers = [];
-  const skyColor = new T.Color('#adccc2');
+  const skyColor = new T.Color('#bddbcf');
   scene.background.copy(skyColor);
   scene.fog = new T.FogExp2(skyColor, 0.0105);
   const sky = new T.ShaderMaterial({
     side: T.BackSide,
     depthWrite: false,
     uniforms: {
-      horizon: { value: new T.Color('#fae3b9') },
-      zenith: { value: new T.Color('#7bbbd2') },
+      horizon: { value: new T.Color('#f9e5c8') },
+      zenith: { value: new T.Color('#79c4ed') },
       cloudColor: { value: new T.Color('#fff2dc') }
     },
     vertexShader: `
@@ -394,15 +434,15 @@ function buildScenery() {
     layers.push({ strip, length, speed });
   }
 
-  const pasture = new T.MeshStandardMaterial({ color: '#a2ba78', vertexColors: true, side: T.DoubleSide });
+  const pasture = new T.MeshStandardMaterial({ color: '#b0cc82', vertexColors: true, side: T.DoubleSide });
   const fieldPath = new T.MeshStandardMaterial({ color: '#bc9e77', roughness: 1, side: T.DoubleSide });
-  const stemMaterial = material('#4c813e');
+  const stemMaterial = material('#6e983f');
   const petalMaterial = new T.MeshStandardMaterial({ color: '#ffffff', roughness: 0.76, side: T.DoubleSide });
-  const palette = ['#ee6b84', '#f7bf55', '#e7595b', '#ad83d1', '#ffeace', '#ed809d'].map(color => new T.Color(color));
+  const palette = ['#f688ae', '#f8cf6b', '#ef7b7f', '#ad93df', '#fff0ce', '#f5a5c5'].map(color => new T.Color(color));
   const stem = new T.CylinderGeometry(0.017, 0.023, 0.53, 4);
   stem.translate(0, 0.265, 0);
   const blade = new T.PlaneGeometry(0.13, 0.34, 2, 3);
-  const leaves = new T.MeshStandardMaterial({ color: '#76a451', roughness: 0.94, side: T.DoubleSide });
+  const leaves = new T.MeshStandardMaterial({ color: '#8ab458', roughness: 0.94, side: T.DoubleSide });
   const bladePositions = blade.attributes.position;
   for (let i = 0; i < bladePositions.count; i++) {
     const y = bladePositions.getY(i) / 0.34 + 0.5;
@@ -464,8 +504,12 @@ function buildScenery() {
         const rowX = minX + 1.45 + row * (distant ? 1.74 : 0.95) + band * (distant ? 1.10 : 1.25);
         for (let n = 0; n < count; n++) {
           const z = -length / 2 + (n + random()) * length / count;
-          const bend = Math.sin(z / length * Math.PI * 2) * (distant ? 2.2 : 0.95)
-            + Math.sin(z / length * Math.PI * 4 + side) * 0.37;
+          const phase = z / length * Math.PI * 2;
+          const openGreen = 0.58 * Math.sin(phase * 2 + band * 0.99 + side)
+            + 0.42 * Math.cos(phase * 3 - band * 0.56);
+          if (openGreen > 0.54 && (band + 1) % 3 !== 0) continue;
+          const bend = Math.sin(phase + band * 0.12) * (distant ? 2.5 : 1.25)
+            + Math.sin(phase * 2 + side) * 0.49;
           const x = rowX + bend + (random() - 0.5) * 0.53;
           dummy.position.set(side * x, terrain(x, z, length) - (distant ? 0.12 : 0), z);
           const scale = (distant ? 1.18 : 0.91) + random() * 0.36;
@@ -493,6 +537,7 @@ function buildScenery() {
         mesh(path, fieldPath, 0, 0, 0);
       }
       for (const object of [blooms, stems, blades].filter(Boolean)) {
+        object.count = index;
         object.computeBoundingSphere();
         scene.add(object);
       }
@@ -504,7 +549,7 @@ function buildScenery() {
 
   const ridgeMaterials = ['#8fac77', '#a8bd88', '#b4c991'].map(color => material(color, 1));
   const roundedHill = new T.SphereGeometry(1, 18, 9);
-  const treeCanopy = material('#779b65');
+  const springCanopies = ['#90b772', '#b8ce81', '#ec9db4'].map(color => material(color));
   const treeTrunk = material('#85654f');
   const canopy = new T.IcosahedronGeometry(1, 1);
   loop(120, 0.8, 2, length => {
@@ -518,7 +563,10 @@ function buildScenery() {
           const along = z + (random() - 0.5) * 8;
           const size = 0.82 + random() * 0.68;
           cylinder(0.095, 0.13, size * 1.65, treeTrunk, x, size * 0.81, along);
-          mesh(canopy, treeCanopy, x, size * 1.85, along).scale.set(size, size * 1.18, size);
+          const crown = springCanopies[(i + j) % springCanopies.length];
+          mesh(canopy, crown, x, size * 1.85, along).scale.set(size, size * 1.18, size);
+          mesh(canopy, crown, x + side * size * 0.38, size * 1.62, along + size * 0.51)
+            .scale.set(size * 0.79, size * 0.84, size * 0.86);
         }
       }
     }
@@ -580,17 +628,21 @@ function start() {
   const renderer = new T.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.35));
   renderer.toneMapping = T.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.15;
+  renderer.toneMappingExposure = 1.18;
   document.querySelector('#scene').append(renderer.domElement);
 
-  scene.add(new T.HemisphereLight('#ffe5cb', '#574043', 1.27));
-  const sun = new T.DirectionalLight('#ffe1bd', 2.12);
-  sun.position.set(-9, 6, 5);
+  scene.add(new T.HemisphereLight('#fff4e9', '#c3ac96', 2.05));
+  const sun = new T.DirectionalLight('#ffedc9', 1.83);
+  sun.position.set(-8, 4.2, -5);
   scene.add(sun);
+  const windowFill = new T.DirectionalLight('#e1efff', 0.54);
+  windowFill.position.set(8, 3, 1);
+  scene.add(windowFill);
 
   finishMaterials();
   buildShell();
   buildBooths();
+  addWindowSunlight();
   buildBulkhead(-17.33, false);
   buildBulkhead(13.42, true);
   const scenery = buildScenery();
