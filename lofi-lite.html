@@ -135,6 +135,7 @@ dialog h2 { margin: 0 0 12px; font-size: 1.1rem; }
         <select id="route-picker" aria-label="Chọn phong cảnh">
           <option value="tulip">Thung lũng Tulip</option>
           <option value="tri-ton">Mùa vàng Tri Tôn</option>
+          <option value="ocean">Bờ biển xanh</option>
         </select>
         <button id="motion-toggle" type="button">Dừng tàu</button>
         <button id="camera-toggle" type="button" aria-pressed="false">Camera POV</button>
@@ -168,7 +169,7 @@ globalThis.lofiAssets = JSON.parse(document.getElementById("lofi-assets").textCo
     const scene = 'tulip';
     picker.value = scene;
     picker.addEventListener('change', () => {
-      location.assign(picker.value === 'tri-ton' ? './tri-ton.html' : './lofi-lite.html');
+      location.assign(picker.value === 'ocean' ? './ocean.html' : picker.value === 'tri-ton' ? './tri-ton.html' : './lofi-lite.html');
     });
     window.addEventListener('pageshow', () => { picker.value = scene; });
 
