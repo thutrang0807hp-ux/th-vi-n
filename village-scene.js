@@ -701,7 +701,7 @@ function buildMascot() {
   return { mascot, feet };
 }
 
-export function start() {
+export function start(buildExterior = buildScenery) {
   const renderer = new T.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.35));
   renderer.toneMapping = T.ACESFilmicToneMapping;
@@ -718,7 +718,7 @@ export function start() {
   buildBooths();
   buildBulkhead(-17.33, false);
   buildBulkhead(13.42, true);
-  const scenery = buildScenery();
+  const scenery = buildExterior(scene);
   batchScenery();
   play(renderer, buildMascot(), scenery);
   status.remove();

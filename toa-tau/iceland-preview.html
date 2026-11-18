@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lofi Train — Iceland — Cực quang</title>
+  <meta name="color-scheme" content="dark">
+  <link rel="stylesheet" href="../lounge.css?v=local-three">
+</head>
+<body>
+  <main aria-label="Toa lounge Lofi Train">
+    <div id="scene"></div>
+    <div id="status" role="status">
+      <p id="load-message">Đang dựng toa tàu…</p>
+    </div>
+    <header>
+      <span>Lofi Train <span class="route">— Iceland · Cực quang</span></span>
+      <div class="view-controls">
+        <button id="motion-toggle" type="button">Dừng tàu</button>
+        <button id="camera-toggle" type="button" aria-pressed="false">Camera POV</button>
+      </div>
+    </header>
+    <div class="actions" aria-label="Điều khiển">
+      <button id="seat-toggle" type="button" aria-pressed="false">Ngồi</button>
+      <button id="focus-toggle" type="button" aria-haspopup="dialog">Focus</button>
+    </div>
+    <p class="keyboard-help">W A S D di chuyển · Shift chạy · Kéo chuột để xoay · Cuộn để zoom · Nhấp đúp hoặc V đổi camera · E ngồi · F Focus</p>
+    <div class="touch-controls" aria-label="Di chuyển">
+      <button type="button" data-key="KeyW" aria-label="Tiến">↑</button>
+      <button type="button" data-key="KeyA" aria-label="Trái">←</button>
+      <button type="button" data-key="KeyS" aria-label="Lùi">↓</button>
+      <button type="button" data-key="KeyD" aria-label="Phải">→</button>
+    </div>
+    <dialog id="focus-panel" aria-labelledby="focus-title">
+      <h2 id="focus-title">Đồng hồ Focus</h2>
+      <output id="focus-clock" role="timer">25:00</output>
+      <div class="timer-actions">
+        <button id="timer-start" type="button">Bắt đầu</button>
+        <button id="timer-reset" type="button">Đặt lại</button>
+        <form method="dialog"><button>Đóng</button></form>
+      </div>
+    </dialog>
+  </main>
+  <script type="module">
+    try {
+      const [{ start }, { buildIcelandWorld }] = await Promise.all([
+        import('../village-scene.js'), import('../iceland-world.js')
+      ]);
+      start(buildIcelandWorld);
+    } catch (error) {
+      document.querySelector('#load-message').textContent =
+        'Không mở được cảnh Iceland 3D. Hãy thử trình duyệt hỗ trợ WebGL.';
+      console.error(error);
+    }
+  </script>
+</body>
+</html>
