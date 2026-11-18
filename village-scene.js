@@ -653,9 +653,11 @@ const mascotDefaults = { color: 'peach', accessory: 'plain', expression: 'gentle
 const mascotStorageKey = 'lofi-train-avatar-v1';
 
 // Superellipsoid with a broader lower face and a slightly tilted crown.
-const mochiHeadY = 0.882;
+const mochiHeadY = 0.724;
 const mochiHeadScale = 0.8;
-const mochiPower = 3.65;
+const mochiHeadHeightScale = 0.72;
+const mochiHipY = 0.149;
+const mochiPower = 3.85;
 const mochiYRadius = 0.433;
 function mochiHeadProfile(y) {
   const height = y / mochiYRadius;
@@ -746,7 +748,7 @@ function mochiFaceTexture(expression) {
       ctx.restore();
     }
   } else {
-    for (const x of [160, 352]) {
+    for (const x of [154, 358]) {
       if (expression === 'happy' || expression === 'sleepy' || expression === 'blink') {
         const curve = expression === 'happy' ? -19 : 13;
         ctx.beginPath();
@@ -754,9 +756,9 @@ function mochiFaceTexture(expression) {
         ctx.quadraticCurveTo(x, 115 + curve, x + 17, 115);
         ctx.stroke();
       } else {
-        ellipse(x, 112, 24, 36);
+        ellipse(x, 115, 20, 39);
         ctx.fillStyle = '#a7635b';
-        ellipse(x - 5, 100, 5, 6);
+        ellipse(x - 4, 101, 3, 5);
         ctx.fillStyle = '#472323';
       }
     }
@@ -766,7 +768,7 @@ function mochiFaceTexture(expression) {
       ellipse(256, 164, 11, 5);
     } else if (expression === 'surprised') {
       ellipse(256, 154, 9, 10);
-    } else {
+    } else if (expression === 'sleepy') {
       ctx.strokeStyle = '#9d5654';
       ctx.lineWidth = 3;
       ctx.beginPath();
@@ -783,7 +785,7 @@ function mochiFaceTexture(expression) {
 function buildMochiBody(surface) {
   const shape = new T.SphereGeometry(1, 40, 28);
   const positions = shape.attributes.position;
-  const power = 2.65;
+  const power = 3.16;
   const tones = [];
   for (let i = 0; i < positions.count; i++) {
     const x = positions.getX(i);
@@ -792,8 +794,8 @@ function buildMochiBody(surface) {
     const radius = (Math.abs(x) ** power + Math.abs(y) ** power
       + Math.abs(z) ** power) ** (1 / power);
     const height = y / radius;
-    const width = 0.254 * (1 - 0.085 * height);
-    positions.setXYZ(i, x / radius * width, height * 0.23, z / radius * 0.167);
+    const width = 0.23 * (1 - 0.048 * height);
+    positions.setXYZ(i, x / radius * width, height * 0.171, z / radius * 0.151);
     const side = T.MathUtils.smoothstep(Math.abs(x / radius), 0.60, 1);
     const underside = 1 - T.MathUtils.smoothstep(height, -0.94, -0.58);
     const shade = 0.075 * side + 0.065 * underside;
@@ -803,23 +805,23 @@ function buildMochiBody(surface) {
   shape.setAttribute('color', new T.Float32BufferAttribute(tones, 3));
   const shadedSurface = surface.clone();
   shadedSurface.vertexColors = true;
-  const body = mesh(shape, shadedSurface, 0, 0.342, 0.012);
+  const body = mesh(shape, shadedSurface, 0, 0.272, 0.012);
   const feet = [];
   const arms = [];
   for (const side of [-1, 1]) {
     // Each limb has its own joint, recessed into the body at its attachment.
     const shoulder = new T.Group();
-    shoulder.position.set(side * 0.186, 0.550, 0.081);
-    const arm = oval(surface, side * 0.073, -0.152, -0.008, 0.071, 0.181, 0.087);
+    shoulder.position.set(side * 0.169, 0.435, 0.073);
+    const arm = oval(surface, side * 0.071, -0.121, -0.013, 0.059, 0.143, 0.072);
     arm.rotation.z = side * 0.29;
     shoulder.add(arm);
     scene.add(shoulder);
     arms.push(shoulder);
 
     const hip = new T.Group();
-    hip.position.set(side * 0.118, 0.182, -0.022);
-    const foot = oval(surface, side * 0.009, -0.093, -0.022, 0.104, 0.079, 0.119);
-    foot.rotation.y = -side * 0.13;
+    hip.position.set(side * 0.109, mochiHipY, -0.021);
+    const foot = box(0.189, 0.133, 0.22, surface, side * 0.009, -0.079, -0.035, 0.059);
+    foot.rotation.y = -side * 0.08;
     hip.add(foot);
     scene.add(hip);
     feet.push(hip);
@@ -850,7 +852,8 @@ function buildMascot() {
   oval(new T.MeshBasicMaterial({ color: '#32151a', transparent: true, opacity: 0.22, depthWrite: false }),
     0, 0.017, 0, 0.37, 0.007, 0.33);
   const { body, feet, arms } = buildMochiBody(skin);
-  mesh(makeMochiHead(), skin, 0, mochiHeadY, 0).scale.setScalar(mochiHeadScale);
+  const head = mesh(makeMochiHead(), skin, 0, mochiHeadY, 0);
+  head.scale.set(mochiHeadScale, mochiHeadHeightScale, mochiHeadScale);
 
   const patch = mochiFacePatch();
   // Surface decals keep the soft blush and features flush with the curved head.
@@ -858,14 +861,14 @@ function buildMascot() {
     color: '#db6269', map: mochiFaceTexture('blush'), transparent: true, depthWrite: false,
   });
   const cheekDecal = mesh(patch, blush, 0, mochiHeadY, 0);
-  cheekDecal.scale.setScalar(mochiHeadScale);
+  cheekDecal.scale.copy(head.scale);
   cheekDecal.renderOrder = 1;
   const expressions = Object.fromEntries(['gentle', 'happy', 'sleepy', 'surprised', 'blink'].map(name => {
     const surface = new T.MeshBasicMaterial({
       map: mochiFaceTexture(name), transparent: true, depthWrite: false,
     });
     const face = mesh(patch, surface, 0, mochiHeadY, 0);
-    face.scale.setScalar(mochiHeadScale);
+    face.scale.copy(head.scale);
     face.renderOrder = 2;
     return [name, face];
   }));
@@ -933,13 +936,13 @@ function buildMascot() {
     }),
   };
   for (const headwear of [accessories.pilot, accessories.headphones]) {
-    headwear.scale.setScalar(mochiHeadScale);
-    headwear.position.y = mochiHeadY - 1.077 * mochiHeadScale;
+    headwear.scale.copy(head.scale);
+    headwear.position.y = mochiHeadY - 1.077 * mochiHeadHeightScale;
   }
-  scarf.scale.setScalar(0.87);
-  scarf.position.y = -0.09;
-  accessories.satchel.scale.setScalar(0.86);
-  accessories.satchel.position.y = -0.035;
+  scarf.scale.set(0.79, 0.78, 0.83);
+  scarf.position.y = -0.165;
+  accessories.satchel.scale.set(0.78, 0.73, 0.78);
+  accessories.satchel.position.y = -0.027;
   mascot.add(...scene.children.slice(start));
   mascot.position.z = 5.95;
   scene.add(mascot);
@@ -996,8 +999,8 @@ function setupMascotCustomizer(avatar, renderer, onChange, onOpen) {
       key.position.set(-3, 4, -4);
       studio.add(key);
       const camera = new T.PerspectiveCamera(36, 252 / 208, 0.05, 15);
-      camera.position.set(0, 0.97, -2.66);
-      camera.lookAt(0, 0.64, 0);
+      camera.position.set(0, 0.87, -2.32);
+      camera.lookAt(0, 0.55, 0);
       const turntable = new T.Group();
       studio.add(turntable);
       preview = { display, studio, camera, turntable };
@@ -1271,7 +1274,7 @@ function play(renderer, avatar,
     if (previousWeight !== strideWeight || travel > 0.0001) {
       feet.forEach((foot, index) => {
         const step = Math.sin(stride + index * Math.PI) * strideWeight;
-        foot.position.y = 0.182 + Math.max(0, step) * 0.014;
+        foot.position.y = mochiHipY + Math.max(0, step) * 0.014;
         foot.rotation.x = step * 0.39;
         arms[index].rotation.x = step * -0.34;
       });
