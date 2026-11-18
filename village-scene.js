@@ -417,10 +417,30 @@ function buildScenery(kit) {
     ` + shader.fragmentShader.replace('#include <color_fragment>', `
       #include <color_fragment>
       vec2 p = meadowPoint;
-      float variation = 0.67 * meadowNoise(p * 2.0) + 0.24 * meadowNoise(p * 8.0)
-        + 0.09 * meadowNoise(p * 24.0);
+      float detail = 1.0 - smoothstep(12.0, 35.0, length(vViewPosition));
+      float variation = mix(0.5, meadowNoise(p * 2.0), 0.72)
+        + detail * (0.22 * (meadowNoise(p * 8.0) - 0.5) + 0.08 * (meadowNoise(p * 24.0) - 0.5));
       float turf = smoothstep(0.12, 0.86, variation);
       diffuseColor.rgb *= mix(vec3(0.56, 0.72, 0.47), vec3(1.05, 1.09, 0.91), turf);
+    `).replace('#include <opaque_fragment>', `
+      vec2 meadow = meadowPoint;
+      float across = abs(meadow.x);
+      float pathPhase = meadow.y * 0.06544985;
+      float curves = 0.95 * sin(pathPhase * 2.0 + across * 0.11) + 0.43 * sin(pathPhase * 3.0);
+      float meander = across + curves;
+      float borders = smoothstep(39.2, 42.0, meander) * (1.0 - smoothstep(53.1, 56.5, meander));
+      float row = meander * 0.67 + 0.28 * cos(pathPhase);
+      float stripe = smoothstep(0.19, 0.93, 0.5 + 0.5 * cos(row * 6.2831853));
+      float hue = row * 2.17 + sin(pathPhase) * 0.31;
+      vec3 pink = vec3(0.66, 0.19, 0.33);
+      vec3 gold = vec3(0.81, 0.56, 0.17);
+      vec3 violet = vec3(0.48, 0.27, 0.62);
+      vec3 flowers = mix(pink, gold, 0.5 + 0.5 * sin(hue));
+      flowers = mix(flowers, violet, 0.43 + 0.4 * cos(hue * 0.61));
+      float haze = smoothstep(37.0, 74.0, length(vViewPosition));
+      flowers = mix(flowers, vec3(0.58, 0.49, 0.54), 0.16 + haze * 0.41);
+      outgoingLight = mix(outgoingLight, flowers, borders * (0.34 + stripe * 0.38));
+      #include <opaque_fragment>
     `);
   };
   const breeze = { value: 0 };
