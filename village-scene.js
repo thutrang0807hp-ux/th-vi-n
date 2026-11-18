@@ -371,6 +371,48 @@ function buildScenery(buildings) {
   const horizon = mesh(new T.SphereGeometry(125, 36, 18), backdrop, 0, 1.25, -2);
   horizon.renderOrder = -1;
 
+  const waterLevel = -1.62;
+  const waterTime = { value: 0 };
+  const water = new T.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    uniforms: {
+      time: waterTime,
+      nearColor: { value: new T.Color('#526783') },
+      farColor: { value: new T.Color('#8987ad') }
+    },
+    vertexShader: `
+      varying vec3 worldPoint;
+      void main() {
+        worldPoint = (modelMatrix * vec4(position, 1.0)).xyz;
+        gl_Position = projectionMatrix * viewMatrix * vec4(worldPoint, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float time;
+      uniform vec3 nearColor;
+      uniform vec3 farColor;
+      varying vec3 worldPoint;
+      void main() {
+        vec2 p = worldPoint.xz;
+        vec2 relative = p - cameraPosition.xz;
+        float distanceToEye = length(relative);
+        float fade = smoothstep(15.0, 70.0, distanceToEye);
+        float lap = sin(p.x * 1.6 + p.y * 0.37 - time * 0.85);
+        float crossing = sin(p.x * 0.67 - p.y * 0.74 + time * 0.49);
+        float reflection = exp(-abs(relative.y + abs(relative.x) * 0.58) * 0.19);
+        vec3 color = mix(nearColor, farColor, fade);
+        color *= 1.0 + (lap + crossing * 0.65) * 0.044 * (1.0 - fade);
+        color += vec3(0.17, 0.082, 0.055) * reflection * (0.58 + 0.15 * lap);
+        gl_FragColor = vec4(color, (1.0 - smoothstep(45.0, 91.0, distanceToEye)) * 0.89);
+        #include <colorspace_fragment>
+      }
+    `
+  });
+  const river = mesh(new T.PlaneGeometry(215, 250), water, 0, waterLevel, 0);
+  river.rotation.x = -Math.PI / 2;
+  river.renderOrder = 1;
+
   function loop(length, speed, copies, build) {
     const start = scene.children.length;
     build(length);
@@ -433,9 +475,71 @@ function buildScenery(buildings) {
   });
   const meadow = material('#616455');
   const soil = material('#6a5c60');
-  const glow = new T.MeshBasicMaterial({ color: '#a592b1' });
+  const gravel = new T.MeshStandardMaterial({ color: '#988379', roughness: 1, side: T.DoubleSide });
+  const pierWood = material('#694443');
+  const pierBoards = [material('#876153'), material('#785349'), material('#93705d')];
+  const glow = new T.MeshBasicMaterial({ color: '#f0b897', transparent: true, opacity: 0.35, depthWrite: false });
 
-  function placeBuilding(model, side, x, z, width, turn) {
+  function shoreline(length, side, origin) {
+    const geometry = new T.PlaneGeometry(length, 1, 104, 13);
+    const nodes = geometry.attributes.position;
+    const colors = [];
+    const turf = new T.Color('#ffffff');
+    const shore = new T.Color('#9d8a79');
+    const tint = new T.Color();
+    function edge(z) {
+      const phase = (z - origin) / length * Math.PI * 2;
+      return 30.2 - 2.55 * Math.cos(phase * 2) + 1.65 * Math.sin(phase * 3 + side);
+    }
+    function groundY(z, offset) {
+      return -2.02 + 1.31 * T.MathUtils.smoothstep(offset, 0, 5.1)
+        + 0.65 * T.MathUtils.smoothstep(offset, 7.5, 24)
+        + Math.sin((z - origin) / length * Math.PI * 6) * 0.17 * T.MathUtils.smoothstep(offset, 8, 20);
+    }
+    for (let i = 0; i < nodes.count; i++) {
+      const z = nodes.getX(i);
+      const offset = (nodes.getY(i) + 0.5) * 32;
+      nodes.setXYZ(i, side * (edge(z) + offset), groundY(z, offset), z);
+      tint.copy(shore).lerp(turf, T.MathUtils.smoothstep(offset, 1.6, 7));
+      colors.push(tint.r, tint.g, tint.b);
+    }
+    geometry.setAttribute('color', new T.Float32BufferAttribute(colors, 3));
+    geometry.computeVertexNormals();
+    const bankMaterial = meadow.clone();
+    bankMaterial.vertexColors = true;
+    bankMaterial.side = T.DoubleSide;
+    mesh(geometry, bankMaterial, 0, 0, 0);
+
+    const path = new T.PlaneGeometry(52, 1, 52, 1);
+    const pathNodes = path.attributes.position;
+    for (let i = 0; i < pathNodes.count; i++) {
+      const along = pathNodes.getX(i);
+      const z = origin + along;
+      const offset = 4.85 + 0.55 * Math.sin(along * 0.17) + pathNodes.getY(i) * 0.87;
+      pathNodes.setXYZ(i, side * (edge(z) + offset), groundY(z, offset) + 0.035, z);
+    }
+    path.computeVertexNormals();
+    mesh(path, gravel, 0, 0, 0);
+    return { edge, elevation: (x, z) => groundY(z, x - edge(z)) };
+  }
+
+  function pier(side, shoreX, z) {
+    const length = 4.2;
+    const deck = waterLevel + 0.39;
+    for (let plank = 0; plank < 14; plank++) {
+      box(0.276, 0.105, 1.44, pierBoards[plank % pierBoards.length],
+        side * (shoreX - plank * 0.30), deck, z);
+    }
+    for (const offset of [-0.61, 0.61]) {
+      box(length, 0.14, 0.14, pierWood, side * (shoreX - length / 2 + 0.12), deck - 0.12, z + offset);
+      for (let post = 0; post < 3; post++) {
+        const x = side * (shoreX - 0.35 - post * 1.72);
+        box(0.16, 1.08, 0.16, pierWood, x, deck - 0.22, z + offset);
+      }
+    }
+  }
+
+  function placeBuilding(model, side, x, y, z, width, turn) {
     const building = model.clone(true);
     const bounds = new T.Box3().setFromObject(building);
     const center = bounds.getCenter(new T.Vector3());
@@ -447,16 +551,23 @@ function buildScenery(buildings) {
     placement.add(building);
     placement.scale.setScalar(scale);
     placement.rotation.y = -side * Math.PI / 2 + turn;
-    placement.position.set(side * x, -0.71, z);
+    placement.position.set(side * x, y, z);
     scene.add(placement);
   }
 
-  loop(128, 2.05, 2, () => {
+  loop(128, 2.05, 2, length => {
     for (const side of [-1, 1]) {
       const origin = -16 + side * 4;
-      for (const [dz, width, depth] of [[-8, 15, 6.5], [3, 18, 8.4], [14, 13, 6.2]]) {
-        oval(meadow, side * (33 + depth * 0.29), -2.0, origin + dz, depth, 1.35, width);
-        oval(soil, side * 30.5, -2.14, origin + dz + 1, 3.1, 0.43, width * 0.78);
+      const { edge: shoreEdge, elevation } = shoreline(length, side, origin);
+      const pierZ = origin + 2.7;
+      pier(side, shoreEdge(pierZ) + 2.5, pierZ);
+      for (let i = 0; i < 21; i++) {
+        const z = origin - 24 + i * 2.3 + random();
+        const offset = 0.8 + random() * 2.2;
+        const size = 0.15 + random() * 0.40;
+        const stone = mesh(crownGeometry, i % 3 === 0 ? soil : rock,
+          side * (shoreEdge(z) + offset), -1.62 + offset * 0.15, z);
+        stone.scale.set(size * 1.2, size * 0.65, size);
       }
       for (const [variant, dz, x, width, turn] of [
         [0, -8.2, 33.5, 4.0, 0.19],
@@ -465,23 +576,25 @@ function buildScenery(buildings) {
         [0, 11.0, 35.2, 3.1, 0.34]
       ]) {
         const z = origin + dz;
-        placeBuilding(buildings[variant], side, x, z, width, turn);
+        placeBuilding(buildings[variant], side, x, elevation(x, z), z, width, turn);
         for (let j = 0; j < 3; j++) {
-          const glint = oval(glow, side * (26.6 - j * 0.86), -2.14, z + 0.18 * Math.sin(j * 2),
-            0.43 + j * 0.14, 0.004, width * (0.14 - j * 0.025));
+          const glint = oval(glow, side * (shoreEdge(z) + 0.75 - j * 1.02), waterLevel + 0.012,
+            z + 0.18 * Math.sin(j * 2), 0.30 + j * 0.105, 0.003, width * (0.10 - j * 0.017));
           glint.rotation.y = j * 0.18;
+          glint.renderOrder = 2;
         }
       }
       for (const [dz, x, size] of [[-14, 33.6, 1.12], [-5, 38.1, 1.47], [7.5, 35.8, 1.08], [17.3, 34, 1.29]]) {
         const z = origin + dz;
         const treeX = side * x;
-        mesh(firGeometry, trunks, treeX, -0.68 + size * 0.45, z).scale.set(0.15, size, 0.15);
-        mesh(crownGeometry, foliage[2], treeX, -0.68 + size * 1.16, z).scale.set(size, size * 0.65, size * 0.9);
-        mesh(crownGeometry, foliage[2], treeX, -0.68 + size * 1.02, z + size * 0.47).scale.set(size * 0.70, size * 0.53, size * 0.7);
+        const base = elevation(x, z);
+        mesh(firGeometry, trunks, treeX, base + size * 0.45, z).scale.set(0.15, size, 0.15);
+        mesh(crownGeometry, foliage[2], treeX, base + size * 1.16, z).scale.set(size, size * 0.65, size * 0.9);
+        mesh(crownGeometry, foliage[2], treeX, base + size * 1.02, z + size * 0.47).scale.set(size * 0.70, size * 0.53, size * 0.7);
       }
     }
   });
-  return layers;
+  return { layers, waterTime };
 }
 
 function batchScenery(root = scene, useSections = true) {
@@ -562,7 +675,7 @@ async function start() {
   status.remove();
 }
 
-function play(renderer, { mascot, feet }, scenery) {
+function play(renderer, { mascot, feet }, { layers, waterTime }) {
   const motionButton = document.querySelector('#motion-toggle');
   let trainMoving = !matchMedia('(prefers-reduced-motion: reduce)').matches;
   function updateMotionButton() {
@@ -766,7 +879,8 @@ function play(renderer, { mascot, feet }, scenery) {
     else follow.lerp(position, 1 - Math.exp(-dt * 15));
     updateTimer();
     if (trainMoving) {
-      for (const { strip, speed, length } of scenery) {
+      waterTime.value = (waterTime.value + dt) % 4096;
+      for (const { strip, speed, length } of layers) {
         strip.position.z = (strip.position.z + dt * speed) % length;
       }
     }
