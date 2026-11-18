@@ -29,10 +29,13 @@
       </div>
     </header>
     <details class="bay-lamp-controls">
-      <summary>Đèn bàn</summary>
+      <summary>Đèn trong toa</summary>
       <div class="bay-lamp-settings">
-        <label><input id="bay-lamp-switch" type="checkbox" checked> Bật đèn</label>
-        <label for="bay-lamp-level">Độ sáng</label>
+        <label><input id="cabin-lamp-switch" type="checkbox" checked> Bật đèn toàn toa</label>
+        <label for="cabin-lamp-level">Độ sáng toàn toa</label>
+        <input id="cabin-lamp-level" type="range" min="0" max="100" value="100">
+        <label><input id="bay-lamp-switch" type="checkbox" checked> Bật đèn bàn</label>
+        <label for="bay-lamp-level">Độ sáng đèn bàn</label>
         <input id="bay-lamp-level" type="range" min="0" max="100" value="42" aria-label="Độ sáng đèn bàn">
       </div>
     </details>
@@ -115,7 +118,7 @@
     window.addEventListener('pageshow', () => { picker.value = scene; });
 
     try {
-      const { start } = await import('../village-scene.js?v=avatar');
+      const { start } = await import('../village-scene.js?v=cabin-lights');
       if (scene === 'tri-ton') {
         const { buildTriTon } = await import('../tri-ton-scene.js');
         document.querySelector('.route').textContent = '— Mùa vàng Tri Tôn';

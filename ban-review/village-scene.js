@@ -1531,6 +1531,20 @@ export async function start({ buildExterior } = {}) {
   buildBulkhead(-17.33, false);
   buildBulkhead(13.42, true);
   const cabinObjects = scene.children.slice(firstCabinObject);
+  const cabinLights = [];
+  const cabinMaterials = new Map();
+  for (const item of cabinObjects) item.traverse(object => {
+    if (object.isPointLight && object !== tableLight) {
+      cabinLights.push({ light: object, intensity: object.intensity });
+    }
+    if (!object.isMesh) return;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    for (const material of materials) {
+      if (material.color && !cabinMaterials.has(material)) {
+        cabinMaterials.set(material, { color: material.color.clone(), emission: material.emissiveIntensity });
+      }
+    }
+  });
   const scenery = buildExterior ? buildExterior(scene) : buildScenery(kit);
   const cabin = scenery.trainSpeed ? new T.Group() : null;
   if (cabin) {
@@ -1542,12 +1556,12 @@ export async function start({ buildExterior } = {}) {
   }
   const avatar = buildMascot();
   cabin?.add(avatar.mascot, avatar.props);
-  play(renderer, avatar, scenery, cabin, seats, tableLight);
+  play(renderer, avatar, scenery, cabin, seats, { tableLight, cabinLights, cabinMaterials });
   status.remove();
 }
 
 function play(renderer, avatar,
-  { layers, animateAmbient, sceneryFrameLimit = 0.08, trainSpeed = 0 }, cabin, seats, tableLight) {
+  { layers, animateAmbient, sceneryFrameLimit = 0.08, trainSpeed = 0 }, cabin, seats, { tableLight, cabinLights, cabinMaterials }) {
   const { mascot, feet, arms } = avatar;
   const motionButton = document.querySelector('#motion-toggle');
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1582,18 +1596,47 @@ function play(renderer, avatar,
   let distance = 4.85;
   let needsRender = true;
   const seatHint = document.querySelector('#seat-hint');
+  const cabinSwitch = document.querySelector('#cabin-lamp-switch');
+  const cabinLevel = document.querySelector('#cabin-lamp-level');
   const lampSwitch = document.querySelector('#bay-lamp-switch');
   const lampLevel = document.querySelector('#bay-lamp-level');
-  function updateBayLamp() {
-    const level = lampSwitch.checked ? Number(lampLevel.value) / 100 : 0;
-    tableLight.intensity = level * 4.2;
-    const shade = reviewFinishes().silk;
-    shade.emissiveIntensity = level * 0.72;
-    needsRender = true;
+  const lampPreference = 'lofi:cabin-light';
+  try {
+    const saved = JSON.parse(localStorage.getItem(lampPreference));
+    if (typeof saved?.on === 'boolean') cabinSwitch.checked = saved.on;
+    if (Number.isFinite(saved?.level)) cabinLevel.value = String(T.MathUtils.clamp(saved.level, 0, 100));
+  } catch {
+    // Some browser modes block storage. The controls still work for this page.
   }
-  lampSwitch.addEventListener('change', updateBayLamp);
-  lampLevel.addEventListener('input', updateBayLamp);
-  updateBayLamp();
+
+  function updateCabinLights(save = false) {
+    const master = cabinSwitch.checked ? Number(cabinLevel.value) / 100 : 0;
+    const table = lampSwitch.checked ? Number(lampLevel.value) / 100 : 0;
+    for (const { light, intensity } of cabinLights) light.intensity = intensity * master;
+    for (const [material, original] of cabinMaterials) {
+      // Keep a little light from the windows without dimming the exterior.
+      material.color.copy(original.color).multiplyScalar(0.22 + 0.78 * master);
+      if (typeof original.emission === 'number') material.emissiveIntensity = original.emission * master;
+    }
+    tableLight.intensity = table * master * 4.2;
+    reviewFinishes().silk.emissiveIntensity = table * master * 0.72;
+    cabinLevel.disabled = !cabinSwitch.checked;
+    lampSwitch.disabled = !cabinSwitch.checked;
+    lampLevel.disabled = !cabinSwitch.checked || !lampSwitch.checked;
+    needsRender = true;
+    if (save) {
+      try {
+        localStorage.setItem(lampPreference, JSON.stringify({ on: cabinSwitch.checked, level: Number(cabinLevel.value) }));
+      } catch {
+        // See the preference read above.
+      }
+    }
+  }
+  cabinSwitch.addEventListener('change', () => updateCabinLights(true));
+  cabinLevel.addEventListener('input', () => updateCabinLights(true));
+  lampSwitch.addEventListener('change', () => updateCabinLights());
+  lampLevel.addEventListener('input', () => updateCabinLights());
+  updateCabinLights();
   const velocity = new T.Vector2();
   const follow = mascot.position.clone();
   const look = new T.Vector3();
