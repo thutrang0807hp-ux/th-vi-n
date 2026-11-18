@@ -18,11 +18,10 @@ const tile = tone('#bd5741', 0.30);
 const oak = tone('#ad7950', 0.22);
 const dark = surface('#4a312a');
 
-function tulipCup() {
+function tulipCup(sides = 12) {
   const points = [];
   const colors = [];
   const indices = [];
-  const sides = 12;
   const rings = [[0.012, 0.51], [0.107, 0.55], [0.151, 0.65], [0.135, 0.79], [0.092, 0.81],
     [0.069, 0.72], [0.013, 0.63]];
   rings.forEach(([radius, height], row) => {
@@ -125,7 +124,44 @@ function distantCherryCard(profile) {
   return new T.MeshBasicMaterial({ map, alphaTest: 0.43, side: T.DoubleSide, toneMapped: false });
 }
 
-export function plantExteriorStudy(scene, kit, ground, length) {
+function distantFlowerCard(petals) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 72;
+  const ctx = canvas.getContext('2d');
+  const blooms = [[14, 28, 5], [34, 14, 7], [51, 32, 5], [65, 19, 6],
+    [84, 34, 6], [100, 17, 6], [116, 37, 4], [46, 43, 4], [76, 46, 4]];
+  for (const [x, y] of blooms) {
+    ctx.strokeStyle = '#77954f';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(x - 4, 72);
+    ctx.quadraticCurveTo(x + 2, 52, x, y + 4);
+    ctx.stroke();
+    ctx.fillStyle = '#91a659';
+    ctx.beginPath();
+    ctx.moveTo(x, 59);
+    ctx.lineTo(x + 10, 46);
+    ctx.lineTo(x + 4, 58);
+    ctx.fill();
+  }
+  blooms.forEach(([x, y, size], index) => {
+    ctx.fillStyle = petals[index % petals.length];
+    ctx.beginPath();
+    ctx.moveTo(x - size, y - size * 0.55);
+    ctx.lineTo(x - size * 0.24, y - size * 0.28);
+    ctx.lineTo(x + size * 0.21, y - size * 0.8);
+    ctx.lineTo(x + size, y - size * 0.35);
+    ctx.quadraticCurveTo(x + size * 0.83, y + size, x, y + size * 0.86);
+    ctx.quadraticCurveTo(x - size * 0.78, y + size * 0.9, x - size, y - size * 0.55);
+    ctx.fill();
+  });
+  const map = new T.CanvasTexture(canvas);
+  map.colorSpace = T.SRGBColorSpace;
+  return new T.MeshBasicMaterial({ map, alphaTest: 0.36, side: T.DoubleSide, toneMapped: false });
+}
+
+export function plantExteriorStudy(scene, kit, ground, length, farBank) {
   const root = new T.Group();
   root.name = 'Tulip meadow tile';
   scene.add(root);
@@ -192,6 +228,26 @@ export function plantExteriorStudy(scene, kit, ground, length) {
       }
     }
   }
+  const farSections = sections.map(() => []);
+  const farColumns = Math.ceil(length / 0.69);
+  const farSpacing = length / farColumns;
+  const houseSites = [[31.5, -3.9, 2.4], [34, 25, 2.2], [41, -19, 2.4], [46, 18, 1.8]];
+  for (const side of [1, -1]) {
+    for (let row = 0; row < 19; row++) {
+      for (let column = 0; column < farColumns; column++) {
+        const z = -halfLength + (column + 0.19 + random() * 0.66) * farSpacing;
+        const phase = z * Math.PI * 2 / length;
+        const x = side * (farBank(side, z) + 0.26 + row * 0.51 + 0.15 * random());
+        if (ground(x, z) < -0.49 || houseSites.some(([hx, hz, radius]) =>
+          Math.abs(x - hx) < radius && Math.abs(z - hz) < radius)) continue;
+        const band = Math.floor(row / 2.9 + 0.64 * Math.sin(phase * 2) + 1) % colors.length;
+        const tint = new T.Color(colors[band]).lerp(cream, 0.12 + random() * 0.16);
+        const section = Math.floor((z + halfLength) / sectionLength);
+        farSections[section + (side < 0 ? sectionCount : 0)].push(
+          [x, z, 0.76 + random() * 0.35, random() * Math.PI * 2, tint]);
+      }
+    }
+  }
   const leaf = new T.PlaneGeometry(0.21, 0.51, 2, 4);
   const positions = leaf.attributes.position;
   for (let i = 0; i < positions.count; i++) {
@@ -214,9 +270,11 @@ export function plantExteriorStudy(scene, kit, ground, length) {
   };
   const leafMaterial = tone('#739e36', 0.20);
   leafMaterial.side = T.DoubleSide;
-  for (const flowers of sections) {
-    const bulbs = new T.InstancedMesh(cup, petalMaterial, flowers.length);
-    bulbs.name = 'Tulip blooms';
+  const distantCup = tulipCup(6);
+  for (const [i, flowers] of [...sections, ...farSections].entries()) {
+    const far = i >= sections.length;
+    const bulbs = new T.InstancedMesh(far ? distantCup : cup, petalMaterial, flowers.length);
+    bulbs.name = far ? 'Far bank tulips' : 'Tulip blooms';
     const greens = new T.InstancedMesh(foliage, leafMaterial, flowers.length);
     flowers.forEach(([x, z, scale, angle, tint], i) => {
       const y = ground(x, z);
@@ -227,6 +285,37 @@ export function plantExteriorStudy(scene, kit, ground, length) {
     greens.computeBoundingSphere();
     root.add(bulbs, greens);
   }
+
+  const horizonColors = [
+    ['#ea859d', '#efa8b5', '#dd6d94'],
+    ['#f2c968', '#ffe3a4', '#f5d58d'],
+    ['#c5a2d9', '#d4b4e4', '#bca0dd'],
+    ['#fff1d9', '#f6e1c1', '#ffe4be'],
+    ['#e9867c', '#f4a995', '#e98c96'],
+  ];
+  const horizonBands = horizonColors.map(() => []);
+  const horizonColumns = Math.ceil(length / 0.84);
+  for (const side of [-1, 1]) {
+    for (let row = 0; row < 18; row++) {
+      for (let column = 0; column < horizonColumns; column++) {
+        const z = -halfLength + (column + 0.2 + random() * 0.58) * length / horizonColumns;
+        const phase = z * Math.PI * 2 / length;
+        const start = Math.max(39.1, farBank(side, z) + 8.7);
+        const x = side * (start + row * 0.74 + Math.sin(phase * 2 + row * 0.22) * 0.68);
+        if (houseSites.some(([hx, hz, radius]) => Math.abs(x - hx) < radius && Math.abs(z - hz) < radius)) continue;
+        const band = Math.floor(row / 2.65 + 0.62 * Math.sin(phase) + 1) % horizonBands.length;
+        horizonBands[band].push([x, z, 0.76 + random() * 0.47, Math.PI / 2 + (random() - 0.5) * 0.56]);
+      }
+    }
+  }
+  const flowerPatch = new T.PlaneGeometry(1.27, 0.57).translate(0, 0.225, 0);
+  horizonBands.forEach((patches, band) => {
+    const cluster = new T.InstancedMesh(flowerPatch, distantFlowerCard(horizonColors[band]), patches.length);
+    cluster.name = 'Distant flower ribbons';
+    patches.forEach(([x, z, scale, angle], i) => put(cluster, i, x, ground(x, z), z, scale, angle));
+    cluster.computeBoundingSphere();
+    root.add(cluster);
+  });
 
   const fenceBay = length / Math.ceil(length / 3);
   for (let z = -halfLength; z < halfLength - fenceBay / 2; z += fenceBay) {
@@ -474,16 +563,16 @@ export function plantExteriorStudy(scene, kit, ground, length) {
   scene.add(skyClouds);
 
   const ridges = [
-    { x: 60, width: 52, relief: 8, offset: 0.7, shade: '#3e6234', light: '#8cb544' },
-    { x: 72, width: 53, relief: 25, offset: 1.8, shade: '#2d5a26', light: '#a8ca37' },
-    { x: 91, width: 57, relief: 31, offset: 3.4, shade: '#466c3b', light: '#8bb456' },
+    { x: 65, width: 52, relief: 5.2, offset: 0.7, shade: '#3e6234', light: '#8cb544' },
+    { x: 79, width: 53, relief: 14, offset: 1.8, shade: '#2d5a26', light: '#a8ca37' },
+    { x: 99, width: 57, relief: 21, offset: 3.4, shade: '#466c3b', light: '#8bb456' },
   ];
   const sun = new T.Vector3(-0.66, 0.60, -0.44).normalize();
   const profiles = [0, 0.23, 0.49, 0.75, 1];
   const mountainRange = new T.Group();
   mountainRange.name = 'Mountain ranges';
   scene.add(mountainRange);
-  const crest = [0.19, 0.31, 0.75, 0.61, 0.92, 0.53, 0.32, 0.68, 0.98, 0.80, 0.46, 0.79, 0.61, 0.24];
+  const crest = [0.18, 0.28, 0.61, 0.36, 0.91, 0.43, 0.20, 0.26, 0.36, 0.19, 0.29, 0.77, 0.36, 0.22];
   for (const ridge of ridges) {
     const { x, width, relief, offset } = ridge;
     const points = [], triangles = [];

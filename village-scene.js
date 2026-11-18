@@ -423,54 +423,8 @@ function buildScenery(kit) {
       diffuseColor.rgb *= mix(vec3(0.56, 0.72, 0.47), vec3(1.05, 1.09, 0.91), turf);
     `);
   };
-  const stemMaterial = material('#79a451');
-  const petalMaterial = new T.MeshStandardMaterial({
-    color: '#ffffff', roughness: 0.79, emissive: '#ffe7ed', emissiveIntensity: 0.12, side: T.DoubleSide
-  });
-  const palette = ['#ff91b8', '#ffe39a', '#ffa38c', '#bf9ce3', '#fff2dc'].map(color => new T.Color(color));
   const breeze = { value: 0 };
 
-  function addBreeze(surface) {
-    surface.onBeforeCompile = shader => {
-      shader.uniforms.breeze = breeze;
-      shader.vertexShader = 'uniform float breeze;\n' + shader.vertexShader.replace('#include <begin_vertex>', `
-        #include <begin_vertex>
-        #ifdef USE_INSTANCING
-          vec3 root = instanceMatrix[3].xyz;
-          float phase = breeze * 1.25 + root.z * 0.21 + root.x * 0.44;
-          float bend = transformed.y * transformed.y;
-          transformed.x += bend * sin(phase) * 0.15;
-          transformed.z += bend * cos(phase * 0.82) * 0.095;
-        #endif
-      `);
-    };
-  }
-  const stem = new T.CylinderGeometry(0.017, 0.023, 0.53, 4);
-  stem.translate(0, 0.265, 0);
-  const blade = new T.PlaneGeometry(0.13, 0.34, 2, 3);
-  const leaves = new T.MeshStandardMaterial({ color: '#9abe60', roughness: 0.94, side: T.DoubleSide });
-  for (const surface of [stemMaterial, leaves, petalMaterial]) addBreeze(surface);
-  const bladePositions = blade.attributes.position;
-  for (let i = 0; i < bladePositions.count; i++) {
-    const y = bladePositions.getY(i) / 0.34 + 0.5;
-    bladePositions.setXYZ(i, bladePositions.getX(i) * Math.sin(y * Math.PI),
-      0.15 + y * 0.33, y * y * 0.19);
-  }
-  blade.computeVertexNormals();
-
-  // A scalloped cup silhouette reads as tulip petals even at a distance.
-  const bloom = new T.LatheGeometry([
-    new T.Vector2(0.026, 0.47), new T.Vector2(0.102, 0.49), new T.Vector2(0.147, 0.59),
-    new T.Vector2(0.153, 0.66), new T.Vector2(0.125, 0.724), new T.Vector2(0.106, 0.70),
-    new T.Vector2(0.093, 0.58)
-  ], 12);
-  const bloomPositions = bloom.attributes.position;
-  for (let i = 0; i < bloomPositions.count; i++) {
-    if (bloomPositions.getY(i) < 0.69) continue;
-    const angle = Math.atan2(bloomPositions.getX(i), bloomPositions.getZ(i));
-    bloomPositions.setY(i, bloomPositions.getY(i) + Math.cos(angle * 6) * 0.013);
-  }
-  bloom.computeVertexNormals();
   const waterLevel = -0.62;
   const riverMaterial = new T.MeshStandardMaterial({
     color: '#91d9d2', emissive: '#2a647d', emissiveIntensity: 0.22,
@@ -509,17 +463,17 @@ function buildScenery(kit) {
   function terrain(x, z, length, side, distant) {
     const phase = z / length * Math.PI * 2;
     const slope = -0.39 + Math.min((x - 4) * 0.018, 0.73);
-    const meadow = slope + 0.155 * Math.sin(phase * 2 + x * 0.13);
+    const terrace = T.MathUtils.smoothstep(x, 30, 54) * (1.75 + Math.sin(phase * 2 + side * 0.8) * 0.26);
+    const meadow = slope + 0.155 * Math.sin(phase * 2 + x * 0.13) + terrace;
     if (distant) return meadow - 0.11;
     const fromRiver = riverBankDistance(x, z, length, side);
     return T.MathUtils.lerp(waterLevel - 0.52, meadow, T.MathUtils.smoothstep(fromRiver, 3.55, 5.6));
   }
 
   function field(length, minX, maxX, distant) {
-    const dummy = new T.Object3D();
     const tint = new T.Color();
     for (const side of [-1, 1]) {
-      const ground = new T.PlaneGeometry(length, maxX - minX, 84, distant ? 12 : 30);
+      const ground = new T.PlaneGeometry(length, maxX - minX, 84, distant ? 12 : 52);
       const nodes = ground.attributes.position;
       const colors = [];
       const low = new T.Color('#8cad73');
@@ -536,114 +490,75 @@ function buildScenery(kit) {
       mesh(ground, pasture, 0, 0, 0);
 
       if (distant) continue;
-      const drifts = [[27, -19, 3.1, 15, 1], [29.7, 10, 3.0, 17, 0]];
-      const perDrift = 235;
-      const blooms = new T.InstancedMesh(bloom, petalMaterial, drifts.length * perDrift);
-      const stems = new T.InstancedMesh(stem, stemMaterial, blooms.count);
-      const blades = new T.InstancedMesh(blade, leaves, blooms.count);
-      let index = 0;
-
-      for (const [centerX, centerZ, spreadX, spreadZ, color] of drifts) {
-        const driftZ = centerZ + side * 4.5;
-        for (let n = 0; n < perDrift; n++) {
-          const angle = random() * Math.PI * 2;
-          const radius = Math.sqrt(random());
-          const along = Math.sin(angle) * radius;
-          const z = driftZ + along * spreadZ;
-          const bow = Math.sin(along * 2.1) * spreadX * 0.54;
-          const x = centerX + Math.cos(angle) * radius * spreadX + bow;
-          if (x < 16.2) continue;
-          if (x < minX + 0.75 || x > maxX - 0.7) continue;
-          if (riverBankDistance(x, z, length, side) < 5.1) continue;
-          dummy.position.set(side * x, terrain(x, z, length, side, false), z);
-          const scale = 0.84 + random() * 0.46;
-          dummy.scale.set(scale, scale * (0.78 + random() * 0.38), scale);
-          dummy.rotation.set((random() - 0.5) * 0.36, random() * Math.PI * 2, (random() - 0.5) * 0.30);
-          dummy.updateMatrix();
-          blooms.setMatrixAt(index, dummy.matrix);
-          tint.copy(palette[color]).lerp(palette[4], random() * 0.29).multiplyScalar(0.90 + random() * 0.16);
-          blooms.setColorAt(index, tint);
-          stems.setMatrixAt(index, dummy.matrix);
-          blades.setMatrixAt(index, dummy.matrix);
-          index++;
+      const columns = 6, segments = 86;
+      const vertices = [];
+      const bankFactors = [];
+      for (let row = 0; row <= segments; row++) {
+        for (let col = 0; col <= columns; col++) {
+          const edge = col === 0 || col === columns;
+          const seam = row === 0 || row === segments;
+          const z = -length / 2 + row * length / segments +
+            (seam ? 0 : Math.sin(row * 11.47 + col * 4.6) * 0.43);
+          const offset = (col / columns - 0.5) * 7.5 +
+            (edge || seam ? 0 : Math.sin(col * 8.1 + row * 7.3) * 0.52);
+          const lift = edge || seam ? 0 : Math.sin(row * 5.9 - col * 3.7) * 0.035;
+          const widened = offset > 0 ? offset * (1 + riverFarBank / 3.75) : offset;
+          vertices.push([side * (riverCenter(z, length, side) + widened), waterLevel + lift, z]);
+          bankFactors.push(T.MathUtils.smoothstep(Math.abs(offset), 1.20, 3.75));
         }
       }
-
-      if (!distant) {
-        const columns = 6, segments = 86;
-        const vertices = [];
-        const bankFactors = [];
-        for (let row = 0; row <= segments; row++) {
-          for (let col = 0; col <= columns; col++) {
-            const edge = col === 0 || col === columns;
-            const seam = row === 0 || row === segments;
-            const z = -length / 2 + row * length / segments +
-              (seam ? 0 : Math.sin(row * 11.47 + col * 4.6) * 0.43);
-            const offset = (col / columns - 0.5) * 7.5 +
-              (edge || seam ? 0 : Math.sin(col * 8.1 + row * 7.3) * 0.52);
-            const lift = edge || seam ? 0 : Math.sin(row * 5.9 - col * 3.7) * 0.035;
-            const widened = offset > 0 ? offset * (1 + riverFarBank / 3.75) : offset;
-            vertices.push([side * (riverCenter(z, length, side) + widened), waterLevel + lift, z]);
-            bankFactors.push(T.MathUtils.smoothstep(Math.abs(offset), 1.20, 3.75));
+      const points = [];
+      const shades = [];
+      const edgeColor = new T.Color('#8fe1d0');
+      const streamColor = new T.Color('#3897bc');
+      const deep = new T.Color('#255f98');
+      function face(a, b, c, row) {
+        const bank = (bankFactors[a] + bankFactors[b] + bankFactors[c]) / 3;
+        const shade = 0.52 + Math.sin(a * 5.82 + b * 1.34 + c * 3.13) * 0.26 + Math.sin(row * 0.3) * 0.14;
+        tint.copy(deep).lerp(streamColor, shade).lerp(edgeColor, bank * 0.63);
+        for (const i of [a, b, c]) {
+          points.push(...vertices[i]);
+          shades.push(tint.r, tint.g, tint.b);
+        }
+      }
+      for (let row = 0; row < segments; row++) {
+        for (let col = 0; col < columns; col++) {
+          const a = row * (columns + 1) + col;
+          const b = a + 1, c = a + columns + 1, d = c + 1;
+          if ((row + col) % 2 === 0) {
+            face(a, c, d, row);
+            face(a, d, b, row);
+          } else {
+            face(a, c, b, row);
+            face(b, c, d, row);
           }
         }
-        const points = [];
-        const shades = [];
-        const edgeColor = new T.Color('#8fe1d0');
-        const streamColor = new T.Color('#3897bc');
-        const deep = new T.Color('#255f98');
-        function face(a, b, c, row) {
-          const bank = (bankFactors[a] + bankFactors[b] + bankFactors[c]) / 3;
-          const shade = 0.52 + Math.sin(a * 5.82 + b * 1.34 + c * 3.13) * 0.26 + Math.sin(row * 0.3) * 0.14;
-          tint.copy(deep).lerp(streamColor, shade).lerp(edgeColor, bank * 0.63);
-          for (const i of [a, b, c]) {
-            points.push(...vertices[i]);
-            shades.push(tint.r, tint.g, tint.b);
-          }
-        }
-        for (let row = 0; row < segments; row++) {
-          for (let col = 0; col < columns; col++) {
-            const a = row * (columns + 1) + col;
-            const b = a + 1, c = a + columns + 1, d = c + 1;
-            if ((row + col) % 2 === 0) {
-              face(a, c, d, row);
-              face(a, d, b, row);
-            } else {
-              face(a, c, b, row);
-              face(b, c, d, row);
-            }
-          }
-        }
-        const ribbon = new T.BufferGeometry();
-        ribbon.setAttribute('position', new T.Float32BufferAttribute(points, 3));
-        ribbon.setAttribute('color', new T.Float32BufferAttribute(shades, 3));
-        ribbon.computeVertexNormals();
-        mesh(ribbon, riverMaterial, 0, 0, 0);
-        for (let i = 0; i < 26; i++) {
-          const z = (random() - 0.5) * length;
-          const bankSide = i % 2 === 0 ? -1 : 1;
-          const x = riverCenter(z, length, side) + bankSide * (4.1 + random() * 0.83)
-            + (bankSide > 0 ? riverFarBank : 0);
-          const size = 0.14 + random() * 0.37;
-          mesh(pebble, stone, side * x, terrain(x, z, length, side, false) + size * 0.25, z)
-            .scale.set(size, size * 0.51, size * 1.08);
-          const sparkle = oval(glint, side * (riverCenter(z, length, side) + (random() - 0.5) * 5.3),
-            waterLevel + 0.012, z + 0.28, 0.26 + random() * 0.46, 0.006, 0.05 + random() * 0.12);
-          sparkle.rotation.y = 0.18;
-        }
-
+      }
+      const ribbon = new T.BufferGeometry();
+      ribbon.setAttribute('position', new T.Float32BufferAttribute(points, 3));
+      ribbon.setAttribute('color', new T.Float32BufferAttribute(shades, 3));
+      ribbon.computeVertexNormals();
+      mesh(ribbon, riverMaterial, 0, 0, 0);
+      for (let i = 0; i < 26; i++) {
+        const z = (random() - 0.5) * length;
+        const bankSide = i % 2 === 0 ? -1 : 1;
+        const x = riverCenter(z, length, side) + bankSide * (4.1 + random() * 0.83)
+          + (bankSide > 0 ? riverFarBank : 0);
+        const size = 0.14 + random() * 0.37;
+        mesh(pebble, stone, side * x, terrain(x, z, length, side, false) + size * 0.25, z)
+          .scale.set(size, size * 0.51, size * 1.08);
+        const sparkle = oval(glint, side * (riverCenter(z, length, side) + (random() - 0.5) * 5.3),
+          waterLevel + 0.012, z + 0.28, 0.26 + random() * 0.46, 0.006, 0.05 + random() * 0.12);
+        sparkle.rotation.y = 0.18;
       }
 
-      for (const object of [blooms, stems, blades].filter(Boolean)) {
-        object.count = index;
-        object.computeBoundingSphere();
-        scene.add(object);
-      }
+
+
     }
   }
 
-  loop(96, 6.9, 2, length => field(length, 4, 36, false));
-  loop(112, 4.15, 2, length => field(length, 35, 76, true));
+  loop(96, 6.9, 2, length => field(length, 4, 57, false));
+  loop(112, 4.15, 2, length => field(length, 56, 76, true));
 
   const petal = new T.Shape();
   petal.moveTo(0, -0.082);
@@ -692,7 +607,8 @@ function buildScenery(kit) {
   });
   const near = layers[0];
   const { tile: studyTile, skyClouds } = plantExteriorStudy(scene, kit,
-    (x, z) => terrain(Math.abs(x), z, near.length, Math.sign(x), Math.abs(x) > 36), near.length);
+    (x, z) => terrain(Math.abs(x), z, near.length, Math.sign(x), Math.abs(x) > 57),
+    near.length, (side, z) => riverCenter(z, near.length, side) + riverFarBank + 4.95);
   for (const tile of near.strip.children) tile.add(studyTile.clone());
   scene.remove(studyTile);
   function animateAmbient(time) {
@@ -1009,10 +925,15 @@ function play(renderer, { mascot, feet }, { layers, animateAmbient }) {
       const toEnd = orbitZ > 0 ? 12.95 - z : z + 16.8;
       const radius = Math.min(distance, toSide / Math.max(Math.abs(orbitX), 0.001),
         toEnd / Math.max(Math.abs(orbitZ), 0.001));
-      const lift = 0.65 * (1 - clamp(radius / 1.4, 0, 1));
+      const sideView = T.MathUtils.smoothstep(Math.abs(sinYaw), 0.48, 0.99);
+      const lift = 0.40 * (1 - clamp(radius / 1.6, 0, 1));
+      const shoulderOffset = sideView * (2.55 + 0.48 * clamp((distance - 2.2) / 3.6, 0, 1));
       camera.position.set(pivotX + orbitX * radius,
-        clamp(y + 1.3 + Math.sin(elevation) * radius + lift, 1.42, 3.14), z + orbitZ * radius);
-      look.set(pivotX + sinYaw * 0.42, y + 1.17, z - cosYaw * 0.42);
+        clamp(y + 1.38 + Math.sin(elevation) * radius + lift + sideView * 0.13, 1.42, 2.98),
+        clamp(z + orbitZ * radius + shoulderOffset, -16.8, 12.95));
+      look.set(pivotX + sinYaw * (0.42 + sideView * 1.42),
+        y + 1.17 + sideView * (0.10 + Math.sin(pitch) * 0.86),
+        z - cosYaw * 0.42 + sideView * 0.15);
     }
     camera.lookAt(look);
     renderer.render(scene, camera);
