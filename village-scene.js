@@ -1,6 +1,6 @@
-import * as T from 'https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js';
-import { RoundedBoxGeometry } from 'https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { mergeGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/utils/BufferGeometryUtils.js';
+import * as T from './vendor/three-r164/three.module.min.js';
+import { RoundedBoxGeometry } from './vendor/three-r164/RoundedBoxGeometry.js';
+import { mergeGeometries } from './vendor/three-r164/BufferGeometryUtils.js';
 
 const scene = new T.Scene();
 scene.background = new T.Color('#d8a899');
@@ -584,7 +584,7 @@ function buildMascot() {
   return { mascot, feet };
 }
 
-function start() {
+export function start() {
   const renderer = new T.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.35));
   renderer.toneMapping = T.ACESFilmicToneMapping;
@@ -844,11 +844,4 @@ function play(renderer, { mascot, feet }, layers) {
     camera.lookAt(look);
     renderer.render(scene, camera);
   });
-}
-
-try {
-  start();
-} catch (error) {
-  status.textContent = 'Không dựng được cảnh 3D. Hãy thử trình duyệt có hỗ trợ WebGL.';
-  console.error(error);
 }

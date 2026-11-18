@@ -4,12 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lofi Train — Tulip Route</title>
-  <link rel="stylesheet" href="../lounge.css?v=3d-village">
+  <meta name="color-scheme" content="dark">
+  <link rel="stylesheet" href="../lounge.css?v=local-three">
 </head>
 <body>
   <main aria-label="Toa lounge Lofi Train">
     <div id="scene"></div>
-    <p id="status" role="status">Đang dựng toa tàu…</p>
+    <div id="status" role="status">
+      <p id="load-message">Đang dựng toa tàu…</p>
+      <img id="scene-preview" alt="Ảnh xem trước toa tàu Lofi Train qua cánh đồng tulip" hidden>
+    </div>
     <header>
       <span>Lofi Train <span class="route">— Tulip Route</span></span>
       <div class="view-controls">
@@ -38,7 +42,18 @@
       </div>
     </dialog>
   </main>
-  <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js"}}</script>
-  <script type="module" src="../village-scene.js?v=original-cabin"></script>
+  <script type="module">
+    try {
+      const { start } = await import('../village-scene.js?v=local-three');
+      start();
+    } catch (error) {
+      const preview = document.querySelector('#scene-preview');
+      document.querySelector('#load-message').textContent =
+        'Không mở được chế độ 3D trên trình duyệt này. Đây là ảnh xem trước của toa tàu.';
+      preview.src = '../assets/tulip-train-preview.webp';
+      preview.hidden = false;
+      console.error(error);
+    }
+  </script>
 </body>
 </html>
