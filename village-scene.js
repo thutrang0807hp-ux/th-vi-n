@@ -798,7 +798,7 @@ function buildMochiBody(surface) {
     positions.setXYZ(i, x / radius * width, height * 0.171, z / radius * 0.151);
     const side = T.MathUtils.smoothstep(Math.abs(x / radius), 0.60, 1);
     const underside = 1 - T.MathUtils.smoothstep(height, -0.94, -0.58);
-    const shade = 0.075 * side + 0.065 * underside;
+    const shade = 0.075 * side + 0.030 * underside;
     tones.push(1 - shade * 0.65, 1 - shade, 1 - shade * 0.91);
   }
   shape.computeVertexNormals();
@@ -820,7 +820,9 @@ function buildMochiBody(surface) {
 
     const hip = new T.Group();
     hip.position.set(side * 0.109, mochiHipY, -0.021);
-    const foot = box(0.189, 0.133, 0.22, surface, side * 0.009, -0.079, -0.035, 0.059);
+    // Extend the upper foot into the hip so it stays tucked in through each step.
+    const footShape = new RoundedBoxGeometry(0.194, 0.186, 0.197, 4, 0.069);
+    const foot = mesh(footShape, surface, side * 0.007, -0.051, -0.009);
     foot.rotation.y = -side * 0.08;
     hip.add(foot);
     scene.add(hip);
