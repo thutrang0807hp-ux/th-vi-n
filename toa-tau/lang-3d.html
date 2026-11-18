@@ -27,6 +27,14 @@
         <button id="camera-toggle" type="button" aria-pressed="false">Camera POV</button>
       </div>
     </header>
+    <details class="bay-lamp-controls">
+      <summary>Đèn bàn</summary>
+      <div class="bay-lamp-settings">
+        <label><input id="bay-lamp-switch" type="checkbox" checked> Bật đèn</label>
+        <label for="bay-lamp-level">Độ sáng</label>
+        <input id="bay-lamp-level" type="range" min="0" max="100" value="42" aria-label="Độ sáng đèn bàn">
+      </div>
+    </details>
     <div class="actions" aria-label="Điều khiển">
       <select id="activity-picker" aria-label="Hoạt động của nhân vật" disabled>
         <option value="idle">Hoạt động</option>

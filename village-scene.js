@@ -117,7 +117,7 @@ function reviewFinishes() {
   }
   context.putImageData(data, 0, 0);
   const weave = new T.CanvasTexture(canvas);
-  const fabric = material('#527553', 0.95);
+  const fabric = material('#3d543b', 0.95);
   fabric.map = weave;
   fabric.bumpMap = weave;
   fabric.bumpScale = 0.0032;
@@ -135,7 +135,7 @@ function reviewFinishes() {
   });
   bayMaterials = {
     fabric, fabricEdge, linen, wood, silk,
-    piping: material('#ddc59a', 0.84),
+    piping: material('#b9a47e', 0.84),
     brass: material('#b48b55', 0.47, 0.42),
   };
   return bayMaterials;
@@ -170,37 +170,6 @@ function bayPiping(width, height, corner, thin, surface, x, y, z, floor = false)
     bayGeometry.set(key, new T.TubeGeometry(path, 32, thin, 5, true));
   }
   return mesh(bayGeometry.get(key), surface, x, y, z);
-}
-
-function reviewBackrest(x, back, direction) {
-  const m = reviewFinishes();
-  bayBox(1.83, 1.15, 0.30, 0.14, m.fabricEdge, x, 1.03, back);
-  bayBox(1.72, 0.99, 0.274, 0.145, m.fabric, x, 1.052, back - direction * 0.078);
-  const face = back - direction * 0.213;
-  bayPiping(1.61, 0.866, 0.124, 0.013, m.piping, x, 1.055, face);
-  for (const offset of [-0.262, 0.262]) {
-    bayBox(0.009, 0.69, 0.009, 0.004, m.fabricEdge, x + offset, 1.051, face - direction * 0.006);
-  }
-}
-
-function reviewLamp(x, z) {
-  const m = reviewFinishes();
-  const profile = (points, surface, y) =>
-    mesh(new T.LatheGeometry(points.map(([r, h]) => new T.Vector2(r, h)), 24), surface, x, y, z);
-  profile([[0, 0], [.165, 0], [.165, .015], [.142, .027], [.077, .049], [.040, .080],
-    [.034, .155], [.055, .184], [.043, .213], [.041, .281], [0, .281]], m.brass, 1.029);
-  profile([[.218, 0], [.212, .022], [.196, .066], [.17, .115], [.129, .16],
-    [.086, .191], [.056, .199]], m.silk, 1.29);
-  for (const [radius, y] of [[.218, 1.289], [.056, 1.487]]) {
-    mesh(new T.TorusGeometry(radius, .0048, 6, 28), m.brass, x, y, z).rotation.x = Math.PI / 2;
-  }
-  for (let rib = 0; rib < 6; rib++) {
-    const angle = rib * Math.PI / 3;
-    const curve = new T.CatmullRomCurve3([[.218, 0], [.197, .066], [.129, .16], [.056, .198]]
-      .map(([r, y]) => new T.Vector3(Math.cos(angle) * r, y, Math.sin(angle) * r)));
-    mesh(new T.TubeGeometry(curve, 7, .0022, 4), m.brass, x, 1.29, z);
-  }
-  oval(m.brass, x, 1.504, z, .034, .023, .034);
 }
 
 function buildShell() {
@@ -307,13 +276,13 @@ function drape(x, z, side, direction, review) {
 const shadeProfile = [
   [0.214, 0], [0.207, 0.054], [0.181, 0.123], [0.134, 0.178], [0.078, 0.199], [0.061, 0.198]
 ];
-function tableLamp(x, z) {
+function tableLamp(x, z, shade = lightShade) {
   const profile = [[0, 0], [0.16, 0], [0.16, 0.018], [0.145, 0.035], [0.07, 0.056],
     [0.038, 0.08], [0.025, 0.145], [0.038, 0.171], [0.039, 0.194], [0.024, 0.21], [0.024, 0.3]];
   const lathe = points => new T.LatheGeometry(points.map(([r, y]) => new T.Vector2(r, y)), 24);
   mesh(lathe(profile), bronze, x, 1.03, z);
   // Lathe vertices run from the base of the shade to its crown.
-  mesh(lathe(shadeProfile), lightShade, x, 1.29, z);
+  mesh(lathe(shadeProfile), shade, x, 1.29, z);
   for (const [radius, height] of [shadeProfile[0], shadeProfile.at(-1)]) {
     mesh(new T.TorusGeometry(radius, 0.006, 6, 26), bronze, x, 1.29 + height, z).rotation.x = Math.PI / 2;
   }
@@ -326,10 +295,10 @@ function tableLamp(x, z) {
   oval(bronze, x, 1.503, z, 0.041, 0.025, 0.041);
 }
 
-function boothPadding(x, back, direction) {
+function boothPadding(x, back, direction, fabric = green) {
   box(1.83, 1.15, 0.30, seam, x, 1.03, back, 0.14);
   for (let channel = 0; channel < 5; channel++) {
-    const cushion = box(0.34, 0.93, 0.32, green, x + (channel - 2) * 0.334,
+    const cushion = box(0.34, 0.93, 0.32, fabric, x + (channel - 2) * 0.334,
       1.06, back - direction * 0.075, 0.11);
     cushion.rotation.x = direction * 0.055;
   }
@@ -337,6 +306,7 @@ function boothPadding(x, back, direction) {
 
 function buildBooths() {
   const tableStacks = [];
+  let reviewLight;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 64;
   const ctx = canvas.getContext('2d');
@@ -360,9 +330,9 @@ function buildBooths() {
       if (review) {
         bayBox(1.8, 0.53, 0.79, 0.08, darkWood, x, 0.29, back - direction * 0.17);
         bayBox(1.75, 0.28, 0.83, 0.12, finishes.fabric, x, 0.62, back - direction * 0.23);
-        bayPiping(1.64, 0.727, 0.11, 0.010, finishes.piping,
+        bayPiping(1.64, 0.727, 0.11, 0.005, finishes.piping,
           x, 0.741, back - direction * 0.23, true);
-        reviewBackrest(x, back, direction);
+        boothPadding(x, back, direction, finishes.fabric);
         bayBox(0.23, 0.3, 0.81, 0.1, finishes.fabricEdge, x - side * 0.82, 0.81,
           back - direction * 0.27);
       } else {
@@ -380,31 +350,41 @@ function buildBooths() {
     box(1.52, 0.027, 0.887, bronze, x, 0.943, z, 0.014);
     cylinder(0.105, 0.16, 0.85, darkWood, x, 0.49, z);
     cylinder(0.22, 0.23, 0.045, walnut, x, 0.066, z);
-    const lampX = x + side * 0.23;
-    if (review) reviewLamp(lampX, z);
-    else tableLamp(lampX, z);
+    const lampX = review ? x - side * 0.55 : x + side * 0.23;
+    const lampZ = review ? z - 0.20 : z;
+    tableLamp(lampX, lampZ, finishes?.silk);
     const books = new T.Group();
+    const booksX = review ? x + side * 0.23 : x - side * 0.23;
+    const booksZ = review ? z : z + 0.18;
     for (let i = 0; i < 2; i++) {
-      const book = box(0.28, 0.048, 0.19, bookColors[(i + Math.round(z + 14)) % bookColors.length], x - side * 0.23, 1.05 + i * 0.049, z + 0.18, 0.01);
+      const book = box(0.28, 0.048, 0.19, bookColors[(i + Math.round(z + 14)) % bookColors.length],
+        booksX, 1.05 + i * 0.049, booksZ, 0.01);
       book.rotation.y = i * 0.26;
       books.add(book);
     }
-    cylinder(0.068, 0.055, 0.09, pillow, x - side * 0.55, 1.07, z - 0.2);
-    cylinder(0.054, 0.054, 0.005, darkWood, x - side * 0.55, 1.117, z - 0.2);
-    const handle = mesh(new T.TorusGeometry(0.035, 0.009, 6, 14), pillow,
-      x - side * 0.47, 1.073, z - 0.2);
-    handle.rotation.y = side * 0.25;
+    if (!review) {
+      cylinder(0.068, 0.055, 0.09, pillow, x - side * 0.55, 1.07, z - 0.2);
+      cylinder(0.054, 0.054, 0.005, darkWood, x - side * 0.55, 1.117, z - 0.2);
+      const handle = mesh(new T.TorusGeometry(0.035, 0.009, 6, 14), pillow,
+        x - side * 0.47, 1.073, z - 0.2);
+      handle.rotation.y = side * 0.25;
+    }
     if (z > 3 && z < 10) {
-      const saucer = cylinder(0.111, 0.099, 0.014, pillow, x - side * 0.55, 1.017, z - 0.2);
-      saucer.position.z += 0.01;
-      books.add(box(0.38, 0.018, 0.27, bookColors[0], x - side * 0.2, 1.031, z + 0.18, 0.006));
+      if (!review) cylinder(0.111, 0.099, 0.014, pillow, x - side * 0.55, 1.017, z - 0.19);
+      books.add(box(0.38, 0.018, 0.27, bookColors[0],
+        review ? booksX : x - side * 0.2, 1.031, booksZ, 0.006));
     }
     scene.add(books);
     if (side > 0) tableStacks.push(books);
-    if (z > 3 && z < 10) point(review ? '#ffdab0' : '#ffc27d',
-      review ? 6.5 : 8, 2.6, lampX, 1.28, z);
+    if (review) {
+      reviewLight = new T.PointLight('#ffd3a0', 0, 1.85);
+      reviewLight.position.set(lampX, 1.33, lampZ);
+      scene.add(reviewLight);
+    } else if (z > 3 && z < 10) {
+      point('#ffc27d', 8, 2.6, lampX, 1.28, z);
+    }
   }
-  return tableStacks;
+  return { tableStacks, reviewLight };
 }
 
 function buildBulkhead(z, facesFront) {
@@ -1579,7 +1559,7 @@ export async function start({ buildExterior } = {}) {
   finishMaterials();
   const firstCabinObject = scene.children.length;
   buildShell();
-  const tableStacks = buildBooths();
+  const { tableStacks, reviewLight } = buildBooths();
   buildBulkhead(-17.33, false);
   buildBulkhead(13.42, true);
   const cabinObjects = scene.children.slice(firstCabinObject);
@@ -1594,12 +1574,12 @@ export async function start({ buildExterior } = {}) {
   }
   const avatar = buildMascot();
   cabin?.add(avatar.mascot, avatar.props);
-  play(renderer, avatar, scenery, cabin, tableStacks);
+  play(renderer, avatar, scenery, cabin, tableStacks, reviewLight);
   status.remove();
 }
 
 function play(renderer, avatar,
-  { layers, animateAmbient, sceneryFrameLimit = 0.08, trainSpeed = 0 }, cabin, tableStacks) {
+  { layers, animateAmbient, sceneryFrameLimit = 0.08, trainSpeed = 0 }, cabin, tableStacks, reviewLight) {
   const { mascot, feet, arms } = avatar;
   const motionButton = document.querySelector('#motion-toggle');
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1632,6 +1612,18 @@ function play(renderer, avatar,
   let drag = null;
   let distance = 4.85;
   let needsRender = true;
+  const lampSwitch = document.querySelector('#bay-lamp-switch');
+  const lampLevel = document.querySelector('#bay-lamp-level');
+  function updateBayLamp() {
+    const level = lampSwitch.checked ? Number(lampLevel.value) / 100 : 0;
+    reviewLight.intensity = level * 4.2;
+    const shade = reviewFinishes().silk;
+    shade.emissiveIntensity = level * 0.72;
+    needsRender = true;
+  }
+  lampSwitch.addEventListener('change', updateBayLamp);
+  lampLevel.addEventListener('input', updateBayLamp);
+  updateBayLamp();
   const velocity = new T.Vector2();
   const follow = mascot.position.clone();
   const look = new T.Vector3();
