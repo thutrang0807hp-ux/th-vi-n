@@ -138,16 +138,7 @@ function buildShell() {
     for (let z = -16; z <= 13; z += 3.6) {
       box(0.23, 2.3, 0.2, darkWood, x, 1.99, z);
       box(0.075, 0.045, 3.45, bronze, x, 2.79, z + 1.8);
-      for (const direction of [-1, 1]) {
-        for (let fold = 0; fold < 5; fold++) {
-          const edge = direction * (0.1 + fold * 0.062);
-          const upper = box(0.085, 1.15, 0.078, curtain, x - side * 0.12, 2.41, z + edge, 0.025);
-          upper.rotation.x = direction * 0.032 * fold;
-          const lower = box(0.083, 0.86, 0.078, curtain, x - side * 0.12, 1.44, z + edge, 0.025);
-          lower.rotation.x = -direction * 0.032 * fold;
-        }
-        box(0.1, 0.053, 0.23, bronze, x - side * 0.17, 1.91, z + direction * 0.21);
-      }
+      for (const direction of [-1, 1]) drape(x, z, side, direction);
       box(0.36, 0.26, 0.67, leather, x - side * 0.2, 3.33, z + 0.9, 0.052);
       for (let leaf = 0; leaf < 15; leaf++) {
         const height = leaf * 0.031;
@@ -159,18 +150,124 @@ function buildShell() {
   }
 }
 
+function finishMaterials() {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  function texture(surface, grain) {
+    const pixels = ctx.createImageData(256, 256);
+    for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
+      const warp = x + 4 * Math.sin(y * 0.023 + x * 0.055) + 1.1 * Math.sin(y * 0.11);
+      const band = grain ? 13 * Math.sin(warp * 0.22) + 7 * Math.sin(warp * 0.81) : 0;
+      const value = 205 + band + (random() - 0.5) * (grain ? 18 : 38);
+      const index = (y * 256 + x) * 4;
+      pixels.data.set([value, value, value, 255], index);
+    }
+    ctx.putImageData(pixels, 0, 0);
+    const copy = document.createElement('canvas');
+    copy.width = copy.height = 256;
+    copy.getContext('2d').drawImage(canvas, 0, 0);
+    const map = new T.CanvasTexture(copy);
+    surface.map = map;
+    surface.bumpMap = map;
+    surface.bumpScale = grain ? 0.012 : 0.004;
+  }
+  texture(walnut, true);
+  texture(green, false);
+  texture(pillow, false);
+  texture(curtain, false);
+  green.color.set('#405247');
+  walnut.color.set('#845035');
+  curtain.side = T.DoubleSide;
+}
+
+function drape(x, z, side, direction) {
+  const geometry = new T.PlaneGeometry(1, 1, 30, 24);
+  const vertices = geometry.attributes.position;
+  for (let i = 0; i < vertices.count; i++) {
+    const u = vertices.getX(i) + 0.5;
+    const v = vertices.getY(i) + 0.5;
+    const spread = 0.16 + 0.26 * Math.pow(Math.abs(v - 0.44), 0.72);
+    const folds = Math.sin(u * Math.PI * 11 + v * 0.38) * (0.018 + 0.057 * Math.abs(v - 0.44));
+    vertices.setXYZ(i, -side * (folds + 0.045 * Math.sin(v * Math.PI)),
+      1.04 + v * 1.82 + 0.035 * Math.sin(u * Math.PI * 10) * (1 - v),
+      direction * (0.08 + u * spread));
+  }
+  geometry.computeVertexNormals();
+  mesh(geometry, curtain, x - side * 0.12, 0, z);
+  box(0.12, 0.043, 0.22, bronze, x - side * 0.155, 1.85, z + direction * 0.19, 0.014);
+}
+
+const shadeProfile = [
+  [0.214, 0], [0.207, 0.054], [0.181, 0.123], [0.134, 0.178], [0.078, 0.199], [0.061, 0.198]
+];
+function tableLamp(x, z) {
+  const profile = [[0, 0], [0.16, 0], [0.16, 0.018], [0.145, 0.035], [0.07, 0.056],
+    [0.038, 0.08], [0.025, 0.145], [0.038, 0.171], [0.039, 0.194], [0.024, 0.21], [0.024, 0.3]];
+  const lathe = points => new T.LatheGeometry(points.map(([r, y]) => new T.Vector2(r, y)), 24);
+  mesh(lathe(profile), bronze, x, 1.03, z);
+  // Lathe vertices run from the base of the shade to its crown.
+  mesh(lathe(shadeProfile), lightShade, x, 1.29, z);
+  for (const [radius, height] of [shadeProfile[0], shadeProfile.at(-1)]) {
+    mesh(new T.TorusGeometry(radius, 0.006, 6, 26), bronze, x, 1.29 + height, z).rotation.x = Math.PI / 2;
+  }
+  for (let panel = 0; panel < 8; panel++) {
+    const angle = panel * Math.PI / 4;
+    const rib = new T.CatmullRomCurve3(shadeProfile.map(([r, y]) =>
+      new T.Vector3(Math.cos(angle) * r, y, Math.sin(angle) * r)));
+    mesh(new T.TubeGeometry(rib, 8, 0.0035, 4, false), bronze, x, 1.29, z);
+  }
+  oval(bronze, x, 1.503, z, 0.041, 0.025, 0.041);
+}
+
+const tuftGeometry = new T.SphereGeometry(1, 9, 6);
+function boothPadding(x, back, direction) {
+  const panel = box(1.78, 1.02, 0.37, green, x, 1.075, back, 0.145);
+  panel.rotation.x = direction * 0.045;
+  for (const face of [-1, 1]) {
+    for (let row = 0; row < 3; row++) {
+      for (let column = 0; column < 5; column++) {
+        const px = x + (column - 2) * 0.29 + (row % 2 ? 0.145 : 0);
+        const y = 0.83 + row * 0.23;
+        const z = back + face * 0.185 - direction * (y - 1.075) * 0.045;
+        mesh(tuftGeometry, seam, px, y, z + face * 0.004).scale.set(0.024, 0.023, 0.01);
+        if (row === 2) continue;
+        const offsets = row % 2 ? [-0.145, 0.145] : [0.145, -0.145];
+        for (const offset of offsets) {
+          if (Math.abs(px + offset - x) > 0.73) continue;
+          const stitch = new T.LineCurve3(
+            new T.Vector3(px, y, z + face * 0.002),
+            new T.Vector3(px + offset, y + 0.23, z + face * 0.002 - direction * 0.01)
+          );
+          mesh(new T.TubeGeometry(stitch, 1, 0.0019, 4, false), seam, 0, 0, 0);
+        }
+      }
+    }
+  }
+}
+
 function buildBooths() {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createRadialGradient(32, 32, 8, 32, 32, 32);
+  gradient.addColorStop(0, '#1f130cba');
+  gradient.addColorStop(1, '#1f130c00');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 64, 64);
+  const shadowMaterial = new T.MeshBasicMaterial({
+    map: new T.CanvasTexture(canvas), transparent: true, depthWrite: false
+  });
+  const shadowGeometry = new T.PlaneGeometry(2.7, 1.65);
+  shadowGeometry.rotateX(-Math.PI / 2);
   for (const side of [-1, 1]) for (let z = -13.3; z <= 12; z += 3.6) {
     const x = side * 2.09;
     for (const direction of [-1, 1]) {
       const back = z + direction * 1.29;
+      mesh(shadowGeometry, shadowMaterial, x, 0.004, back - direction * 0.2);
       box(1.8, 0.53, 0.79, darkWood, x, 0.29, back - direction * 0.17, 0.08);
       box(1.75, 0.28, 0.83, green, x, 0.62, back - direction * 0.23, 0.12);
-      box(1.83, 1.15, 0.3, seam, x, 1.03, back, 0.14);
-      for (let tuft = 0; tuft < 5; tuft++) {
-        const cushion = box(0.34, 0.93, 0.32, green, x + (tuft - 2) * 0.334, 1.06, back - direction * 0.075, 0.11);
-        cushion.rotation.x = direction * 0.055;
-      }
+      boothPadding(x, back, direction);
       box(0.23, 0.3, 0.81, green, x - side * 0.82, 0.81, back - direction * 0.27, 0.1);
       const cushion = box(0.47, 0.48, 0.16, pillow, x + side * 0.36, 0.95, back - direction * 0.32, 0.075);
       cushion.rotation.z = direction * 0.22;
@@ -180,16 +277,21 @@ function buildBooths() {
     cylinder(0.105, 0.16, 0.85, darkWood, x, 0.49, z);
     cylinder(0.22, 0.23, 0.045, walnut, x, 0.066, z);
     const lampX = x + side * 0.23;
-    cylinder(0.12, 0.15, 0.055, bronze, lampX, 1.055, z);
-    cylinder(0.029, 0.052, 0.27, bronze, lampX, 1.19, z);
-    cylinder(0.08, 0.226, 0.19, lightShade, lampX, 1.37, z);
-    cylinder(0.229, 0.229, 0.014, bronze, lampX, 1.275, z);
+    tableLamp(lampX, z);
     for (let i = 0; i < 2; i++) {
       const book = box(0.28, 0.048, 0.19, bookColors[(i + Math.round(z + 14)) % bookColors.length], x - side * 0.23, 1.05 + i * 0.049, z + 0.18, 0.01);
       book.rotation.y = i * 0.26;
     }
     cylinder(0.068, 0.055, 0.09, pillow, x - side * 0.55, 1.07, z - 0.2);
     cylinder(0.054, 0.054, 0.005, darkWood, x - side * 0.55, 1.117, z - 0.2);
+    const handle = mesh(new T.TorusGeometry(0.035, 0.009, 6, 14), pillow,
+      x - side * 0.47, 1.073, z - 0.2);
+    handle.rotation.y = side * 0.25;
+    if (z > 3 && z < 10) {
+      const saucer = cylinder(0.111, 0.099, 0.014, pillow, x - side * 0.55, 1.017, z - 0.2);
+      saucer.position.z += 0.01;
+      box(0.38, 0.018, 0.27, bookColors[0], x - side * 0.2, 1.031, z + 0.18, 0.006);
+    }
     if (z > 3 && z < 10) point('#ffc27d', 8, 2.6, lampX, 1.28, z);
   }
 }
@@ -338,11 +440,12 @@ function start() {
   renderer.toneMappingExposure = 1.15;
   document.querySelector('#scene').append(renderer.domElement);
 
-  scene.add(new T.HemisphereLight('#e6caaf', '#785043', 1.55));
-  const sun = new T.DirectionalLight('#ffc38c', 2.35);
+  scene.add(new T.HemisphereLight('#ffe5cb', '#574043', 1.27));
+  const sun = new T.DirectionalLight('#ffe1bd', 2.12);
   sun.position.set(-9, 6, 5);
   scene.add(sun);
 
+  finishMaterials();
   buildShell();
   buildBooths();
   buildEndWall();
