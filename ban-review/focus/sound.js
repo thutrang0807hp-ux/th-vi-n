@@ -120,10 +120,10 @@ export function mountFocusSound(panel, { moving, route }) {
       } catch {}
     }
     element.addEventListener('waiting', () => {
-      if (channel.wanted) setChannelStatus(channel,'Đang tải…');
+      if (channel.wanted && channel.element === element) setChannelStatus(channel,'Đang tải…');
     });
     element.addEventListener('playing', () => {
-      if (channel.wanted) setChannelStatus(channel,'Đang phát');
+      if (channel.wanted && channel.element === element) setChannelStatus(channel,'Đang phát');
     });
     element.addEventListener('error', () => {
       if (!channel.wanted || channel.element !== element) return;
@@ -136,6 +136,9 @@ export function mountFocusSound(panel, { moving, route }) {
         channel.gain?.disconnect();
         channel.source = channel.gain = undefined;
         createTrack(channel, { mirror: true });
+        element.pause();
+        element.removeAttribute('src');
+        element.load();
         apply(channel,true);
       } else {
         setChannelStatus(channel,'Lỗi tải âm thanh');
