@@ -63,7 +63,7 @@
       <button id="seat-toggle" type="button" aria-pressed="false">Ngồi</button>
       <button id="focus-toggle" type="button" aria-haspopup="dialog">Focus</button>
     </div>
-    <p class="keyboard-help">W A S D di chuyển · Shift chạy · Kéo chuột để xoay · Cuộn để zoom · Nhấp đúp hoặc V đổi camera · E ngồi · F Focus</p>
+    <p class="keyboard-help">W A S D theo hướng camera · Shift chạy · Kéo chuột để xoay · Cuộn để zoom · Nhấp đúp hoặc V đổi camera · E ngồi · F Focus</p>
     <div class="touch-controls" aria-label="Di chuyển">
       <button type="button" data-key="KeyW" aria-label="Tiến">↑</button>
       <button type="button" data-key="KeyA" aria-label="Trái">←</button>
@@ -128,7 +128,7 @@
     window.addEventListener('pageshow', () => { picker.value = scene; });
 
     try {
-      const { start } = await import('../village-scene.js?v=one-table-light');
+      const { start } = await import('../village-scene.js?v=camera-relative-movement');
       if (scene === 'tri-ton') {
         const { buildTriTon } = await import('../tri-ton-scene.js');
         document.querySelector('.route').textContent = '— Mùa vàng Tri Tôn';

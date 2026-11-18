@@ -1839,7 +1839,8 @@ function play(renderer, avatar,
 
   const movement = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'ShiftLeft', 'ShiftRight']);
   window.addEventListener('keydown', event => {
-    if (event.ctrlKey || event.metaKey || event.altKey || avatarPanel.open || event.target === activityPicker) return;
+    if (event.ctrlKey || event.metaKey || event.altKey || avatarPanel.open) return;
+    if (event.target === activityPicker && event.code.startsWith('Arrow')) return;
     if (!event.repeat && event.code === 'KeyF') toggleFocus();
     if (panel.open) return;
     if (movement.has(event.code)) {
@@ -1867,7 +1868,8 @@ function play(renderer, avatar,
   });
   canvas.addEventListener('pointermove', event => {
     if (drag?.id !== event.pointerId) return;
-    yaw = (yaw - (event.clientX - drag.x) * 0.004) % (2 * Math.PI);
+    const turnSpeed = firstPerson ? 0.004 : 0.006;
+    yaw = (yaw - (event.clientX - drag.x) * turnSpeed) % (2 * Math.PI);
     pitch = clamp(pitch - (event.clientY - drag.y) * 0.003, -0.55, 0.62);
     needsRender = true;
     drag.x = event.clientX;
@@ -1908,7 +1910,7 @@ function play(renderer, avatar,
     const moving = !seated && (dx !== 0 || dz !== 0);
     const sprint = keys.has('ShiftLeft') || keys.has('ShiftRight');
     const speed = moving ? (sprint ? 4 : 2.4) / Math.hypot(dx, dz) : 0;
-    const heading = firstPerson ? yaw : 0;
+    const heading = yaw;
     const blend = 1 - Math.exp(-dt * 17);
     velocity.x = T.MathUtils.lerp(velocity.x, (dx * Math.cos(heading) - dz * Math.sin(heading)) * speed, blend);
     velocity.y = T.MathUtils.lerp(velocity.y, (dx * Math.sin(heading) + dz * Math.cos(heading)) * speed, blend);
@@ -1968,9 +1970,10 @@ function play(renderer, avatar,
     } else if (seated) {
       const reach = clamp(distance * (working ? 0.51 : 0.57), 1.65, 2.85);
       const viewYaw = yaw - mascot.rotation.y;
-      camera.position.set(clamp(currentSeat.side * 0.65 - Math.sin(viewYaw) * 1.05, -1.47, 1.47),
-        clamp(y + 1.37 - pitch * 0.9, 1.55, 2.8),
-        clamp(z - currentSeat.direction * (reach - (1 - Math.cos(viewYaw)) * 1.24), -16.8, 12.95));
+      // An oval keeps the camera in the open aisle while orbiting the booth.
+      camera.position.set(currentSeat.side * 0.35 - Math.sin(viewYaw) * 1.16,
+        clamp(y + 1.40 - pitch * 1.1, 1.55, 2.8),
+        clamp(z - currentSeat.direction * Math.cos(viewYaw) * reach, -16.8, 12.95));
       look.set(x, y + 0.59, z);
     } else {
       const pivotX = clamp(x, -cameraAisleLimit + 0.08, cameraAisleLimit - 0.08);
@@ -1981,15 +1984,11 @@ function play(renderer, avatar,
       const toEnd = orbitZ > 0 ? 12.95 - z : z + 16.8;
       const radius = Math.min(distance, toSide / Math.max(Math.abs(orbitX), 0.001),
         toEnd / Math.max(Math.abs(orbitZ), 0.001));
-      const sideView = T.MathUtils.smoothstep(Math.abs(sinYaw), 0.48, 0.99);
       const lift = 0.40 * (1 - clamp(radius / 1.6, 0, 1));
-      const shoulderOffset = sideView * (2.55 + 0.48 * clamp((distance - 2.2) / 3.6, 0, 1));
       camera.position.set(pivotX + orbitX * radius,
-        clamp(y + 1.38 + Math.sin(elevation) * radius + lift + sideView * 0.13, 1.42, 2.98),
-        clamp(z + orbitZ * radius + shoulderOffset, -16.8, 12.95));
-      look.set(pivotX + sinYaw * (0.42 + sideView * 1.42),
-        y + 1.17 + sideView * (0.10 + Math.sin(pitch) * 0.86),
-        z - cosYaw * 0.42 + sideView * 0.15);
+        clamp(y + 1.38 + Math.sin(elevation) * radius + lift, 1.42, 2.98),
+        z + orbitZ * radius);
+      look.set(pivotX + sinYaw * 0.42, y + 1.17, z - cosYaw * 0.42);
     }
     camera.position.z += trainZ;
     look.z += trainZ;
