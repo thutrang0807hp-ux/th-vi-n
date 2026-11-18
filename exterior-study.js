@@ -451,11 +451,15 @@ export function plantExteriorStudy(scene, kit, ground, length) {
   const clouds = [[82, 20, -28, 2.8, 1], [101, 24, 26, 3.6, 0], [111, 19, 51, 2.7, 1],
     [107, 28, 65, 2.8, 1], [100, 20, -57, 3.0, 0], [76, 18, 7, 2.0, 1],
     [123, 30, -9, 3.1, 0], [114, 20, 88, 3.6, 1], [111, 23, -103, 3.6, 1]];
-  const clumpCount = clouds.reduce((count, cloud) => count + cloudShapes[cloud[4]].length, 0);
+  const westClouds = clouds.map(([x, y, z, size, shape], i) =>
+    [-x, y + Math.sin(i * 1.8) * 3, -z + 13, size * 0.94, (shape + i) % cloudShapes.length]);
+  const cloudGroups = [...clouds, ...westClouds];
+  const clumpCount = cloudGroups.reduce((count, cloud) => count + cloudShapes[cloud[4]].length, 0);
   const skyClouds = new T.InstancedMesh(cloudGeometry, cloudMaterial, clumpCount);
+  skyClouds.name = '3D clouds';
   let cloudIndex = 0;
   const sunrise = new T.Color('#fce3d3'), shadow = new T.Color('#d9cce2');
-  for (const [x, y, z, size, shape] of clouds) {
+  for (const [x, y, z, size, shape] of cloudGroups) {
     for (const [dx, dy, dz, radius] of cloudShapes[shape]) {
       const r = radius * size;
       dummy.position.set(x + dx * size, y + dy * size, z + dz * size * 1.84);
@@ -534,5 +538,5 @@ export function plantExteriorStudy(scene, kit, ground, length) {
     opposite.rotation.y = 0.075;
     mountainRange.add(opposite);
   }
-  return root;
+  return { tile: root, skyClouds };
 }

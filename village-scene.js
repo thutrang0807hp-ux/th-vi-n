@@ -691,11 +691,16 @@ function buildScenery(kit) {
     }
   });
   const near = layers[0];
-  const studyTile = plantExteriorStudy(scene, kit,
+  const { tile: studyTile, skyClouds } = plantExteriorStudy(scene, kit,
     (x, z) => terrain(Math.abs(x), z, near.length, Math.sign(x), Math.abs(x) > 36), near.length);
   for (const tile of near.strip.children) tile.add(studyTile.clone());
   scene.remove(studyTile);
-  return { layers, driftPetals };
+  function animateAmbient(time) {
+    driftPetals(time);
+    skyClouds.position.z = Math.sin(time * 0.028) * 19;
+    skyClouds.position.x = Math.sin(time * 0.019) * 2.8;
+  }
+  return { layers, animateAmbient };
 }
 
 function batchScenery(root = scene, useSections = true) {
@@ -772,7 +777,7 @@ export async function start() {
   status.remove();
 }
 
-function play(renderer, { mascot, feet }, { layers, driftPetals }) {
+function play(renderer, { mascot, feet }, { layers, animateAmbient }) {
   const motionButton = document.querySelector('#motion-toggle');
   let trainMoving = !matchMedia('(prefers-reduced-motion: reduce)').matches;
   function updateMotionButton() {
@@ -984,7 +989,7 @@ function play(renderer, { mascot, feet }, { layers, driftPetals }) {
     }
     if (!needsRender && !cameraMoving && now - lastSceneryRender < 1000 / 30) return;
     lastSceneryRender = now;
-    driftPetals(ambientTime);
+    animateAmbient(ambientTime);
     needsRender = false;
 
     const { x, y, z } = follow;
