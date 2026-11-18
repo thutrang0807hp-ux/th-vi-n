@@ -3,6 +3,13 @@ import * as T from './vendor/three-r164/three.module.min.js';
 const tint = hex => new T.Color(hex);
 const travelLength = 132;
 const cloudLength = 222;
+const coastUnit = 2 * Math.PI / travelLength;
+
+function shoreRadius(z) {
+  const phase = z * coastUnit;
+  return 14.1 + 2.85 * Math.sin(phase * 3 + 0.35)
+    + 1.15 * Math.sin(phase * 5 + 1.11) + 0.34 * Math.sin(phase * 9 - 0.2);
+}
 const daylight = new T.Vector3(0.95, 0.18, 0.57).normalize();
 
 function sky() {
@@ -45,7 +52,7 @@ function sky() {
 
 const shoreMath = `
   uniform float waveTime;
-  const float coastUnit = ${(2 * Math.PI / travelLength).toFixed(10)};
+  const float coastUnit = ${coastUnit.toFixed(10)};
 
   float nearPhase(float z) { return z * coastUnit; }
   float shore(float z) {
@@ -209,7 +216,8 @@ function coastalSurface(cloudDrift, waveTime) {
         vec3 oceanRay = vec3(abs(viewDir.x), -viewDir.y, viewDir.z);
         float streak = exp(-pow((oceanRay.z - sun.z) / (0.084 + 0.073 * fine), 2.0));
         float glint = smoothstep(0.47, 0.88, noise(vec2(waveDepth * 4.1 + waveTime * 1.2, z * 3.2)));
-        float shadowZ = surfPoint.x >= 0.0 ? z : -z + 8.5 + cloudDrift * 2.0;
+        float localZ = surfPoint.z - cameraPosition.z;
+        float shadowZ = surfPoint.x >= 0.0 ? localZ : -localZ + 8.5 + cloudDrift * 2.0;
         vec2 point = vec2(radius, shadowZ);
         float shade = max(cloudShadow(point, vec3(84.0, 13.7, 35.0), vec2(11.6, 16.1)),
           cloudShadow(point, vec3(101.0, 8.1, 61.0), vec2(12.1, 13.2)));
@@ -238,12 +246,38 @@ function coastalSurface(cloudDrift, waveTime) {
     placeBand(tile, side, 12, offshoreStart, 86, travelLength, 92);
     placeBand(tile, side, offshoreStart, 157, 35, travelLength, 58);
   }
-  for (let i = -2; i <= 1; i++) {
+  tile.add(shoreRocks());
+  for (let i = -1; i <= 2; i++) {
     const copy = tile.clone();
     copy.position.z = i * travelLength;
     beach.add(copy);
   }
   return beach;
+}
+
+function shoreRocks() {
+  const clusters = [-51, -31, -14, 6, 24, 44, 57];
+  const rock = new T.InstancedMesh(new T.IcosahedronGeometry(1, 0),
+    new T.MeshStandardMaterial({ color: '#ffffff', flatShading: true, roughness: 0.92 }),
+    clusters.length * 6);
+  const pose = new T.Object3D();
+  const shades = ['#696760', '#847866', '#aa9278'];
+  let instance = 0;
+  for (const side of [-1, 1]) {
+    clusters.forEach((center, index) => {
+      for (let member = 0; member < 3; member++) {
+        const z = center + side * 2.6 + member * 1.28;
+        const scale = (member === 0 ? 1 : 0.62) * (0.78 + 0.13 * (index % 4));
+        pose.position.set(side * (shoreRadius(z) - 2.5 - member * 0.56), -0.12, z);
+        pose.rotation.set(0.13 * member, index * 1.7 + member, side * 0.14);
+        pose.scale.set(scale * 0.78, scale * 0.61, scale * 1.17);
+        pose.updateMatrix();
+        rock.setMatrixAt(instance, pose.matrix);
+        rock.setColorAt(instance++, tint(shades[(index + member) % shades.length]));
+      }
+    });
+  }
+  return rock;
 }
 
 function cloudMesh(lobes) {
@@ -589,25 +623,28 @@ function oceanLife(scene) {
 }
 
 export function buildOceanCoast(scene) {
+  const dome = sky();
   const clouds = cumulus();
-  const animateLife = oceanLife(scene);
+  const life = new T.Group();
+  const animateLife = oceanLife(life);
   const cloudDrift = { value: 0 };
   const waveTime = { value: 0 };
-  const skyTravel = new T.Object3D();
   const beach = coastalSurface(cloudDrift, waveTime);
-  const layers = [
-    { strip: beach, length: travelLength, speed: 6.9 },
-    { strip: skyTravel, length: cloudLength, speed: 0.12 },
-  ];
-  scene.add(sky(), beach, clouds);
+  scene.add(dome, beach, clouds, life);
   return {
-    layers,
-    sceneryFrameLimit: 0.45,
-    animateAmbient(time) {
+    layers: [],
+    trainSpeed: 6.9,
+    sceneryFrameLimit: 0.16,
+    animateAmbient(time, trainZ) {
       waveTime.value = time;
       const breeze = Math.sin(time * 0.036) * 9.5;
-      cloudDrift.value = (breeze + skyTravel.position.z + cloudLength) % cloudLength;
-      clouds.position.z = cloudDrift.value;
+      const parallax = -trainZ * 0.12 / 6.9;
+      cloudDrift.value = T.MathUtils.euclideanModulo(breeze + parallax + cloudLength / 2, cloudLength) - cloudLength / 2;
+      clouds.position.z = trainZ + cloudDrift.value;
+      dome.position.z = trainZ;
+      life.position.z = trainZ;
+      const sectorZ = Math.floor(trainZ / travelLength) * travelLength;
+      beach.position.z = sectorZ;
       animateLife(time);
     },
   };

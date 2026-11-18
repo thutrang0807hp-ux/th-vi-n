@@ -683,17 +683,29 @@ export async function start({ buildExterior } = {}) {
   scene.add(sun);
 
   finishMaterials();
+  const firstCabinObject = scene.children.length;
   buildShell();
   buildBooths();
   buildBulkhead(-17.33, false);
   buildBulkhead(13.42, true);
+  const cabinObjects = scene.children.slice(firstCabinObject);
   const scenery = buildExterior ? buildExterior(scene) : buildScenery(kit);
-  batchScenery();
-  play(renderer, buildMascot(), scenery);
+  const cabin = scenery.trainSpeed ? new T.Group() : null;
+  if (cabin) {
+    cabin.add(...cabinObjects);
+    batchScenery(cabin);
+    scene.add(cabin);
+  } else {
+    batchScenery();
+  }
+  const avatar = buildMascot();
+  cabin?.add(avatar.mascot);
+  play(renderer, avatar, scenery, cabin);
   status.remove();
 }
 
-function play(renderer, { mascot, feet }, { layers, animateAmbient, sceneryFrameLimit = 0.08 }) {
+function play(renderer, { mascot, feet },
+  { layers, animateAmbient, sceneryFrameLimit = 0.08, trainSpeed = 0 }, cabin) {
   const motionButton = document.querySelector('#motion-toggle');
   let trainMoving = !matchMedia('(prefers-reduced-motion: reduce)').matches;
   function updateMotionButton() {
@@ -901,13 +913,15 @@ function play(renderer, { mascot, feet }, { layers, animateAmbient, sceneryFrame
     updateTimer();
     ambientTime += dt;
     if (trainMoving) {
+      if (cabin) cabin.position.z -= sceneryDt * trainSpeed;
       for (const { strip, speed, length } of layers) {
         strip.position.z = (strip.position.z + sceneryDt * speed) % length;
       }
     }
     if (!needsRender && !cameraMoving && (!animateAmbient || now - lastSceneryRender < 1000 / 30)) return;
     lastSceneryRender = now;
-    animateAmbient?.(ambientTime);
+    const trainZ = cabin?.position.z ?? 0;
+    animateAmbient?.(ambientTime, trainZ);
     needsRender = false;
 
     const { x, y, z } = follow;
@@ -937,6 +951,8 @@ function play(renderer, { mascot, feet }, { layers, animateAmbient, sceneryFrame
         y + 1.17 + sideView * (0.10 + Math.sin(pitch) * 0.86),
         z - cosYaw * 0.42 + sideView * 0.15);
     }
+    camera.position.z += trainZ;
+    look.z += trainZ;
     camera.lookAt(look);
     renderer.render(scene, camera);
   });
