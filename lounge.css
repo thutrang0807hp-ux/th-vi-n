@@ -160,3 +160,18 @@ dialog h2 { margin: 0 0 12px; font-size: 1.1rem; }
 .bay-lamp-controls summary { padding: 8px 12px; cursor: pointer; }
 .bay-lamp-settings { display: grid; gap: 7px; padding: 0 12px 10px; }
 .bay-lamp-settings input { accent-color: #d8a66f; }
+
+#seat-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 78px;
+  transform: translateX(-50%);
+}
+#seat-hint kbd {
+  display: inline-block;
+  margin-right: 5px;
+  padding: 1px 5px;
+  border: 1px solid #ddbc83;
+  border-radius: 4px;
+  font: inherit;
+}

@@ -11,6 +11,9 @@ const status = document.querySelector('#status');
 const halfCabin = 4.05;
 const boothCenter = 2.86;
 const aisleLimit = 1.49;
+const aisleSeatX = 1.14;
+const seatOffset = 0.735;
+const seatReachSquared = 0.83 ** 2;
 const cameraAisleLimit = 1.59;
 
 const camera = new T.PerspectiveCamera(56, 1, 0.05, 155);
@@ -121,8 +124,6 @@ function reviewFinishes() {
   fabric.map = weave;
   fabric.bumpMap = weave;
   fabric.bumpScale = 0.0032;
-  const fabricEdge = fabric.clone();
-  fabricEdge.color.set('#3c5c42');
   const linen = fabric.clone();
   linen.color.set('#d7c19d');
   linen.side = T.DoubleSide;
@@ -134,23 +135,13 @@ function reviewFinishes() {
     color: '#ffead1', emissive: '#f5a95c', emissiveIntensity: 0.62, roughness: 0.82,
   });
   bayMaterials = {
-    fabric, fabricEdge, linen, wood, silk,
-    piping: material('#b9a47e', 0.84),
+    linen, wood, silk,
     brass: material('#b48b55', 0.47, 0.42),
   };
   return bayMaterials;
 }
 
 const bayGeometry = new Map();
-function bayBox(width, height, depth, radius, finish, x, y, z) {
-  const key = [width, height, depth, radius].join('/');
-  if (!bayGeometry.has(key)) {
-    bayGeometry.set(key, radius ? new RoundedBoxGeometry(width, height, depth, 1, radius)
-      : new T.BoxGeometry(width, height, depth));
-  }
-  return mesh(bayGeometry.get(key), finish, x, y, z);
-}
-
 function bayPiping(width, height, corner, thin, surface, x, y, z, floor = false) {
   const key = [width, height, corner, thin, floor].join('/');
   if (!bayGeometry.has(key)) {
@@ -295,18 +286,19 @@ function tableLamp(x, z, shade = lightShade) {
   oval(bronze, x, 1.503, z, 0.041, 0.025, 0.041);
 }
 
-function boothPadding(x, back, direction, fabric = green) {
+function boothPadding(x, back, direction) {
   box(1.83, 1.15, 0.30, seam, x, 1.03, back, 0.14);
   for (let channel = 0; channel < 5; channel++) {
-    const cushion = box(0.34, 0.93, 0.32, fabric, x + (channel - 2) * 0.334,
+    const cushion = box(0.34, 0.93, 0.32, green, x + (channel - 2) * 0.334,
       1.06, back - direction * 0.075, 0.11);
     cushion.rotation.x = direction * 0.055;
   }
 }
 
 function buildBooths() {
-  const tableStacks = [];
-  let reviewLight;
+  const seats = [];
+  const tableLight = new T.PointLight('#ffd3a0', 0, 1.85);
+  scene.add(tableLight);
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 64;
   const ctx = canvas.getContext('2d');
@@ -327,22 +319,12 @@ function buildBooths() {
     for (const direction of [-1, 1]) {
       const back = z + direction * 1.29;
       mesh(shadowGeometry, shadowMaterial, x, 0.004, back - direction * 0.2);
-      if (review) {
-        bayBox(1.8, 0.53, 0.79, 0.08, darkWood, x, 0.29, back - direction * 0.17);
-        bayBox(1.75, 0.28, 0.83, 0.12, finishes.fabric, x, 0.62, back - direction * 0.23);
-        bayPiping(1.64, 0.727, 0.11, 0.005, finishes.piping,
-          x, 0.741, back - direction * 0.23, true);
-        boothPadding(x, back, direction, finishes.fabric);
-        bayBox(0.23, 0.3, 0.81, 0.1, finishes.fabricEdge, x - side * 0.82, 0.81,
-          back - direction * 0.27);
-      } else {
-        box(1.8, 0.53, 0.79, darkWood, x, 0.29, back - direction * 0.17, 0.08);
-        box(1.75, 0.28, 0.83, green, x, 0.62, back - direction * 0.23, 0.12);
-        boothPadding(x, back, direction);
-        box(0.23, 0.3, 0.81, green, x - side * 0.82, 0.81, back - direction * 0.27, 0.1);
-      }
-      const cushion = box(0.47, 0.48, 0.16, finishes?.linen ?? pillow,
-        x + side * 0.36, 0.95, back - direction * 0.32, 0.075);
+      box(1.8, 0.53, 0.79, darkWood, x, 0.29, back - direction * 0.17, 0.08);
+      box(1.75, 0.28, 0.83, green, x, 0.62, back - direction * 0.23, 0.12);
+      boothPadding(x, back, direction);
+      box(0.23, 0.3, 0.81, green, x - side * 0.82, 0.81, back - direction * 0.27, 0.1);
+      const cushion = box(0.47, 0.48, 0.16, pillow, x + side * 0.36, 0.95,
+        back - direction * 0.32, 0.075);
       cushion.rotation.z = direction * 0.22;
     }
     box(1.58, 0.115, 0.94, finishes?.wood ?? walnut, x, 0.97, z, 0.065);
@@ -350,41 +332,26 @@ function buildBooths() {
     box(1.52, 0.027, 0.887, bronze, x, 0.943, z, 0.014);
     cylinder(0.105, 0.16, 0.85, darkWood, x, 0.49, z);
     cylinder(0.22, 0.23, 0.045, walnut, x, 0.066, z);
-    const lampX = review ? x - side * 0.55 : x + side * 0.23;
-    const lampZ = review ? z - 0.20 : z;
-    tableLamp(lampX, lampZ, finishes?.silk);
+    const lampX = x - side * 0.55;
+    const lampZ = z - 0.20;
+    tableLamp(lampX, lampZ, reviewFinishes().silk);
     const books = new T.Group();
-    const booksX = review ? x + side * 0.23 : x - side * 0.23;
-    const booksZ = review ? z : z + 0.18;
+    const booksX = x + side * 0.23;
     for (let i = 0; i < 2; i++) {
       const book = box(0.28, 0.048, 0.19, bookColors[(i + Math.round(z + 14)) % bookColors.length],
-        booksX, 1.05 + i * 0.049, booksZ, 0.01);
+        booksX, 1.05 + i * 0.049, z, 0.01);
       book.rotation.y = i * 0.26;
       books.add(book);
     }
-    if (!review) {
-      cylinder(0.068, 0.055, 0.09, pillow, x - side * 0.55, 1.07, z - 0.2);
-      cylinder(0.054, 0.054, 0.005, darkWood, x - side * 0.55, 1.117, z - 0.2);
-      const handle = mesh(new T.TorusGeometry(0.035, 0.009, 6, 14), pillow,
-        x - side * 0.47, 1.073, z - 0.2);
-      handle.rotation.y = side * 0.25;
-    }
     if (z > 3 && z < 10) {
-      if (!review) cylinder(0.111, 0.099, 0.014, pillow, x - side * 0.55, 1.017, z - 0.19);
-      books.add(box(0.38, 0.018, 0.27, bookColors[0],
-        review ? booksX : x - side * 0.2, 1.031, booksZ, 0.006));
+      books.add(box(0.38, 0.018, 0.27, bookColors[0], booksX, 1.031, z, 0.006));
     }
     scene.add(books);
-    if (side > 0) tableStacks.push(books);
-    if (review) {
-      reviewLight = new T.PointLight('#ffd3a0', 0, 1.85);
-      reviewLight.position.set(lampX, 1.33, lampZ);
-      scene.add(reviewLight);
-    } else if (z > 3 && z < 10) {
-      point('#ffc27d', 8, 2.6, lampX, 1.28, z);
+    for (const direction of [-1, 1]) {
+      seats.push({ side, direction, x, z: z + direction * seatOffset, lampX, lampZ, books });
     }
   }
-  return { tableStacks, reviewLight };
+  return { seats, tableLight };
 }
 
 function buildBulkhead(z, facesFront) {
@@ -1431,6 +1398,7 @@ function buildMascot() {
       arm.scale.y = rest.length;
     });
     props.position.copy(mascot.position);
+    props.rotation.y = mascot.rotation.y;
     props.visible = Boolean(variants[activity]);
     for (const [name, item] of Object.entries(variants)) item.visible = name === activity;
   }
@@ -1559,7 +1527,7 @@ export async function start({ buildExterior } = {}) {
   finishMaterials();
   const firstCabinObject = scene.children.length;
   buildShell();
-  const { tableStacks, reviewLight } = buildBooths();
+  const { seats, tableLight } = buildBooths();
   buildBulkhead(-17.33, false);
   buildBulkhead(13.42, true);
   const cabinObjects = scene.children.slice(firstCabinObject);
@@ -1574,12 +1542,12 @@ export async function start({ buildExterior } = {}) {
   }
   const avatar = buildMascot();
   cabin?.add(avatar.mascot, avatar.props);
-  play(renderer, avatar, scenery, cabin, tableStacks, reviewLight);
+  play(renderer, avatar, scenery, cabin, seats, tableLight);
   status.remove();
 }
 
 function play(renderer, avatar,
-  { layers, animateAmbient, sceneryFrameLimit = 0.08, trainSpeed = 0 }, cabin, tableStacks, reviewLight) {
+  { layers, animateAmbient, sceneryFrameLimit = 0.08, trainSpeed = 0 }, cabin, seats, tableLight) {
   const { mascot, feet, arms } = avatar;
   const motionButton = document.querySelector('#motion-toggle');
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1604,7 +1572,8 @@ function play(renderer, avatar,
   let deadline = null;
   let firstPerson = false;
   let seated = false;
-  let currentStack;
+  let currentSeat;
+  let nearbySeat;
   let activity = 'idle';
   let activityTime = 0;
   let yaw = 0;
@@ -1612,11 +1581,12 @@ function play(renderer, avatar,
   let drag = null;
   let distance = 4.85;
   let needsRender = true;
+  const seatHint = document.querySelector('#seat-hint');
   const lampSwitch = document.querySelector('#bay-lamp-switch');
   const lampLevel = document.querySelector('#bay-lamp-level');
   function updateBayLamp() {
     const level = lampSwitch.checked ? Number(lampLevel.value) / 100 : 0;
-    reviewLight.intensity = level * 4.2;
+    tableLight.intensity = level * 4.2;
     const shade = reviewFinishes().silk;
     shade.emissiveIntensity = level * 0.72;
     needsRender = true;
@@ -1636,22 +1606,34 @@ function play(renderer, avatar,
     cameraButton.textContent = firstPerson ? 'Camera theo sau' : 'Camera POV';
   }
 
-  function toggleSeat() {
+  function closestSeat(position) {
+    let seat;
+    let distanceSquared = Infinity;
+    for (const option of seats) {
+      const near = (position.x - option.side * aisleSeatX) ** 2 + (position.z - option.z) ** 2;
+      if (near < distanceSquared || (near === distanceSquared && option.side > 0)) {
+        seat = option;
+        distanceSquared = near;
+      }
+    }
+    return { seat, distanceSquared };
+  }
+
+  function toggleSeat(target = closestSeat(mascot.position).seat) {
     seated = !seated;
     velocity.set(0, 0);
     needsRender = true;
     if (seated) {
-      const booth = clamp(Math.round((mascot.position.z + 13.3) / 3.6), 0, 7);
-      currentStack = tableStacks[booth];
-      // Center on the bench and leave room for the head in front of the backrest.
-      mascot.position.set(boothCenter, 0.665, -13.3 + booth * 3.6 + 0.735);
-      mascot.rotation.y = 0;
+      currentSeat = target;
+      const { x, z, direction } = currentSeat;
+      mascot.position.set(x, 0.665, z);
+      mascot.rotation.y = direction > 0 ? 0 : Math.PI;
     } else {
-      mascot.position.set(aisleLimit - 0.18, 0, mascot.position.z);
+      mascot.position.set(currentSeat.side * (aisleLimit - 0.18), 0, mascot.position.z);
       mascot.rotation.y = 0;
+      currentSeat.books.visible = true;
+      currentSeat = undefined;
       activity = 'idle';
-      currentStack.visible = true;
-      currentStack = undefined;
       activityPicker.value = activity;
       avatar.setActivity(activity);
     }
@@ -1664,7 +1646,7 @@ function play(renderer, avatar,
       foot.rotation.x = seated ? 0.9 : 0;
       arms[index].rotation.x = seated ? 0.10 : 0;
     });
-    yaw = 0;
+    yaw = seated ? mascot.rotation.y : 0;
     pitch = 0;
     seatButton.textContent = seated ? 'Đứng dậy' : 'Ngồi';
     seatButton.setAttribute('aria-pressed', seated);
@@ -1690,7 +1672,8 @@ function play(renderer, avatar,
   }
 
   cameraButton.addEventListener('click', toggleCamera);
-  seatButton.addEventListener('click', toggleSeat);
+  seatButton.addEventListener('click', () => toggleSeat());
+  seatHint.addEventListener('click', () => { if (nearbySeat) toggleSeat(nearbySeat); });
   activityPicker.value = activity;
   activityPicker.disabled = false;
   activityPicker.addEventListener('change', () => {
@@ -1698,7 +1681,7 @@ function play(renderer, avatar,
     if (activity !== 'idle' && !seated) toggleSeat();
     activityTime = 0;
     avatar.setActivity(activity);
-    if (currentStack) currentStack.visible = !['read', 'write', 'work', 'plan'].includes(activity);
+    if (currentSeat) currentSeat.books.visible = !['read', 'write', 'work', 'plan'].includes(activity);
     if (activity === 'idle') {
       for (const arm of arms) arm.rotation.x = seated ? 0.10 : 0;
     }
@@ -1741,7 +1724,7 @@ function play(renderer, avatar,
       keys.add(event.code);
     }
     if (!event.repeat && event.code === 'KeyV') toggleCamera();
-    if (!event.repeat && event.code === 'KeyE') toggleSeat();
+    if (!event.repeat && event.code === 'KeyE' && (seated || nearbySeat)) toggleSeat(nearbySeat);
   });
   window.addEventListener('keyup', event => keys.delete(event.code));
   window.addEventListener('blur', () => keys.clear());
@@ -1812,7 +1795,7 @@ function play(renderer, avatar,
     const oldZ = position.z;
     if (!seated && velocity.lengthSq() > 0.001) {
       position.x = clamp(position.x + velocity.x * dt, -aisleLimit, aisleLimit);
-      position.z = clamp(position.z + velocity.y * dt, -15.6, 7.7);
+      position.z = clamp(position.z + velocity.y * dt, -15.6, 12.78);
     }
     const dxMoved = position.x - oldX;
     const dzMoved = position.z - oldZ;
@@ -1820,6 +1803,15 @@ function play(renderer, avatar,
       needsRender = true;
     }
     if (Math.abs(dxMoved) + Math.abs(dzMoved) > 0.0001) needsRender = true;
+
+    const nearest = closestSeat(position);
+    nearbySeat = !seated && nearest.distanceSquared <= seatReachSquared ? nearest.seat : undefined;
+    seatHint.hidden = !nearbySeat;
+    const litSeat = currentSeat ?? nearest.seat;
+    const lampBlend = 1 - Math.exp(-dt * 10);
+    tableLight.position.x = T.MathUtils.lerp(tableLight.position.x, litSeat.lampX, lampBlend);
+    tableLight.position.y = 1.33;
+    tableLight.position.z = T.MathUtils.lerp(tableLight.position.z, litSeat.lampZ, lampBlend);
 
     const cameraMoving = follow.distanceToSquared(position) > 0.000002;
     if (firstPerson) follow.copy(position);
@@ -1852,9 +1844,10 @@ function play(renderer, avatar,
       look.set(x + sinYaw * Math.cos(pitch), eyeHeight + Math.sin(pitch), z - cosYaw * Math.cos(pitch));
     } else if (seated) {
       const reach = clamp(distance * (working ? 0.51 : 0.57), 1.65, 2.85);
-      camera.position.set(clamp(0.65 - sinYaw * 1.05, -1.15, 1.47),
+      const viewYaw = yaw - mascot.rotation.y;
+      camera.position.set(clamp(currentSeat.side * 0.65 - Math.sin(viewYaw) * 1.05, -1.47, 1.47),
         clamp(y + 1.37 - pitch * 0.9, 1.55, 2.8),
-        clamp(z - reach + (1 - cosYaw) * 1.24, -16.8, 12.95));
+        clamp(z - currentSeat.direction * (reach - (1 - Math.cos(viewYaw)) * 1.24), -16.8, 12.95));
       look.set(x, y + 0.59, z);
     } else {
       const pivotX = clamp(x, -cameraAisleLimit + 0.08, cameraAisleLimit - 0.08);
