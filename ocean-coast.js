@@ -62,7 +62,7 @@ const shoreMath = `
   }
 `;
 
-function coastalSurface(cloudDrift, waveTime) {
+function coastalSurface(cloudDrift, waveTime, surfaceTravel) {
   const material = new T.ShaderMaterial({
     side: T.DoubleSide,
     uniforms: {
@@ -75,6 +75,7 @@ function coastalSurface(cloudDrift, waveTime) {
       hazyWater: { value: tint('#4799d1') },
       foamTint: { value: tint('#f6fcf6') },
       cloudDrift, waveTime,
+      surfaceTravel: { value: surfaceTravel.position },
     },
     vertexShader: shoreMath + `
       varying vec3 surfPoint;
@@ -99,6 +100,7 @@ function coastalSurface(cloudDrift, waveTime) {
       varying float coastZ;
       uniform vec3 sun, drySand, wetSand, lagoon, shelf, blueWater, hazyWater, foamTint;
       uniform float cloudDrift;
+      uniform vec3 surfaceTravel;
 
       float cloudShadow(vec2 point, vec3 caster, vec2 size) {
         vec2 projected = caster.xz - sun.xz * ((caster.y + 0.48) / sun.y);
@@ -157,6 +159,14 @@ function coastalSurface(cloudDrift, waveTime) {
           0.48 + 0.30 * sin(coast * 5.0 + waveDepth * 0.34) + 0.23 * sin(coast * 3.0 - waveDepth * 0.17));
         vec3 bed = mix(vec3(0.018, 0.23, 0.34), vec3(0.14, 0.64, 0.56), sandUnderwater);
         water = mix(water, bed, 0.41 * (1.0 - smoothstep(10.0, 28.0, waveDepth)));
+        float lateral = (z - surfaceTravel.z) * coastUnit;
+        float swellBand = 0.51 + 0.23 * sin(lateral * 7.0 + radius * 0.33)
+          + 0.18 * sin(lateral * 11.0 - radius * 0.22 + 1.11)
+          + 0.08 * sin(lateral * 3.0 + radius * 0.69);
+        float currents = smoothstep(0.21, 0.87, swellBand);
+        float middleWater = smoothstep(9.0, 25.0, radius) * (1.0 - smoothstep(57.0, 111.0, radius));
+        vec3 currentTint = mix(vec3(0.025, 0.26, 0.45), vec3(0.165, 0.58, 0.64), currents);
+        water = mix(water, currentTint, middleWater * 0.49);
         float phase = wavePhase(waveDepth, z);
         float front = 0.5 + 0.5 * sin(phase);
         float ripple = sin(waveDepth * 5.1 + z * 0.24 + waveTime * 1.5 + noise(uv * 0.47) * 3.4);
@@ -577,14 +587,21 @@ export function buildOceanCoast(scene) {
   const animateLife = oceanLife(scene);
   const cloudDrift = { value: 0 };
   const waveTime = { value: 0 };
-  const { beach, offshore } = coastalSurface(cloudDrift, waveTime);
-  const layers = [{ strip: beach, length: travelLength, speed: 6.9 }];
+  const middleWater = new T.Object3D();
+  const skyTravel = new T.Object3D();
+  const { beach, offshore } = coastalSurface(cloudDrift, waveTime, middleWater);
+  const layers = [
+    { strip: beach, length: travelLength, speed: 6.9 },
+    { strip: middleWater, length: travelLength, speed: 3.15 },
+    { strip: skyTravel, length: travelLength, speed: 0.58 },
+  ];
   scene.add(sky(), offshore, beach, clouds);
   return {
     layers,
     animateAmbient(time) {
       waveTime.value = time;
-      cloudDrift.value = Math.sin(time * 0.036) * 9.5;
+      const skyPhase = skyTravel.position.z * 2 * Math.PI / travelLength;
+      cloudDrift.value = Math.sin(time * 0.044) * 12.6 + Math.sin(skyPhase) * 5.6;
       clouds.position.z = cloudDrift.value;
       animateLife(time);
     },
