@@ -95,16 +95,22 @@ export function mountFocusSound(panel, { moving, route }) {
     if (channel.status.textContent !== label) channel.status.textContent = label;
   }
 
-  function createTrack(channel) {
+  function previewMirror(url) {
+    if (!['raw.githack.com', 'rawcdn.githack.com'].includes(url.hostname)) return;
+    return new URL(url.pathname, 'https://raw.githubusercontent.com');
+  }
+
+  function createTrack(channel, { mirror = false } = {}) {
     const element = new Audio();
     element.loop = true;
     element.preload = 'none';
-    const base = view.dataset.audioBase + 'focus-' + channel.id;
-    let usingOgg = Boolean(element.canPlayType('audio/ogg; codecs="opus"'));
-    element.src = base + (usingOgg ? '.ogg' : '.mp3');
+    const base = new URL(view.dataset.audioBase + 'focus-' + channel.id, document.baseURI);
+    const source = mirror ? previewMirror(base) : base;
+    let usingOgg = !mirror && Boolean(element.canPlayType('audio/ogg; codecs="opus"'));
+    element.src = source.href + (usingOgg ? '.ogg' : '.mp3');
     element.volume = 0;
     channel.element = element;
-    if (context && master) {
+    if (!mirror && context && master) {
       try {
         channel.source = context.createMediaElementSource(element);
         channel.gain = context.createGain();
@@ -123,7 +129,13 @@ export function mountFocusSound(panel, { moving, route }) {
       if (!channel.wanted || channel.element !== element) return;
       if (usingOgg) {
         usingOgg = false;
-        element.src = base + '.mp3';
+        element.src = base.href + '.mp3';
+        apply(channel,true);
+      } else if (!mirror && previewMirror(base)) {
+        channel.source?.disconnect();
+        channel.gain?.disconnect();
+        channel.source = channel.gain = undefined;
+        createTrack(channel, { mirror: true });
         apply(channel,true);
       } else {
         setChannelStatus(channel,'Lỗi tải âm thanh');
@@ -177,7 +189,7 @@ export function mountFocusSound(panel, { moving, route }) {
       setChannelStatus(channel,'Đang tải…');
       const attempt = ++channel.attempt;
       element.play().catch(error => {
-        if (!channel.wanted || channel.attempt !== attempt || error.name === 'AbortError') return;
+        if (!channel.wanted || channel.element !== element || channel.attempt !== attempt || error.name === 'AbortError') return;
         setChannelStatus(channel,'Chưa phát được · thử bật lại');
       });
     }
@@ -187,6 +199,9 @@ export function mountFocusSound(panel, { moving, route }) {
     toggle.textContent = playing ? 'Tạm dừng âm thanh' : 'Phát âm thanh';
     toggle.setAttribute('aria-pressed', playing);
     masterInput.value = state.master;
+    const mutedMessage = 'Âm lượng tổng đang ở 0%. Kéo thanh âm lượng lên để nghe.';
+    if (playing && state.master === 0) saveStatus.textContent = mutedMessage;
+    else if (saveStatus.textContent === mutedMessage) saveStatus.textContent = '';
     if (master) glide(master.gain,state.master/100,context);
     for (const channel of channels.values()) apply(channel,retry);
   }
@@ -214,7 +229,7 @@ export function mountFocusSound(panel, { moving, route }) {
       state.channels[id].on = input.checked;
       if (input.checked) activate();
       remember();
-      applyAll();
+      applyAll(input.checked);
     });
     slider.addEventListener('input', () => {
       state.channels[id].level = Number(slider.value);
@@ -231,8 +246,10 @@ export function mountFocusSound(panel, { moving, route }) {
   toggle.addEventListener('click', () => {
     if (playing) playing = false;
     else {
-      if (!Object.values(state.channels).some(channel => channel.on)) {
+      if (!Object.entries(state.channels).some(([id, channel]) =>
+        channel.on && channel.level > 0 && (id !== 'rail' || trainMoving))) {
         state.channels.lofi.on = true;
+        if (state.channels.lofi.level === 0) state.channels.lofi.level = tracks.lofi[1];
         remember();
       }
       activate();
