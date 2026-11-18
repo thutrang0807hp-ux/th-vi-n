@@ -2,6 +2,8 @@ import * as T from './vendor/three-r164/three.module.min.js';
 import { mergeGeometries } from './vendor/three-r164/BufferGeometryUtils.js';
 
 const fullTurn = 2 * Math.PI;
+const fieldLength = 132;
+const fieldHalf = fieldLength / 2;
 const color = value => new T.Color(value);
 const matte = (hex, emission = 0.08) => new T.MeshStandardMaterial({
   color: hex, roughness: 0.85, emissive: hex, emissiveIntensity: emission,
@@ -34,28 +36,35 @@ const painted = (extra = {}) => new T.MeshStandardMaterial({
   color: 0xffffff, vertexColors: true, roughness: 0.87, side: T.DoubleSide, ...extra,
 });
 
+function approach(z) {
+  return Math.sin((z + 6) * Math.PI / fieldLength) * fieldLength / Math.PI;
+}
+
 function canalCenter(z, side) {
-  const opening = Math.exp(-((z + 6) ** 2) / 109);
-  return 14.9 + 3.8 * Math.sin(z * 0.061 + side * 0.48) + 0.9 * Math.sin(z * 0.144) - opening * 3.75;
+  const phase = z * fullTurn / fieldLength;
+  const opening = Math.exp(-(approach(z) ** 2) / 109);
+  return 14.9 + 3.8 * Math.sin(phase + side * 0.48) + 0.9 * Math.sin(phase * 3) - opening * 3.75;
 }
 
 function canalHalfWidth(z) {
-  return 1.67 + 1.05 * Math.exp(-((z + 6) ** 2) / 92);
+  return 1.67 + 1.05 * Math.exp(-(approach(z) ** 2) / 92);
 }
 
 function groundAt(x, z) {
   const side = Math.sign(x);
   const distance = Math.abs(x);
-  const terrain = -0.28 + Math.sin(z * 0.10 + distance * 0.33) * 0.053
-    + T.MathUtils.smoothstep(distance, 35, 83) * (1.3 + Math.cos(z * 0.06) * 0.30);
+  const phase = z * fullTurn / fieldLength;
+  const terrace = T.MathUtils.smoothstep(distance, 35, 83);
+  const terrain = -0.28 + Math.sin(phase * 2 + distance * 0.33) * 0.053
+    + terrace * (1.3 + Math.cos(phase) * 0.30);
   const bank = Math.abs(distance - canalCenter(z, side)) - (canalHalfWidth(z) - 1.67);
   return T.MathUtils.lerp(-0.99, terrain, T.MathUtils.smoothstep(bank, 1.36, 2.30));
 }
 
 function riceClump(variant, random, distant) {
   const mesh = new Facets();
-  const dark = color('#9c8e36'), green = color('#8d9e3a');
-  const leafSun = color('#bfc749'), stem = color('#c2bd48'), grain = color('#ffd253');
+  const dark = color('#bda033'), green = color('#9da331');
+  const leafSun = color('#d9c83b'), stem = color('#d8bb38'), grain = color('#ffd01e');
   for (let stalk = 0; stalk < (distant ? 3 : 4); stalk++) {
     const angle = stalk * 2.43 + variant * 0.76;
     const dx = Math.cos(angle), dz = Math.sin(angle);
@@ -253,58 +262,85 @@ function mountains(root, random) {
   root.add(canopy);
 }
 
-function farmhouse(root, x, z, side, scale, random) {
-  const plaster = matte('#e3be87', 0.17), wood = matte('#71543e'), window = matte('#514637');
-  const terra = ['#a45234', '#b8613b', '#be7047', '#924731'].map(hex => matte(hex, 0.19));
-  plaster.side = T.DoubleSide;
-  const y = groundAt(x, z);
+function bambooMaterials(random) {
+  function grain(base, strands, thatch) {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < (thatch ? 940 : 260); i++) {
+      ctx.strokeStyle = strands[Math.floor(random() * strands.length)];
+      ctx.lineWidth = 0.5 + random() * 1.5;
+      const x = random() * 256, y = random() * 256;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + (random() - 0.5) * (thatch ? 14 : 3), y + 7 + random() * (thatch ? 48 : 90));
+      ctx.stroke();
+    }
+    if (!thatch) {
+      for (let y = 9; y < 256; y += 17) {
+        ctx.fillStyle = y % 2 ? '#96744855' : '#dec19666';
+        ctx.fillRect(0, y, 256, 2);
+      }
+    }
+    const map = new T.CanvasTexture(canvas);
+    map.colorSpace = T.SRGBColorSpace;
+    return map;
+  }
+
+  const bamboo = matte('#e8c998', 0.16);
+  bamboo.map = grain('#c6a06b', ['#8a663c', '#d9b77e', '#a57b4b', '#f1d6a0', '#956f4580'], false);
+  const roof = matte('#ddc59e', 0.12);
+  roof.map = grain('#b49b6b', ['#dbc695', '#967d55', '#c8ab78', '#8e7350', '#e7d3a7'], true);
+  return { bamboo, roof, frame: matte('#765439', 0.10), shade: matte('#47372a') };
+}
+
+function farmhouse(root, x, z, side, scale, materials) {
+  const { bamboo, roof, frame, shade } = materials;
   const home = new T.Group();
-  home.position.set(x, y, z);
-  home.rotation.y = side === 1 ? 0 : Math.PI;
+  home.position.set(x, groundAt(x, z), z);
+  home.rotation.y = side === 1 ? -0.13 : Math.PI + 0.17;
   home.scale.setScalar(scale);
   const batches = new Map();
-  function piece(geometry, material, px, py, pz, angle = 0) {
+  function box(w, h, d, material, px, py, pz, angle = 0) {
+    const geometry = new T.BoxGeometry(w, h, d);
     geometry.rotateZ(angle).translate(px, py, pz);
     if (!batches.has(material)) batches.set(material, []);
     batches.get(material).push(geometry);
   }
-  function box(w, h, d, material, px, py, pz, angle = 0) {
-    piece(new T.BoxGeometry(w, h, d), material, px, py, pz, angle);
+  const floor = 0.57;
+  for (const px of [-1.51, 1.45]) {
+    for (const pz of [-2.52, 0, 2.52]) box(0.15, 1.05, 0.16, frame, px, 0.37, pz);
   }
-  box(4.0, 0.19, 6.35, wood, -0.20, 0.09, 0);
-  box(3.25, 1.69, 5.78, plaster, 0.18, 1.02, 0);
-  box(1.27, 0.15, 6.27, plaster, -2.14, 0.19, 0);
-  for (const pz of [-2.64, 0, 2.64]) box(0.12, 1.72, 0.14, wood, -2.64, 1.03, pz);
-  box(0.11, 1.29, 0.83, window, -1.46, 0.87, 0);
-  for (const pz of [-1.75, 1.75]) {
-    box(0.09, 0.63, 0.86, wood, -1.48, 1.13, pz);
-    for (let louver = 0; louver < 5; louver++) box(0.12, 0.052, 0.72, window, -1.49, 0.91 + louver * 0.1, pz);
+  box(3.48, 0.14, 5.64, frame, 0, floor, 0);
+  box(3.0, 1.65, 5.48, bamboo, 0, 1.47, 0);
+  for (let i = 0; i < 14; i++) box(0.71, 0.047, 0.37, bamboo, -1.81, floor - 0.006, -2.58 + i * 0.39);
+  for (const pz of [-2.68, -1.43, 0, 1.43, 2.68]) box(0.09, 1.77, 0.086, frame, -1.53, 1.40, pz);
+  for (const py of [0.69, 1.18, 1.72, 2.20]) box(0.09, 0.065, 5.50, frame, -1.54, py, 0);
+  box(0.10, 1.30, 0.83, shade, -1.60, 1.24, 0);
+  for (const pz of [-1.86, 1.86]) {
+    box(0.11, 0.65, 0.79, shade, -1.60, 1.47, pz);
+    box(0.19, 0.067, 0.92, frame, -1.63, 1.11, pz);
+    box(0.55, 0.07, 1.03, bamboo, -1.81, 1.83, pz, 0.23);
   }
-  const roofPitch = 0.44;
-  for (const end of [-1, 1]) {
-    const gable = new Facets();
-    gable.triangle([-1.47, 1.84, 2.88 * end], [1.83, 1.84, 2.88 * end], [0.18, 2.69, 2.88 * end], color('#fff0cc'));
-    const cap = gable.geometry();
-    cap.deleteAttribute('color');
-    home.add(new T.Mesh(cap, plaster));
-    const slope = new T.PlaneGeometry(2.06, 6.5);
-    slope.rotateX(-Math.PI / 2);
-    piece(slope, terra[0], 0.18 + end * 0.93, 2.31, 0, -end * roofPitch);
+  for (let step = 0; step < 5; step++) {
+    box(0.195, 0.073, 0.77, bamboo, -2.93 + step * 0.18, 0.10 + step * 0.103, 0);
+  }
+  for (const pz of [-0.40, 0.40]) box(1.14, 0.09, 0.09, frame, -2.53, 0.28, pz, 0.51);
+  for (const slope of [-1, 1]) {
+    box(2.25, 0.115, 6.24, roof, slope * 0.99, 2.56, 0, -slope * 0.39);
     for (let row = 0; row < 7; row++) {
-      for (let col = 0; col < 21; col++) {
-        const distance = 0.14 + row * 0.26;
-        const z = -3.13 + col * 0.31 + (row % 2 ? 0.08 : 0);
-        box(0.30, 0.057, 0.28, terra[Math.floor(random() * terra.length)],
-          0.18 + end * distance, 2.76 - distance * 0.49, z, -end * roofPitch);
-      }
+      const across = 0.18 + row * 0.307;
+      box(0.38, 0.048, 6.32 + (row % 2) * 0.10, roof, slope * across, 3.02 - across * 0.43,
+        (row % 3 - 1) * 0.032, -slope * 0.40);
     }
+    for (const end of [-1, 1]) box(2.21, 0.065, 0.064, frame, slope * 1.04, 2.49, end * 2.90, -slope * 0.39);
   }
-  box(1.35, 0.125, 6.38, terra[1], -2.09, 1.9, 0, 0.20);
-  box(0.15, 0.14, 6.58, terra[2], 0.18, 2.74, 0);
+  box(0.22, 0.14, 6.40, roof, 0, 3.03, 0);
   for (const [material, parts] of batches) {
-    const geometries = parts.map(part => part.index ? part.toNonIndexed() : part);
-    home.add(new T.Mesh(mergeGeometries(geometries), material));
-    for (const geometry of new Set([...parts, ...geometries])) geometry.dispose();
+    home.add(new T.Mesh(mergeGeometries(parts), material));
+    for (const geometry of parts) geometry.dispose();
   }
   root.add(home);
 }
@@ -370,10 +406,15 @@ export function buildTriTon(scene) {
     return seed / 4294967296;
   };
   sky(scene);
-  const root = new T.Group();
-  root.name = 'Mùa vàng Tri Tôn';
-  scene.add(root);
-  const land = color('#a5a348'), fallow = color('#dbb348'), path = color('#c3a067'), wet = color('#65845b');
+  const near = new T.Group();
+  near.name = 'Tri Tôn rice and irrigation';
+  const middle = new T.Group();
+  middle.name = 'Tri Tôn hamlets';
+  const backdrop = new T.Group();
+  backdrop.name = 'Bảy Núi';
+  scene.add(backdrop);
+  const daylight = { value: 0 };
+  const land = color('#c8ad37'), fallow = color('#dfb32a'), path = color('#c3a067'), wet = color('#65845b');
   const soil = painted({ emissive: '#494725', emissiveIntensity: 0.25 });
   const water = new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide, toneMapped: false });
   const earth = new Facets(), irrigated = new Facets();
@@ -381,52 +422,68 @@ export function buildTriTon(scene) {
   for (const side of [-1, 1]) {
     const groundPoint = (x, z) => [x * side, groundAt(x * side, z), z];
     for (let x = 4.2; x < 94; x += 0.78) {
-      for (let z = -66; z < 68; z += 1.26) {
+      const step = fieldLength / 105;
+      for (let row = 0; row < 105; row++) {
+        const z = -fieldHalf + row * step;
         const gap = Math.abs(x - canalCenter(z, side)) - (canalHalfWidth(z) - 1.67);
         const headland = (Math.floor((z + 61) / 9.5) !== Math.floor((z + 62.26) / 9.5) || (x > 30.1 && x < 31.5));
         const tone = gap < 2.16 ? wet : headland ? path : x > 26 ? fallow : land;
         const tint = tone.clone().multiplyScalar(0.85 + random() * 0.25 + Math.sin(x * 6.6) * 0.063);
         const a = groundPoint(x, z), b = groundPoint(x + 0.78, z);
-        const c = groundPoint(x + 0.78, z + 1.26), d = groundPoint(x, z + 1.26);
+        const c = groundPoint(x + 0.78, z + step), d = groundPoint(x, z + step);
         earth.triangle(a, b, c, tint);
         earth.triangle(a, c, d, tint.clone().multiplyScalar(0.94 + random() * 0.10));
       }
     }
-    for (let z = -66; z < 68; z += 0.83) {
+    const step = fieldLength / 160;
+    for (let index = 0; index < 160; index++) {
+      const z = -fieldHalf + index * step;
       for (let row = 0; row < 7; row++) {
         const a = -1.67 + row * (3.34 / 7), b = a + 3.34 / 7;
         const p = (offset, along) => [side * (canalCenter(along, side) + offset * canalHalfWidth(along) / 1.67), -0.63, along];
         const tint = deep.clone().lerp(blue, 0.22 + random() * 0.77);
         if (row === 0 || row === 6) tint.lerp(shore, 0.33);
-        irrigated.triangle(p(a, z), p(b, z), p(a, z + 0.83), tint);
-        irrigated.triangle(p(b, z), p(b, z + 0.83), p(a, z + 0.83), tint.clone().multiplyScalar(0.91));
+        irrigated.triangle(p(a, z), p(b, z), p(a, z + step), tint);
+        irrigated.triangle(p(b, z), p(b, z + step), p(a, z + step), tint.clone().multiplyScalar(0.91));
       }
     }
   }
-  root.add(new T.Mesh(earth.geometry(), soil), new T.Mesh(irrigated.geometry(), water));
+  near.add(new T.Mesh(earth.geometry(), soil), new T.Mesh(irrigated.geometry(), water));
 
   const bladeMaterial = painted({ emissive: '#b58c27', emissiveIntensity: 0.18 });
   bladeMaterial.onBeforeCompile = shader => {
+    shader.uniforms.riceTime = daylight;
+    shader.vertexShader = 'uniform float riceTime;\n' + shader.vertexShader.replace('#include <begin_vertex>', `
+      #include <begin_vertex>
+      #ifdef USE_INSTANCING
+        vec2 seed = instanceMatrix[3].xz;
+        float gust = sin(riceTime * 1.64 + seed.x * 0.44 + seed.y * 0.39);
+        transformed.x += transformed.y * transformed.y * gust * 0.085;
+        transformed.z += transformed.y * transformed.y * sin(riceTime * 1.14 + seed.y * 0.7) * 0.041;
+      #endif
+    `);
     shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `
-      outgoingLight = mix(outgoingLight, diffuseColor.rgb * 1.30, 0.42);
+      outgoingLight = mix(outgoingLight, diffuseColor.rgb * 1.59, 0.62);
       #include <opaque_fragment>
     `);
   };
   const pose = new T.Object3D();
-  const riceColors = ['#fff5ca', '#ffea9b', '#ffe895', '#f7df9e', '#fff8d6'].map(color);
+  const riceColors = ['#fffadd', '#ffe986', '#ffefaa', '#ffe972', '#fff5b2'].map(color);
   for (const side of [-1, 1]) {
-    for (const [min, max, spacing, far] of [[4.7, 23.8, 0.43, false], [23.8, 58, 0.72, true]]) {
-      const zLimit = far ? 54 : 34;
+    for (const [min, max, spacing, far] of [[4.7, 17.3, 0.45, false], [17.3, 58, 0.73, true]]) {
+      const zLimit = fieldHalf;
       const sectionLength = 12;
       const sectionCount = Math.ceil(zLimit * 2 / sectionLength);
       const fields = Array.from({ length: sectionCount }, () => [[], [], [], []]);
       const shapes = Array.from({ length: 4 }, (_, i) => riceClump(i, random, far));
       for (let row = min; row < max; row += spacing) {
-        for (let column = -zLimit; column < zLimit; column += spacing * 1.04) {
-          const z = column + (random() - 0.5) * spacing * 0.65;
-          const x = row + Math.sin(column * 0.13) * 0.22 + random() * spacing * 0.44;
+        const columns = Math.ceil(fieldLength / (spacing * 1.04));
+        const pitch = fieldLength / columns;
+        for (let column = 0; column < columns; column++) {
+          const z = -zLimit + (column + 0.18 + random() * 0.65) * pitch;
+          const x = row + Math.sin(z * fullTurn / fieldLength * 3) * 0.22 + random() * spacing * 0.44;
           const y = groundAt(side * x, z);
-          const boundary = (z + 66) % 9.5;
+          const boundary = (z + fieldHalf) % (fieldLength / 14);
           if (y < -0.42 || Math.abs(x - canalCenter(z, side)) < canalHalfWidth(z) + 0.74 ||
             boundary < 0.50 || (x > 30.0 && x < 31.75)) continue;
           const house = side === 1 ? Math.abs(x - 33) < 3.0 && Math.abs(z - 14) < 4.5
@@ -442,13 +499,14 @@ export function buildTriTon(scene) {
         placements.forEach(([x, y, z, scale], i) => {
           pose.position.set(x, y - 0.04, z);
           pose.rotation.set(0, random() * fullTurn, 0);
-          pose.scale.setScalar(scale);
+          const height = 1 + (1 - T.MathUtils.smoothstep(Math.abs(x), 5.0, 10.0)) * 0.22;
+          pose.scale.set(scale, scale * height, scale);
           pose.updateMatrix();
           rice.setMatrixAt(i, pose.matrix);
           rice.setColorAt(i, riceColors[Math.floor(random() * riceColors.length)]);
         });
         rice.computeBoundingSphere();
-        root.add(rice);
+        near.add(rice);
       });
     }
   }
@@ -472,50 +530,100 @@ export function buildTriTon(scene) {
       palm.position.set(px, y, pz);
       palm.scale.setScalar(size);
       palm.rotation.y = i * 1.81 + side * 0.78;
-      root.add(palm);
-      shadowSites.push([px, pz, 6.1 * size, 2.1 * size]);
+      const objects = x < 25 ? near : middle;
+      objects.add(palm);
+      shadowSites.push([objects, px, pz, 6.1 * size, 2.1 * size]);
     });
   }
+  const houseMaterials = bambooMaterials(random);
   for (const [x, z, side, size] of [[33, 14, 1, 0.94], [39, -14, 1, 0.85], [-33, 1, -1, 0.96]]) {
-    farmhouse(root, x, z, side, size, random);
-    shadowSites.push([x, z, 7.2 * size, 5.75 * size]);
+    farmhouse(middle, x, z, side, size, houseMaterials);
+    shadowSites.push([middle, x, z, 7.2 * size, 5.75 * size]);
   }
   for (const [x, z, s] of [[22.4, -5.5, 0.92], [30.8, 21.5, 1.13], [36, 16.5, 0.94],
     [44.5, -18.1, 0.95], [43.1, -16.0, 0.57], [-24.8, 3, 0.95], [-37, 15, 1.02]]) {
     if (groundAt(x, z) < -0.45) continue;
-    strawStack(root, x, z, s, random);
-    shadowSites.push([x, z, 3.4 * s, 2.0 * s]);
+    strawStack(middle, x, z, s, random);
+    shadowSites.push([middle, x, z, 3.4 * s, 2.0 * s]);
   }
-  outdoorShadows(root, shadowSites);
+  for (const layer of [near, middle]) {
+    outdoorShadows(layer, shadowSites.filter(([group]) => group === layer).map(([, ...site]) => site));
+  }
 
   const glints = new Facets(), reflected = color('#c2d9c9'), light = color('#e9dcc0');
   for (const side of [-1, 1]) {
     for (let i = 0; i < 126; i++) {
-      const z = -50 + random() * 98;
+      const z = -fieldHalf + 0.30 + random() * (fieldLength - 0.60);
       const x = side * (canalCenter(z, side) + (random() - 0.5) * canalHalfWidth(z) * 1.5);
       const w = 0.07 + random() * 0.20, h = random() * 0.05 + 0.021;
       glints.quad([x - w, -0.616, z], [x, -0.616, z + h], [x + w, -0.616, z],
         [x, -0.616, z - h], reflected.clone().lerp(light, random()));
     }
   }
-  root.add(new T.Mesh(glints.geometry(), water));
-  mountains(root, random);
+  near.add(new T.Mesh(glints.geometry(), water));
+  const ranges = new T.Group();
+  mountains(ranges, random);
+  backdrop.add(ranges);
 
-  const foliage = new T.IcosahedronGeometry(1, 1);
-  const forest = new T.InstancedMesh(foliage, matte('#91a473', 0.13), 142);
+  const foliage = new T.IcosahedronGeometry(1, 0);
+  const forest = new T.InstancedMesh(foliage, matte('#9caf84', 0.13), 408);
   const forestPalette = ['#96a665', '#718e56', '#a6ac76', '#6e8f64'].map(color);
   for (let i = 0; i < forest.count; i++) {
-    const side = i % 2 ? -1 : 1;
-    const z = -66 + Math.floor(i / 2) * 1.9 + random() * 2;
-    const x = side * (59 + random() * 12);
-    pose.position.set(x, groundAt(x, z) + 0.53, z);
-    pose.rotation.set(0, random() * fullTurn, 0);
-    pose.scale.set(1.2 + random() * 1.7, 0.63 + random() * 0.85, 1.1 + random() * 1.6);
+    const cluster = Math.floor(i / 3);
+    const side = cluster % 2 ? -1 : 1;
+    const z = -fieldHalf + (Math.floor(cluster / 2) + 0.5) * fieldLength / 68;
+    const x = side * (66 + Math.sin(cluster * 0.43) * 3 + random() * 4);
+    const size = 0.40 + random() * 0.75;
+    pose.position.set(x, groundAt(x, z) + 0.25 + size * 0.30, z + (random() - 0.5) * 1.8);
+    pose.rotation.set(random() * 0.31, random() * fullTurn, random() * 0.32);
+    pose.scale.set(size * (0.93 + random() * 0.4), size * 0.63, size);
     pose.updateMatrix();
     forest.setMatrixAt(i, pose.matrix);
     forest.setColorAt(i, forestPalette[i % forestPalette.length]);
   }
-  root.add(forest);
+  forest.computeBoundingSphere();
+  middle.add(forest);
+
+  const distantTrees = [];
+  for (const side of [-1, 1]) {
+    for (let group = 0; group < 18; group++) {
+      const z = -fieldHalf + (group + 0.57) * fieldLength / 18;
+      const x = side * (53 + random() * 7);
+      for (let i = 0; i < 3; i++) {
+        distantTrees.push([x + (random() - 0.5) * 4, z + (i - 1) * 1.11, 0.68 + random() * 0.63]);
+      }
+      if (group % 4 === 1) {
+        const palm = new T.Mesh(palmGeometries[group % 3], palmMaterial);
+        palm.position.set(x + side * 4.4, groundAt(x + side * 4.4, z), z + 2.0);
+        palm.rotation.y = group * 1.67;
+        palm.scale.setScalar(0.51 + random() * 0.19);
+        middle.add(palm);
+      }
+    }
+  }
+  const smallTrunks = new T.InstancedMesh(new T.CylinderGeometry(0.042, 0.078, 0.97, 5).translate(0, 0.48, 0),
+    matte('#817351', 0.12), distantTrees.length);
+  const distantLeaves = new T.InstancedMesh(new T.IcosahedronGeometry(1, 0), matte('#b0b67c', 0.20),
+    distantTrees.length * 3);
+  distantTrees.forEach(([x, z, size], i) => {
+    const y = groundAt(x, z);
+    pose.position.set(x, y, z);
+    pose.rotation.set(0, 0, (random() - 0.5) * 0.16);
+    pose.scale.setScalar(size);
+    pose.updateMatrix();
+    smallTrunks.setMatrixAt(i, pose.matrix);
+    for (let lobe = 0; lobe < 3; lobe++) {
+      pose.position.set(x + Math.cos(lobe * 2.4 + i) * 0.34 * size,
+        y + (0.92 + random() * 0.39) * size, z + (lobe - 1) * 0.32 * size);
+      pose.scale.set(size * (0.37 + random() * 0.23), size * 0.48, size * 0.47);
+      pose.updateMatrix();
+      distantLeaves.setMatrixAt(i * 3 + lobe, pose.matrix);
+      distantLeaves.setColorAt(i * 3 + lobe, forestPalette[(i + lobe) % forestPalette.length]);
+    }
+  });
+  smallTrunks.computeBoundingSphere();
+  distantLeaves.computeBoundingSphere();
+  middle.add(smallTrunks, distantLeaves);
 
   const cloudPositions = [[87, 19.5, -29, 3.4], [90, 25.1, -14, 4.1], [97, 19.9, 7, 2.1],
     [110, 24.4, 29, 3.6], [108, 20.1, 46, 3.24], [93, 22.6, -56, 2.8]];
@@ -538,7 +646,7 @@ export function buildTriTon(scene) {
       }
     });
   }
-  root.add(clouds);
+  backdrop.add(clouds);
 
   const wings = new Facets(), white = color('#fff1da');
   for (const side of [-1, 1]) {
@@ -549,6 +657,26 @@ export function buildTriTon(scene) {
       wings.triangle(p(0, 0, 0), p(-0.21, 0.06, 0.26), p(0.12, 0.31, 0.51), white);
     }
   }
-  root.add(new T.Mesh(wings.geometry(), new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide })));
-  return { layers: [] };
+  backdrop.add(new T.Mesh(wings.geometry(), new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide })));
+  function repeat(tile, speed) {
+    const strip = new T.Group();
+    strip.name = tile.name;
+    for (let i = -2; i <= 2; i++) {
+      const copy = tile.clone();
+      copy.position.z = i * fieldLength;
+      strip.add(copy);
+    }
+    scene.add(strip);
+    return { strip, length: fieldLength, speed };
+  }
+
+  const layers = [repeat(near, 6.9), repeat(middle, 3.0)];
+  return {
+    layers,
+    animateAmbient(time) {
+      daylight.value = time;
+      clouds.position.z = Math.sin(time * 0.023) * 14;
+      ranges.position.z = Math.sin(time * 0.018) * 3.5;
+    },
+  };
 }
