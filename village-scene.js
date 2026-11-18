@@ -560,7 +560,7 @@ function buildScenery(kit) {
           const z = driftZ + along * spreadZ;
           const bow = Math.sin(along * 2.1) * spreadX * 0.54;
           const x = centerX + Math.cos(angle) * radius * spreadX + bow;
-          if (!distant && side === 1 && x < 16.2) continue;
+          if (!distant && x < 16.2) continue;
           if (x < minX + 0.75 || x > maxX - 0.7) continue;
           if (!distant && Math.abs(x - riverCenter(z, length, side)) < 5.1) continue;
           dummy.position.set(side * x, terrain(x, z, length, side, distant), z);
@@ -714,7 +714,8 @@ function buildScenery(kit) {
     }
   });
   const near = layers[0];
-  const studyTile = plantExteriorStudy(scene, kit, (x, z) => terrain(x, z, near.length, 1, x > 36), near.length);
+  const studyTile = plantExteriorStudy(scene, kit,
+    (x, z) => terrain(Math.abs(x), z, near.length, Math.sign(x), Math.abs(x) > 36), near.length);
   for (const tile of near.strip.children) tile.add(studyTile.clone());
   scene.remove(studyTile);
   return { layers, driftPetals };

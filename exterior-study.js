@@ -134,21 +134,23 @@ export function plantExteriorStudy(scene, kit, ground, length) {
   const halfLength = length / 2;
   const sectionCount = Math.ceil(length / 12);
   const sectionLength = length / sectionCount;
-  const sections = Array.from({ length: sectionCount }, () => []);
+  const sections = Array.from({ length: sectionCount * 2 }, () => []);
   const columns = Math.ceil(length / 0.52);
   const spacing = length / columns;
   const cream = new T.Color('#fff1d6');
-  for (let row = 0; row < 30; row++) {
-    for (let column = 0; column < columns; column++) {
-      const z = -halfLength + (column + 0.2 + random() * 0.65) * spacing;
-      const phase = z * Math.PI * 2 / length;
-      const x = 5.78 + row * 0.33 + 0.52 * Math.sin(phase * 2) + 0.14 * random();
-      if (ground(x, z) < -0.52) continue;
-      const band = row < 6 && random() < 0.56 ? (random() < 0.68 ? 0 : 3) :
-        Math.floor(row / 3.6 + 1.05 * Math.sin(phase) + 2) % colors.length;
-      const tint = new T.Color(colors[band]).lerp(cream, random() * 0.16);
-      const section = Math.floor((z + halfLength) / sectionLength);
-      sections[section].push([x, z, 0.69 + random() * 0.44, random() * Math.PI * 2, tint]);
+  for (const side of [1, -1]) {
+    for (let row = 0; row < 30; row++) {
+      for (let column = 0; column < columns; column++) {
+        const z = -halfLength + (column + 0.2 + random() * 0.65) * spacing;
+        const phase = z * Math.PI * 2 / length;
+        const x = side * (5.78 + row * 0.33 + 0.52 * Math.sin(phase * 2) + 0.14 * random());
+        if (ground(x, z) < -0.52) continue;
+        const band = row < 6 && random() < 0.56 ? (random() < 0.68 ? 0 : 3) :
+          Math.floor(row / 3.6 + 1.05 * Math.sin(phase) + 2) % colors.length;
+        const tint = new T.Color(colors[band]).lerp(cream, random() * 0.16);
+        const section = Math.floor((z + halfLength) / sectionLength);
+        sections[section + (side < 0 ? sectionCount : 0)].push([x, z, 0.69 + random() * 0.44, random() * Math.PI * 2, tint]);
+      }
     }
   }
   const leaf = new T.PlaneGeometry(0.21, 0.51, 2, 4);
