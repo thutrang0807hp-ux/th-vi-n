@@ -471,11 +471,6 @@ function buildScenery(kit) {
     bloomPositions.setY(i, bloomPositions.getY(i) + Math.cos(angle * 6) * 0.013);
   }
   bloom.computeVertexNormals();
-  const distantBloom = new T.LatheGeometry([
-    new T.Vector2(0.023, 0.50), new T.Vector2(0.13, 0.55),
-    new T.Vector2(0.15, 0.65), new T.Vector2(0.115, 0.72)
-  ], 6);
-
   const waterLevel = -0.62;
   const riverMaterial = new T.MeshStandardMaterial({
     color: '#91d9d2', emissive: '#2a647d', emissiveIntensity: 0.22,
@@ -537,16 +532,6 @@ function buildScenery(kit) {
     const dummy = new T.Object3D();
     const tint = new T.Color();
     for (const side of [-1, 1]) {
-      const drifts = distant
-        ? [[39, -30, 4.6, 14, 0], [48, 8, 5.4, 23, 3], [59, 32, 6.5, 17, 2], [64, -15, 4.3, 19, 1]]
-        : [[7.5, -28, 2.4, 13, 0], [9.6, -8, 2.8, 10, 1], [7.2, 14, 2.6, 12, 3],
-          [11.1, 29, 2.2, 12, 2], [27, -19, 3.1, 15, 1], [29.7, 10, 3.0, 17, 0]];
-      const perDrift = distant ? 175 : 235;
-      const blooms = new T.InstancedMesh(distant ? distantBloom : bloom, petalMaterial, drifts.length * perDrift);
-      const stems = distant ? null : new T.InstancedMesh(stem, stemMaterial, blooms.count);
-      const blades = distant ? null : new T.InstancedMesh(blade, leaves, blooms.count);
-      let index = 0;
-
       const ground = new T.PlaneGeometry(length, maxX - minX, 84, distant ? 12 : 30);
       const nodes = ground.attributes.position;
       const colors = [];
@@ -563,6 +548,14 @@ function buildScenery(kit) {
       ground.computeVertexNormals();
       mesh(ground, pasture, 0, 0, 0);
 
+      if (distant) continue;
+      const drifts = [[27, -19, 3.1, 15, 1], [29.7, 10, 3.0, 17, 0]];
+      const perDrift = 235;
+      const blooms = new T.InstancedMesh(bloom, petalMaterial, drifts.length * perDrift);
+      const stems = new T.InstancedMesh(stem, stemMaterial, blooms.count);
+      const blades = new T.InstancedMesh(blade, leaves, blooms.count);
+      let index = 0;
+
       for (const [centerX, centerZ, spreadX, spreadZ, color] of drifts) {
         const driftZ = centerZ + side * 4.5;
         for (let n = 0; n < perDrift; n++) {
@@ -572,19 +565,19 @@ function buildScenery(kit) {
           const z = driftZ + along * spreadZ;
           const bow = Math.sin(along * 2.1) * spreadX * 0.54;
           const x = centerX + Math.cos(angle) * radius * spreadX + bow;
-          if (!distant && x < 16.2) continue;
+          if (x < 16.2) continue;
           if (x < minX + 0.75 || x > maxX - 0.7) continue;
-          if (!distant && Math.abs(x - riverCenter(z, length, side)) < 5.1) continue;
-          dummy.position.set(side * x, terrain(x, z, length, side, distant), z);
-          const scale = (distant ? 1.32 : 0.84) + random() * 0.46;
+          if (Math.abs(x - riverCenter(z, length, side)) < 5.1) continue;
+          dummy.position.set(side * x, terrain(x, z, length, side, false), z);
+          const scale = 0.84 + random() * 0.46;
           dummy.scale.set(scale, scale * (0.78 + random() * 0.38), scale);
           dummy.rotation.set((random() - 0.5) * 0.36, random() * Math.PI * 2, (random() - 0.5) * 0.30);
           dummy.updateMatrix();
           blooms.setMatrixAt(index, dummy.matrix);
           tint.copy(palette[color]).lerp(palette[4], random() * 0.29).multiplyScalar(0.90 + random() * 0.16);
           blooms.setColorAt(index, tint);
-          stems?.setMatrixAt(index, dummy.matrix);
-          blades?.setMatrixAt(index, dummy.matrix);
+          stems.setMatrixAt(index, dummy.matrix);
+          blades.setMatrixAt(index, dummy.matrix);
           index++;
         }
       }
@@ -703,25 +696,13 @@ function buildScenery(kit) {
 
   const ridgeMaterials = ['#8fac77', '#a8bd88', '#b4c991'].map(color => material(color, 1));
   const roundedHill = new T.SphereGeometry(1, 18, 9);
-  const springCanopies = ['#eaa5b7', '#f3bfcc', '#f4d0d3'].map(color => material(color));
-  const treeTrunk = material('#85654f');
-  const canopy = new T.IcosahedronGeometry(1, 1);
   loop(120, 0.8, 2, length => {
     for (const side of [-1, 1]) {
       for (let i = 0; i < 8; i++) {
         const z = -length / 2 + (i + 0.5) * length / 8;
         mesh(roundedHill, ridgeMaterials[i % 3], side * (80 + random() * 20), -1.75, z)
           .scale.set(22 + random() * 9, 4.5 + random() * 5.5, 14 + random() * 12);
-        for (let j = 0; j < 3; j++) {
-          const x = side * (71 + random() * 8);
-          const along = z + (random() - 0.5) * 8;
-          const size = 0.82 + random() * 0.68;
-          cylinder(0.095, 0.13, size * 1.65, treeTrunk, x, size * 0.81, along);
-          const crown = springCanopies[(i + j) % springCanopies.length];
-          mesh(canopy, crown, x, size * 1.85, along).scale.set(size, size * 1.18, size);
-          mesh(canopy, crown, x + side * size * 0.38, size * 1.62, along + size * 0.51)
-            .scale.set(size * 0.79, size * 0.84, size * 0.86);
-        }
+
       }
     }
   });

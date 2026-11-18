@@ -86,6 +86,41 @@ function grassCard() {
   })];
 }
 
+function distantCherryCard() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 160;
+  canvas.height = 144;
+  const ctx = canvas.getContext('2d');
+  ctx.filter = 'blur(1px)';
+  ctx.fillStyle = '#655052';
+  ctx.beginPath();
+  ctx.moveTo(72, 144);
+  ctx.lineTo(78, 97);
+  ctx.lineTo(69, 76);
+  ctx.lineTo(57, 61);
+  ctx.lineTo(83, 83);
+  ctx.lineTo(102, 65);
+  ctx.lineTo(88, 95);
+  ctx.lineTo(85, 144);
+  ctx.closePath();
+  ctx.fill();
+  const crowns = [[39, 66, 29, 20], [115, 67, 33, 21], [63, 51, 34, 26],
+    [97, 44, 32, 26], [76, 33, 28, 25], [76, 72, 37, 24], [110, 54, 23, 16]];
+  for (const [x, y, rx, ry] of crowns) {
+    const color = ctx.createLinearGradient(x - rx * 0.35, y - ry, x + rx * 0.35, y + ry);
+    color.addColorStop(0, '#f3cbcf');
+    color.addColorStop(0.50, '#dba6b4');
+    color.addColorStop(1, '#b7849b');
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.ellipse(x, y, rx, ry, -0.15, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const map = new T.CanvasTexture(canvas);
+  map.colorSpace = T.SRGBColorSpace;
+  return new T.MeshBasicMaterial({ map, alphaTest: 0.43, side: T.DoubleSide, toneMapped: false });
+}
+
 export function plantExteriorStudy(scene, kit, ground, length) {
   const root = new T.Group();
   root.name = 'Tulip meadow tile';
@@ -336,6 +371,23 @@ export function plantExteriorStudy(scene, kit, ground, length) {
   trunks.computeBoundingSphere();
   sprays.computeBoundingSphere();
   root.add(trunks, sprays);
+
+  const distantRows = 2, distantTreesPerRow = 26;
+  const silhouette = new T.InstancedMesh(new T.PlaneGeometry(4.8, 4.3).translate(0, 2.04, 0),
+    distantCherryCard(), 2 * distantRows * distantTreesPerRow);
+  let distantIndex = 0;
+  for (const side of [-1, 1]) {
+    for (let row = 0; row < distantRows; row++) {
+      for (let i = 0; i < distantTreesPerRow; i++) {
+        const z = -halfLength + (i + 0.3 + row * 0.42 + random() * 0.26) * length / distantTreesPerRow;
+        const x = side * (56 + row * 9 + random() * 4.2);
+        put(silhouette, distantIndex++, x, ground(x, z), z,
+          0.62 + random() * 0.58, Math.PI / 2 + (random() - 0.5) * 0.22);
+      }
+    }
+  }
+  silhouette.computeBoundingSphere();
+  root.add(silhouette);
 
   const millX = 27, millZ = -3.9;
   const base = ground(millX, millZ);
