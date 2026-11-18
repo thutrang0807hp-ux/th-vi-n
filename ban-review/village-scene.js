@@ -298,8 +298,8 @@ function boothPadding(x, back, direction) {
 function buildBooths() {
   const seats = [];
   const tableLamps = [];
-  const tableLights = Array.from({ length: 3 }, () => new T.PointLight('#ffd3a0', 0, 1.85));
-  scene.add(...tableLights);
+  const tableLight = new T.PointLight('#ffd3a0', 0, 1.85);
+  scene.add(tableLight);
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 64;
   const ctx = canvas.getContext('2d');
@@ -337,7 +337,7 @@ function buildBooths() {
     const lampZ = z - 0.20;
     const shade = reviewFinishes().silk.clone();
     tableLamp(lampX, lampZ, shade);
-    tableLamps.push({ x: lampX, z: lampZ, shade, on: true, level: 0.42 });
+    tableLamps.push({ x: lampX, z: lampZ, shade, on: false, level: 0.42 });
     const books = new T.Group();
     const booksX = x + side * 0.23;
     for (let i = 0; i < 2; i++) {
@@ -354,7 +354,7 @@ function buildBooths() {
       seats.push({ side, direction, x, z: z + direction * seatOffset, lampX, lampZ, books });
     }
   }
-  return { seats, tableLights, tableLamps };
+  return { seats, tableLight, tableLamps };
 }
 
 function buildBulkhead(z, facesFront) {
@@ -1543,14 +1543,14 @@ export async function start({ buildExterior } = {}) {
   finishMaterials();
   const firstCabinObject = scene.children.length;
   buildShell();
-  const { seats, tableLights, tableLamps } = buildBooths();
+  const { seats, tableLight, tableLamps } = buildBooths();
   buildBulkhead(-17.33, false);
   buildBulkhead(13.42, true);
   const cabinObjects = scene.children.slice(firstCabinObject);
   const cabinLights = [];
   const cabinMaterials = new Map();
   for (const item of cabinObjects) item.traverse(object => {
-    if (object.isPointLight && !tableLights.includes(object)) {
+    if (object.isPointLight && object !== tableLight) {
       cabinLights.push({ light: object, intensity: object.intensity });
     }
     if (!object.isMesh) return;
@@ -1572,12 +1572,12 @@ export async function start({ buildExterior } = {}) {
   }
   const avatar = buildMascot();
   cabin?.add(avatar.mascot, avatar.props);
-  play(renderer, avatar, scenery, cabin, seats, { tableLights, tableLamps, cabinLights, cabinMaterials });
+  play(renderer, avatar, scenery, cabin, seats, { tableLight, tableLamps, cabinLights, cabinMaterials });
   status.remove();
 }
 
 function play(renderer, avatar,
-  { layers, animateAmbient, sceneryFrameLimit = 0.08, trainSpeed = 0 }, cabin, seats, { tableLights, tableLamps, cabinLights, cabinMaterials }) {
+  { layers, animateAmbient, sceneryFrameLimit = 0.08, trainSpeed = 0 }, cabin, seats, { tableLight, tableLamps, cabinLights, cabinMaterials }) {
   const { mascot, feet, arms } = avatar;
   const motionButton = document.querySelector('#motion-toggle');
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1622,6 +1622,7 @@ function play(renderer, avatar,
   const impact = new T.Vector3();
   const projected = new T.Vector3();
   let selectedLamp;
+  let litLamp;
   let cabinBrightness = 1;
   const lampPreference = 'lofi:cabin-light';
   try {
@@ -1669,8 +1670,16 @@ function play(renderer, avatar,
 
   lampSwitch.addEventListener('click', () => {
     if (!selectedLamp) return;
-    selectedLamp.on = !selectedLamp.on;
-    refreshTableLamp(selectedLamp);
+    const next = selectedLamp === litLamp ? undefined : selectedLamp;
+    if (litLamp) {
+      litLamp.on = false;
+      refreshTableLamp(litLamp);
+    }
+    litLamp = next;
+    if (litLamp) {
+      litLamp.on = true;
+      refreshTableLamp(litLamp);
+    }
     syncLampTool();
   });
   lampLevel.addEventListener('input', () => {
@@ -1921,16 +1930,10 @@ function play(renderer, avatar,
     const nearest = closestSeat(position);
     nearbySeat = !seated && nearest.distanceSquared <= seatReachSquared ? nearest.seat : undefined;
     seatHint.hidden = !nearbySeat;
-    const litLamps = tableLamps.filter(lamp => lamp.on && lamp.level > 0)
-      .map(lamp => ({ lamp, distance: (lamp.x - position.x) ** 2 + (lamp.z - position.z) ** 2 }))
-      .sort((a, b) => a.distance - b.distance);
-    for (const [i, light] of tableLights.entries()) {
-      const nearby = litLamps[i];
-      light.intensity = nearby ? nearby.lamp.level * 4.2 : 0;
-      if (nearby) light.position.set(nearby.lamp.x, 1.33, nearby.lamp.z);
-    }
-    const nearby = litLamps[0];
-    const lampFill = nearby ? nearby.lamp.level * Math.max(0, 1 - Math.sqrt(nearby.distance) / 2.1) : 0;
+    tableLight.intensity = litLamp ? litLamp.level * 4.2 : 0;
+    if (litLamp) tableLight.position.set(litLamp.x, 1.33, litLamp.z);
+    const lampFill = litLamp ? litLamp.level
+      * Math.max(0, 1 - Math.hypot(litLamp.x - position.x, litLamp.z - position.z) / 2.1) : 0;
     avatar.setLighting(Math.min(1, cabinBrightness + lampFill * 0.60));
 
     const cameraMoving = follow.distanceToSquared(position) > 0.000002;

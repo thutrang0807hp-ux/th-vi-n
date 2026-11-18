@@ -45,7 +45,7 @@
       </div>
     </details>
     <div id="table-lamp-tool" aria-label="Đèn bàn đang nhìn" hidden>
-      <button id="bay-lamp-switch" type="button" aria-pressed="true">Tắt đèn bàn</button>
+      <button id="bay-lamp-switch" type="button" aria-pressed="false">Bật đèn bàn</button>
       <label for="bay-lamp-level">Độ sáng đèn bàn</label>
       <input id="bay-lamp-level" type="range" min="0" max="100" value="42">
     </div>
@@ -128,7 +128,7 @@
     window.addEventListener('pageshow', () => { picker.value = scene; });
 
     try {
-      const { start } = await import('../village-scene.js?v=pov-table-light');
+      const { start } = await import('../village-scene.js?v=one-table-light');
       if (scene === 'tri-ton') {
         const { buildTriTon } = await import('../tri-ton-scene.js');
         document.querySelector('.route').textContent = '— Mùa vàng Tri Tôn';
