@@ -99,7 +99,9 @@ export function mountFocusSound(panel, { moving, route }) {
     const element = new Audio();
     element.loop = true;
     element.preload = 'none';
-    element.src = view.dataset.audioBase + 'focus-' + channel.id + '.ogg';
+    const base = view.dataset.audioBase + 'focus-' + channel.id;
+    let usingOgg = Boolean(element.canPlayType('audio/ogg; codecs="opus"'));
+    element.src = base + (usingOgg ? '.ogg' : '.mp3');
     element.volume = 0;
     channel.element = element;
     if (context && master) {
@@ -118,7 +120,14 @@ export function mountFocusSound(panel, { moving, route }) {
       if (channel.wanted) setChannelStatus(channel,'Đang phát');
     });
     element.addEventListener('error', () => {
-      if (channel.wanted) setChannelStatus(channel,'Lỗi tải âm thanh');
+      if (!channel.wanted || channel.element !== element) return;
+      if (usingOgg) {
+        usingOgg = false;
+        element.src = base + '.mp3';
+        apply(channel,true);
+      } else {
+        setChannelStatus(channel,'Lỗi tải âm thanh');
+      }
     });
   }
 
@@ -221,7 +230,13 @@ export function mountFocusSound(panel, { moving, route }) {
   });
   toggle.addEventListener('click', () => {
     if (playing) playing = false;
-    else activate();
+    else {
+      if (!Object.values(state.channels).some(channel => channel.on)) {
+        state.channels.lofi.on = true;
+        remember();
+      }
+      activate();
+    }
     applyAll(true);
   });
   function choosePreset(id) {
@@ -272,6 +287,7 @@ export function mountFocusSound(panel, { moving, route }) {
     navigatingAway = false;
     applyAll();
   });
+  mountYouTube(view);
   applyAll();
   const mixer = {
     setTrainMoving(value) {
@@ -281,4 +297,80 @@ export function mountFocusSound(panel, { moving, route }) {
   };
   mountedMixers.set(panel,mixer);
   return mixer;
+}
+
+export function parseYouTubeLink(value) {
+  let url;
+  try { url = new URL(value.trim()); } catch { return null; }
+  if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password || url.port) return null;
+  const [path, segment] = url.pathname.split('/').filter(Boolean);
+  let id;
+  if (url.hostname === 'youtu.be') id = path;
+  else if (['youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com'].includes(url.hostname)) {
+    if (path === 'watch') id = url.searchParams.get('v');
+    else if (['shorts', 'live', 'embed'].includes(path)) id = segment;
+  } else return null;
+  const playlist = url.searchParams.get('list');
+  const video = /^[A-Za-z0-9_-]{11}$/.test(id ?? '') ? id : null;
+  const list = /^[A-Za-z0-9_-]{10,80}$/.test(playlist ?? '') ? playlist : null;
+  if (!video && !list) return null;
+  const embed = new URL('https://www.youtube.com/embed/' + (video ?? 'videoseries'));
+  const direct = new URL('https://www.youtube.com/' + (video ? 'watch' : 'playlist'));
+  if (video) direct.searchParams.set('v',video);
+  if (list) {
+    embed.searchParams.set('list',list);
+    direct.searchParams.set('list',list);
+  }
+  embed.searchParams.set('playsinline','1');
+  return { embed:embed.href, direct:direct.href };
+}
+
+function mountYouTube(view) {
+  const form = view.querySelector('#focus-youtube-form');
+  const input = view.querySelector('#focus-youtube-url');
+  const status = view.querySelector('#focus-youtube-status');
+  let dock;
+  form.addEventListener('submit',event => {
+    event.preventDefault();
+    const link = parseYouTubeLink(input.value);
+    if (!link) {
+      status.textContent = 'Hãy dán link video hoặc danh sách phát YouTube hợp lệ.';
+      input.focus();
+      return;
+    }
+    status.textContent = '';
+    dock?.remove();
+    dock = document.createElement('section');
+    dock.className = 'youtube-dock';
+    dock.setAttribute('aria-label','Trình phát YouTube');
+    const controls = document.createElement('div');
+    const open = document.createElement('a');
+    open.href = link.direct;
+    open.target = '_blank';
+    open.rel = 'noopener noreferrer';
+    open.textContent = 'Mở trên YouTube';
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = 'Đóng';
+    close.addEventListener('click',() => {
+      dock.remove();
+      dock = undefined;
+      document.querySelector('#focus-toggle')?.focus();
+    });
+    const frame = document.createElement('iframe');
+    frame.src = link.embed;
+    frame.title = 'Trình phát YouTube';
+    frame.allow = 'encrypted-media; picture-in-picture; fullscreen';
+    frame.allowFullscreen = true;
+    frame.referrerPolicy = 'strict-origin-when-cross-origin';
+    controls.append(open,close);
+    dock.append(controls,frame);
+    document.querySelector('main').append(dock);
+    view.closest('dialog').close();
+    close.focus();
+  });
+  window.addEventListener('pagehide',() => {
+    dock?.remove();
+    dock = undefined;
+  });
 }

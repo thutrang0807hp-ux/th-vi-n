@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lofi Train — Thung lũng Tulip</title>
   <meta name="color-scheme" content="dark">
-  <link rel="stylesheet" href="../lounge.css?v=focus-integrated">
+  <link rel="stylesheet" href="../lounge.css?v=youtube-audio">
 <style>
 #table-lamp-tool { position: fixed; z-index: 5; width: 152px; padding: 9px;
   border: 1px solid #bd9468; border-radius: 11px; background: #291c17f4;
@@ -234,6 +234,14 @@
           <button id="focus-sound-recommendation" type="button" hidden>Thử bộ âm Bờ biển thư giãn</button>
         </div>
         <p id="focus-audio-status" role="status"></p>
+        <form id="focus-youtube-form" class="sound-youtube" novalidate>
+          <label for="focus-youtube-url">YouTube</label>
+          <div>
+            <input id="focus-youtube-url" type="url" placeholder="Dán link YouTube" autocomplete="off" required>
+            <button type="submit">Mở</button>
+          </div>
+          <small id="focus-youtube-status" role="status"></small>
+        </form>
         <div id="focus-audio-list" aria-label="Các lớp âm thanh"></div>
       </section>
     </dialog>
@@ -252,7 +260,7 @@
     window.addEventListener('pageshow', () => { picker.value = scene; });
 
     try {
-      const { start } = await import('../village-scene.js?v=focus-integrated');
+      const { start } = await import('../village-scene.js?v=youtube-audio');
       if (scene === 'tri-ton') {
         const { buildTriTon } = await import('../tri-ton-scene.js');
         document.querySelector('.route').textContent = '— Mùa vàng Tri Tôn';
