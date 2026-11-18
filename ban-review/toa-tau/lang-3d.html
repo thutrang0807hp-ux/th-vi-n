@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lofi Train — Thung lũng Tulip</title>
   <meta name="color-scheme" content="dark">
-  <link rel="stylesheet" href="../lounge.css?v=audio-phase3">
+  <link rel="stylesheet" href="../lounge.css?v=companion-phase4">
 <style>
 #table-lamp-tool { position: fixed; z-index: 5; width: 152px; padding: 9px;
   border: 1px solid #bd9468; border-radius: 11px; background: #291c17f4;
@@ -157,6 +157,12 @@
         <label>Hoạt động Mochi <select id="focus-activity"></select></label>
         <label>Phong cảnh <select id="focus-route"></select></label>
       </div>
+      <details class="focus-timer-settings focus-companion-settings">
+        <summary>Mochi đồng hành</summary>
+        <label><input id="focus-companion-enabled" type="checkbox" checked> Phản ứng theo phiên</label>
+        <label class="focus-companion-level">Mức cử động <input id="focus-companion-intensity" type="range" min="0" max="100" value="45"></label>
+        <p id="focus-companion-state" role="status">Đang thư giãn</p>
+      </details>
       </section>
       <section data-focus-view="tasks" aria-label="Công việc" hidden>
         <div class="planner-actions">
@@ -243,7 +249,7 @@
     window.addEventListener('pageshow', () => { picker.value = scene; });
 
     try {
-      const { start } = await import('../village-scene.js?v=audio-phase3');
+      const { start } = await import('../village-scene.js?v=companion-phase4');
       if (scene === 'tri-ton') {
         const { buildTriTon } = await import('../tri-ton-scene.js');
         document.querySelector('.route').textContent = '— Mùa vàng Tri Tôn';

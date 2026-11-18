@@ -1,3 +1,4 @@
+import { mountFocusCompanion } from './focus/companion.js';
 import { mountFocusSound } from './focus/sound.js';
 import { mountFocusTimer } from './focus/timer.js';
 import { mountFocusPlanner } from './focus/planner.js';
@@ -1108,11 +1109,13 @@ function createMochiAnimator(mascot, pose, upper, head, arms, feet, showFace) {
   let gestureName;
   let gestureTime = 0;
   let gestureWeight = 0;
+  let gestureStrength = 1;
 
-  function cue(name) {
+  function cue(name,strength = 1) {
     gesture?.stop();
     gesture = gestures[name];
     gestureName = name;
+    gestureStrength = strength;
     gestureTime = 0;
     gestureWeight = 0;
     gesture?.reset().setEffectiveWeight(0).play();
@@ -1189,7 +1192,7 @@ function createMochiAnimator(mascot, pose, upper, head, arms, feet, showFace) {
       gestureTime += dt;
       const duration = gesture.getClip().duration;
       const envelope = smoothstep(gestureTime, 0, .14) * (1 - smoothstep(gestureTime, duration - .17, duration));
-      gestureWeight = damp(gestureWeight, envelope * (1 - smoothstep(strideWeight, .1, .55)), 20, dt);
+      gestureWeight = damp(gestureWeight, gestureStrength * envelope * (1 - smoothstep(strideWeight, .1, .55)), 20, dt);
       gesture.setEffectiveWeight(gestureWeight);
       if (gestureTime > duration + .16) cue(null);
     }
@@ -1408,6 +1411,7 @@ function buildMascot() {
 
   function setActivity(activity) {
     headPivot.rotation.set(0, 0, 0);
+    body.scale.y = 1;
     arms.forEach((shoulder, index) => {
       const arm = shoulder.children[0];
       const rest = armRest[index];
@@ -1461,9 +1465,44 @@ function buildMascot() {
       }
     }
   }
+  const neutralHead = new T.Quaternion();
+  function softenActivity(weight, activity) {
+    props.visible = Boolean(variants[activity]) && weight > 0.80;
+    if (weight >= 1) return;
+    headPivot.quaternion.slerp(neutralHead,1-weight);
+    for (const [index,shoulder] of arms.entries()) {
+      const arm = shoulder.children[0];
+      const rest = armRest[index];
+      arm.position.lerp(rest.position,1-weight);
+      arm.quaternion.slerp(rest.rotation,1-weight);
+      arm.scale.y = T.MathUtils.lerp(rest.length,arm.scale.y,weight);
+    }
+  }
+
+  function restCompanion(phase,time,strength,windowSide,dt) {
+    const { damp, smoothstep } = T.MathUtils;
+    const rhythm = cycles => time % cycles;
+    const stretch = phase === 'short'
+      ? smoothstep(time,.4,1.45)*(1-smoothstep(time,1.64,2.65)) : 0;
+    const yawn = phase === 'short' && time>1.12 && time<1.95;
+    const asleep = phase === 'long' && rhythm(32)>8 && rhythm(32)<27;
+    const towardWindow = phase === 'short' || phase === 'long';
+    body.scale.y = damp(body.scale.y,1+Math.sin(time*1.8)*.009*strength,5,dt);
+    const nod = asleep ? -.21 : -.025 + Math.sin(time*.68)*.026;
+    headPivot.rotation.x = damp(headPivot.rotation.x,nod*strength,5,dt);
+    headPivot.rotation.y = damp(headPivot.rotation.y, towardWindow ? windowSide*.28*strength : 0,3.2,dt);
+    headPivot.rotation.z = damp(headPivot.rotation.z,(asleep ? windowSide*.095 : 0)*strength,3.9,dt);
+    for (const [index,arm] of arms.entries()) {
+      arm.rotation.x = damp(arm.rotation.x,.10 + stretch*.42*strength,6,dt);
+      arm.rotation.z = damp(arm.rotation.z,(index===0 ? -1 : 1)*stretch*.34*strength,6,dt);
+    }
+    if (strength >= .23 && (yawn || asleep)) return yawn ? 'yawn' : 'sleepy';
+    return null;
+  }
+
   setActivity('idle');
   return { mascot, feet, arms, props, applyStyle, setActivity, animateActivity, animator, setLighting,
-    cueExpression: () => animator.cue(selectedExpression), showFace };
+    cueExpression: () => animator.cue(selectedExpression), showFace, softenActivity, restCompanion };
 }
 
 function setupMascotCustomizer(avatar, renderer, onChange, onOpen) {
@@ -1622,6 +1661,8 @@ function play(renderer, avatar,
   let currentSeat;
   let nearbySeat;
   let activity = 'idle';
+  let renderedActivity = 'idle';
+  let manualActivity = false;
   let activityTime = 0;
   let yaw = 0;
   let pitch = 0;
@@ -1774,6 +1815,9 @@ function play(renderer, avatar,
       currentSeat.books.visible = true;
       currentSeat = undefined;
       activity = 'idle';
+      renderedActivity = 'idle';
+      manualActivity = false;
+      focusCompanion.reset();
       activityPicker.value = activity;
       focusActivity.value = activity;
       avatar.setActivity(activity);
@@ -1812,6 +1856,9 @@ function play(renderer, avatar,
     activity = activityPicker.value;
     focusActivity.value = activity;
     if (activity !== 'idle' && !seated) toggleSeat();
+    manualActivity = seated;
+    focusCompanion.reset();
+    renderedActivity = activity;
     activityTime = 0;
     avatar.setActivity(activity);
     if (currentSeat) currentSeat.books.visible = !['read', 'write', 'work', 'plan'].includes(activity);
@@ -1823,12 +1870,14 @@ function play(renderer, avatar,
   document.querySelector('#focus-toggle').addEventListener('click', toggleFocus);
   const focusWidget = document.querySelector('#focus-widget');
   focusWidget.querySelector('[data-widget-open]').addEventListener('click',toggleFocus);
-  let focusSmileUntil = 0;
-  panel.addEventListener('focus:completed', () => {
-    if (reduceMotion || firstPerson || velocity.lengthSq() > .01) return;
-    if (seated) focusSmileUntil = performance.now() + 1250;
-    else avatar.animator.cue('happy');
-    needsRender = true;
+  const focusCompanion = mountFocusCompanion(panel,{
+    reduced:reduceMotion,
+    celebrate(strength) {
+      if (firstPerson || velocity.lengthSq() > .01) return false;
+      if (!seated) avatar.animator.cue('happy',strength);
+      needsRender = true;
+      return true;
+    },
   });
   mountFocusPlanner(panel);
   mountFocusTimer(panel,focusWidget);
@@ -1947,7 +1996,18 @@ function play(renderer, avatar,
     else follow.lerp(position, 1 - Math.exp(-dt * 15));
     ambientTime += dt;
     const working = seated && activity !== 'idle';
-    if (working && !reduceMotion) activityTime += dt;
+    const companionPose = focusCompanion.frame(dt,{seated,manual:manualActivity});
+    const deskActivity = working ? activity : companionPose.activity;
+    if (seated && renderedActivity !== deskActivity) {
+      renderedActivity = deskActivity;
+      activityTime = 0;
+      avatar.setActivity(deskActivity);
+      currentSeat.books.visible = !['read','write','work','plan'].includes(deskActivity);
+      needsRender = true;
+    }
+    if (seated && deskActivity !== 'idle' && !reduceMotion) {
+      activityTime += dt * (working ? 1 : .57 + companionPose.strength*.43);
+    }
     if (trainMoving) {
       if (cabin) cabin.position.z -= sceneryDt * trainSpeed;
       for (const { strip, speed, length } of layers) {
@@ -1958,14 +2018,21 @@ function play(renderer, avatar,
     lastSceneryRender = now;
     const trainZ = cabin?.position.z ?? 0;
     animateAmbient?.(ambientTime, trainZ);
-    if (working) avatar.animateActivity(activity, activityTime);
+    let restFace = null;
+    if (seated && deskActivity !== 'idle') {
+      avatar.animateActivity(deskActivity,activityTime);
+      if (!working) avatar.softenActivity(companionPose.weight,deskActivity);
+    } else if (seated && !manualActivity && !reduceMotion) {
+      restFace = avatar.restCompanion(companionPose.phase,companionPose.time,companionPose.strength,
+        -currentSeat.side*currentSeat.direction,dt);
+    }
     needsRender = false;
 
     const { x, y, z } = follow;
     const sinYaw = Math.sin(yaw);
     const cosYaw = Math.cos(yaw);
     mascot.visible = !firstPerson;
-    if (seated && !reduceMotion) avatar.showFace(now < focusSmileUntil ? 'happy' : null, ambientTime);
+    if (seated && !reduceMotion) avatar.showFace(companionPose.smile ? 'happy' : restFace,ambientTime);
     if (firstPerson) {
       const eyeHeight = y + (seated ? 0.72 : 1.45);
       camera.position.set(x, eyeHeight, z);

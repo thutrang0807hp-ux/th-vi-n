@@ -217,6 +217,8 @@ export function mountFocusTimer(panel, widget) {
       syncControls();
       panel.dispatchEvent(new CustomEvent('focus:session', { detail: {
         active: state.id !== null && state.mode === '25', taskId: state.taskId ?? null,
+        mode: state.mode, running: state.startedAt !== null, sessionId: state.id,
+        elapsed: state.elapsed, startedAt: state.startedAt,
       } }));
       if (result.record) completion(result.record);
       if (result.record || action.type !== 'tick') channel?.postMessage('sync');

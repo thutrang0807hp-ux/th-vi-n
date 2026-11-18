@@ -340,3 +340,8 @@ dialog h2 { margin: 0 0 12px; font-size: 1.1rem; }
 .sound-track input, .sound-master input { accent-color: #e6b87a; }
 .sound-track input[type="range"], .sound-master input { width: 100%; min-width: 0; }
 .sound-master input { width: 45%; }
+
+.focus-companion-settings { margin: 10px 0 0; }
+.focus-companion-settings .focus-companion-level { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.focus-companion-level input { width: 45%; }
+#focus-companion-state { margin: 5px 0 0; color: #dbc1a4; }

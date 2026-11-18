@@ -182,13 +182,18 @@ export function mountFocusPlanner(panel) {
       id,title, description: get('task-description').value.trim(), priority: get('task-priority').value,
       status: get('task-state').value, estimate: Number(get('task-estimate').value) || null,
     };
+    let completed = false;
     void change(state => {
       const previous = state.tasks.find(item => item.id===id);
+      completed = fields.status === 'done' && previous?.status !== 'done';
       const item = { ...fields, createdAt: previous?.createdAt ?? Date.now(),
         completedAt: fields.status==='done' ? previous?.completedAt ?? Date.now() : null };
       const tasks = previous ? state.tasks.map(task => task.id===id ? item : task) : [...state.tasks,item];
       return { ...state, tasks,
         activeTaskId: fields.status==='done' && state.activeTaskId===id ? null : state.activeTaskId };
+    }).then(saved => {
+      if (saved && completed) panel.dispatchEvent(new CustomEvent('task:completed',
+        { detail:{ taskId:id }, bubbles:true }));
     });
     taskForm.hidden = true;
   });
