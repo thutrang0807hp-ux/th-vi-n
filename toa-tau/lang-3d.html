@@ -70,9 +70,6 @@
         const { buildOceanCoast } = await import('../ocean-coast.js');
         document.querySelector('.route').textContent = '— Bờ biển xanh';
         await start({ buildExterior: buildOceanCoast });
-        const motionButton = document.querySelector('#motion-toggle');
-        motionButton.textContent = 'Tàu đứng yên';
-        motionButton.disabled = true;
       } else {
         await start();
       }
