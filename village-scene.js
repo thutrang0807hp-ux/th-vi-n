@@ -401,15 +401,27 @@ function buildScenery(kit) {
   pasture.onBeforeCompile = shader => {
     shader.vertexShader = 'varying vec2 meadowPoint;\n' + shader.vertexShader.replace(
       '#include <begin_vertex>', '#include <begin_vertex>\nmeadowPoint = position.xz;');
-    shader.fragmentShader = 'varying vec2 meadowPoint;\n' + shader.fragmentShader.replace(
-      '#include <color_fragment>', `
-        #include <color_fragment>
-        vec2 p = meadowPoint;
-        float patches = sin(p.x * 1.71 + sin(p.y * 1.51)) * cos(p.y * 1.94 - p.x * 0.92);
-        float blades = sin(p.x * 37.1 + p.y * 24.9) * sin(p.y * 39.1 - p.x * 19.0);
-        float mottling = 0.91 + 0.12 * patches + 0.08 * blades;
-        diffuseColor.rgb *= vec3(mottling * 0.93, mottling, mottling * 0.90);
-      `);
+    shader.fragmentShader = `
+      varying vec2 meadowPoint;
+      float meadowHash(vec2 cell) {
+        cell.y = mod(cell.y, 96.0);
+        return fract(sin(dot(cell, vec2(127.1, 311.7))) * 43758.5453);
+      }
+      float meadowNoise(vec2 p) {
+        vec2 cell = floor(p);
+        vec2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(meadowHash(cell), meadowHash(cell + vec2(1.0, 0.0)), f.x),
+          mix(meadowHash(cell + vec2(0.0, 1.0)), meadowHash(cell + vec2(1.0, 1.0)), f.x), f.y);
+      }
+    ` + shader.fragmentShader.replace('#include <color_fragment>', `
+      #include <color_fragment>
+      vec2 p = meadowPoint;
+      float variation = 0.67 * meadowNoise(p * 2.0) + 0.24 * meadowNoise(p * 8.0)
+        + 0.09 * meadowNoise(p * 24.0);
+      float turf = smoothstep(0.12, 0.86, variation);
+      diffuseColor.rgb *= mix(vec3(0.56, 0.72, 0.47), vec3(1.05, 1.09, 0.91), turf);
+    `);
   };
   const stemMaterial = material('#79a451');
   const petalMaterial = new T.MeshStandardMaterial({
@@ -691,7 +703,7 @@ function buildScenery(kit) {
 
   const ridgeMaterials = ['#8fac77', '#a8bd88', '#b4c991'].map(color => material(color, 1));
   const roundedHill = new T.SphereGeometry(1, 18, 9);
-  const springCanopies = ['#90b772', '#b8ce81', '#ec9db4'].map(color => material(color));
+  const springCanopies = ['#eaa5b7', '#f3bfcc', '#f4d0d3'].map(color => material(color));
   const treeTrunk = material('#85654f');
   const canopy = new T.IcosahedronGeometry(1, 1);
   loop(120, 0.8, 2, length => {
