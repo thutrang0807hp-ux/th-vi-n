@@ -20,6 +20,7 @@
         <select id="route-picker" aria-label="Chọn phong cảnh">
           <option value="tulip">Thung lũng Tulip</option>
           <option value="tri-ton">Mùa vàng Tri Tôn</option>
+          <option value="ocean">Bờ biển xanh</option>
         </select>
         <button id="motion-toggle" type="button">Dừng tàu</button>
         <button id="camera-toggle" type="button" aria-pressed="false">Camera POV</button>
@@ -48,11 +49,12 @@
   </main>
   <script type="module">
     const picker = document.querySelector('#route-picker');
-    const scene = new URLSearchParams(location.search).get('scene') === 'tri-ton' ? 'tri-ton' : 'tulip';
+    const route = new URLSearchParams(location.search).get('scene');
+    const scene = ['tri-ton', 'ocean'].includes(route) ? route : 'tulip';
     picker.value = scene;
     picker.addEventListener('change', () => {
       const next = new URL(location.href);
-      if (picker.value === 'tri-ton') next.searchParams.set('scene', 'tri-ton');
+      if (picker.value !== 'tulip') next.searchParams.set('scene', picker.value);
       else next.searchParams.delete('scene');
       location.assign(next);
     });
@@ -64,6 +66,13 @@
         const { buildTriTon } = await import('../tri-ton-scene.js');
         document.querySelector('.route').textContent = '— Mùa vàng Tri Tôn';
         await start({ buildExterior: buildTriTon });
+      } else if (scene === 'ocean') {
+        const { buildOceanCoast } = await import('../ocean-coast.js');
+        document.querySelector('.route').textContent = '— Bờ biển xanh';
+        await start({ buildExterior: buildOceanCoast });
+        const motionButton = document.querySelector('#motion-toggle');
+        motionButton.textContent = 'Tàu đứng yên';
+        motionButton.disabled = true;
       } else {
         await start();
       }
@@ -71,7 +80,12 @@
       const preview = document.querySelector('#scene-preview');
       document.querySelector('#load-message').textContent =
         'Không mở được chế độ 3D trên trình duyệt này. Đây là ảnh xem trước của toa tàu.';
-      preview.src = '../assets/tulip-train-preview.webp?v=pastel-stream';
+      if (scene === 'ocean') {
+        preview.alt = 'Ảnh xem trước biển xanh qua cửa sổ toa tàu';
+        preview.src = '../assets/ocean-coast-preview.webp';
+      } else {
+        preview.src = '../assets/tulip-train-preview.webp?v=pastel-stream';
+      }
       preview.hidden = false;
       console.error(error);
     }
