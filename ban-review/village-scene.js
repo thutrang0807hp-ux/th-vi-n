@@ -297,8 +297,9 @@ function boothPadding(x, back, direction) {
 
 function buildBooths() {
   const seats = [];
-  const tableLight = new T.PointLight('#ffd3a0', 0, 1.85);
-  scene.add(tableLight);
+  const tableLamps = [];
+  const tableLights = Array.from({ length: 3 }, () => new T.PointLight('#ffd3a0', 0, 1.85));
+  scene.add(...tableLights);
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 64;
   const ctx = canvas.getContext('2d');
@@ -334,7 +335,9 @@ function buildBooths() {
     cylinder(0.22, 0.23, 0.045, walnut, x, 0.066, z);
     const lampX = x - side * 0.55;
     const lampZ = z - 0.20;
-    tableLamp(lampX, lampZ, reviewFinishes().silk);
+    const shade = reviewFinishes().silk.clone();
+    tableLamp(lampX, lampZ, shade);
+    tableLamps.push({ x: lampX, z: lampZ, shade, on: true, level: 0.42 });
     const books = new T.Group();
     const booksX = x + side * 0.23;
     for (let i = 0; i < 2; i++) {
@@ -351,7 +354,7 @@ function buildBooths() {
       seats.push({ side, direction, x, z: z + direction * seatOffset, lampX, lampZ, books });
     }
   }
-  return { seats, tableLight };
+  return { seats, tableLights, tableLamps };
 }
 
 function buildBulkhead(z, facesFront) {
@@ -1341,14 +1344,27 @@ function buildMascot() {
   mascot.add(shadow, pose);
   mascot.position.z = 5.95;
   scene.add(mascot);
-  function applyStyle({ color, accessory, expression }) {
-    skin.color.set(mascotColors[color][0]);
-    skin.emissive.copy(skin.color);
-    skin.emissiveIntensity = 0.105;
+  const skinBase = skin.color.clone();
+  const blushBase = blush.color.clone();
+  let illumination = 1;
+
+  function setLighting(amount, force = false) {
+    if (!force && amount === illumination) return;
+    illumination = amount;
+    skin.color.copy(skinBase).multiplyScalar(0.24 + amount * 0.76);
+    skin.emissive.copy(skinBase);
+    skin.emissiveIntensity = 0.105 * amount;
     body.material.color.copy(skin.color);
     body.material.emissive.copy(skin.emissive);
     body.material.emissiveIntensity = skin.emissiveIntensity;
-    blush.color.set(mascotColors[color][1]);
+    blush.color.copy(blushBase).multiplyScalar(0.24 + amount * 0.76);
+    for (const face of Object.values(expressions)) face.material.color.setScalar(0.23 + amount * 0.77);
+  }
+
+  function applyStyle({ color, accessory, expression }) {
+    skinBase.set(mascotColors[color][0]);
+    blushBase.set(mascotColors[color][1]);
+    setLighting(illumination, true);
     accessories.pilot.visible = accessory === 'pilot' || accessory === 'cap';
     accessories.satchel.visible = accessory === 'pilot' || accessory === 'satchel';
     accessories.headphones.visible = accessory === 'headphones';
@@ -1443,7 +1459,7 @@ function buildMascot() {
     }
   }
   setActivity('idle');
-  return { mascot, feet, arms, props, applyStyle, setActivity, animateActivity, animator,
+  return { mascot, feet, arms, props, applyStyle, setActivity, animateActivity, animator, setLighting,
     cueExpression: () => animator.cue(selectedExpression), showFace };
 }
 
@@ -1527,14 +1543,14 @@ export async function start({ buildExterior } = {}) {
   finishMaterials();
   const firstCabinObject = scene.children.length;
   buildShell();
-  const { seats, tableLight } = buildBooths();
+  const { seats, tableLights, tableLamps } = buildBooths();
   buildBulkhead(-17.33, false);
   buildBulkhead(13.42, true);
   const cabinObjects = scene.children.slice(firstCabinObject);
   const cabinLights = [];
   const cabinMaterials = new Map();
   for (const item of cabinObjects) item.traverse(object => {
-    if (object.isPointLight && object !== tableLight) {
+    if (object.isPointLight && !tableLights.includes(object)) {
       cabinLights.push({ light: object, intensity: object.intensity });
     }
     if (!object.isMesh) return;
@@ -1556,12 +1572,12 @@ export async function start({ buildExterior } = {}) {
   }
   const avatar = buildMascot();
   cabin?.add(avatar.mascot, avatar.props);
-  play(renderer, avatar, scenery, cabin, seats, { tableLight, cabinLights, cabinMaterials });
+  play(renderer, avatar, scenery, cabin, seats, { tableLights, tableLamps, cabinLights, cabinMaterials });
   status.remove();
 }
 
 function play(renderer, avatar,
-  { layers, animateAmbient, sceneryFrameLimit = 0.08, trainSpeed = 0 }, cabin, seats, { tableLight, cabinLights, cabinMaterials }) {
+  { layers, animateAmbient, sceneryFrameLimit = 0.08, trainSpeed = 0 }, cabin, seats, { tableLights, tableLamps, cabinLights, cabinMaterials }) {
   const { mascot, feet, arms } = avatar;
   const motionButton = document.querySelector('#motion-toggle');
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1598,8 +1614,15 @@ function play(renderer, avatar,
   const seatHint = document.querySelector('#seat-hint');
   const cabinSwitch = document.querySelector('#cabin-lamp-switch');
   const cabinLevel = document.querySelector('#cabin-lamp-level');
+  const lampTool = document.querySelector('#table-lamp-tool');
   const lampSwitch = document.querySelector('#bay-lamp-switch');
   const lampLevel = document.querySelector('#bay-lamp-level');
+  const aimRay = new T.Ray();
+  const lampTarget = new T.Sphere(new T.Vector3(), 0.30);
+  const impact = new T.Vector3();
+  const projected = new T.Vector3();
+  let selectedLamp;
+  let cabinBrightness = 1;
   const lampPreference = 'lofi:cabin-light';
   try {
     const saved = JSON.parse(localStorage.getItem(lampPreference));
@@ -1611,18 +1634,15 @@ function play(renderer, avatar,
 
   function updateCabinLights(save = false) {
     const master = cabinSwitch.checked ? Number(cabinLevel.value) / 100 : 0;
-    const table = lampSwitch.checked ? Number(lampLevel.value) / 100 : 0;
+    cabinBrightness = master;
     for (const { light, intensity } of cabinLights) light.intensity = intensity * master;
     for (const [material, original] of cabinMaterials) {
       // Keep a little light from the windows without dimming the exterior.
       material.color.copy(original.color).multiplyScalar(0.22 + 0.78 * master);
       if (typeof original.emission === 'number') material.emissiveIntensity = original.emission * master;
     }
-    tableLight.intensity = table * master * 4.2;
-    reviewFinishes().silk.emissiveIntensity = table * master * 0.72;
     cabinLevel.disabled = !cabinSwitch.checked;
-    lampSwitch.disabled = !cabinSwitch.checked;
-    lampLevel.disabled = !cabinSwitch.checked || !lampSwitch.checked;
+    for (const lamp of tableLamps) refreshTableLamp(lamp);
     needsRender = true;
     if (save) {
       try {
@@ -1634,9 +1654,60 @@ function play(renderer, avatar,
   }
   cabinSwitch.addEventListener('change', () => updateCabinLights(true));
   cabinLevel.addEventListener('input', () => updateCabinLights(true));
-  lampSwitch.addEventListener('change', () => updateCabinLights());
-  lampLevel.addEventListener('input', () => updateCabinLights());
+  function refreshTableLamp(lamp) {
+    lamp.shade.emissiveIntensity = lamp.on ? lamp.level * 0.92 : 0;
+    lamp.shade.color.copy(reviewFinishes().silk.color).multiplyScalar(lamp.on ? 1 : 0.83);
+    needsRender = true;
+  }
+
+  function syncLampTool() {
+    lampSwitch.textContent = selectedLamp.on ? 'Tắt đèn bàn' : 'Bật đèn bàn';
+    lampSwitch.setAttribute('aria-pressed', selectedLamp.on);
+    lampLevel.value = String(Math.round(selectedLamp.level * 100));
+    lampLevel.disabled = !selectedLamp.on;
+  }
+
+  lampSwitch.addEventListener('click', () => {
+    if (!selectedLamp) return;
+    selectedLamp.on = !selectedLamp.on;
+    refreshTableLamp(selectedLamp);
+    syncLampTool();
+  });
+  lampLevel.addEventListener('input', () => {
+    if (!selectedLamp) return;
+    selectedLamp.level = Number(lampLevel.value) / 100;
+    refreshTableLamp(selectedLamp);
+  });
   updateCabinLights();
+
+  function updateLampTool(trainZ) {
+    let candidate;
+    let distance = 4.8;
+    if (firstPerson && !panel.open) {
+      aimRay.origin.copy(camera.position);
+      camera.getWorldDirection(aimRay.direction);
+      for (const lamp of tableLamps) {
+        lampTarget.center.set(lamp.x, 1.39, lamp.z + trainZ);
+        if (!aimRay.intersectSphere(lampTarget, impact)) continue;
+        const hit = impact.distanceTo(aimRay.origin);
+        if (hit < distance) {
+          distance = hit;
+          candidate = lamp;
+        }
+      }
+    }
+    if (candidate !== selectedLamp) {
+      selectedLamp = candidate;
+      lampTool.hidden = !selectedLamp;
+      if (selectedLamp) syncLampTool();
+    }
+    if (!selectedLamp) return;
+    projected.set(selectedLamp.x, 1.55, selectedLamp.z + trainZ).project(camera);
+    const x = (projected.x + 1) * innerWidth / 2;
+    const y = (1 - projected.y) * innerHeight / 2;
+    lampTool.style.left = T.MathUtils.clamp(x + 34, 12, innerWidth - 178) + 'px';
+    lampTool.style.top = T.MathUtils.clamp(y - 58, 82, innerHeight - 118) + 'px';
+  }
   const velocity = new T.Vector2();
   const follow = mascot.position.clone();
   const look = new T.Vector3();
@@ -1850,11 +1921,17 @@ function play(renderer, avatar,
     const nearest = closestSeat(position);
     nearbySeat = !seated && nearest.distanceSquared <= seatReachSquared ? nearest.seat : undefined;
     seatHint.hidden = !nearbySeat;
-    const litSeat = currentSeat ?? nearest.seat;
-    const lampBlend = 1 - Math.exp(-dt * 10);
-    tableLight.position.x = T.MathUtils.lerp(tableLight.position.x, litSeat.lampX, lampBlend);
-    tableLight.position.y = 1.33;
-    tableLight.position.z = T.MathUtils.lerp(tableLight.position.z, litSeat.lampZ, lampBlend);
+    const litLamps = tableLamps.filter(lamp => lamp.on && lamp.level > 0)
+      .map(lamp => ({ lamp, distance: (lamp.x - position.x) ** 2 + (lamp.z - position.z) ** 2 }))
+      .sort((a, b) => a.distance - b.distance);
+    for (const [i, light] of tableLights.entries()) {
+      const nearby = litLamps[i];
+      light.intensity = nearby ? nearby.lamp.level * 4.2 : 0;
+      if (nearby) light.position.set(nearby.lamp.x, 1.33, nearby.lamp.z);
+    }
+    const nearby = litLamps[0];
+    const lampFill = nearby ? nearby.lamp.level * Math.max(0, 1 - Math.sqrt(nearby.distance) / 2.1) : 0;
+    avatar.setLighting(Math.min(1, cabinBrightness + lampFill * 0.60));
 
     const cameraMoving = follow.distanceToSquared(position) > 0.000002;
     if (firstPerson) follow.copy(position);
@@ -1914,6 +1991,7 @@ function play(renderer, avatar,
     camera.position.z += trainZ;
     look.z += trainZ;
     camera.lookAt(look);
+    updateLampTool(trainZ);
     renderer.render(scene, camera);
   });
 }

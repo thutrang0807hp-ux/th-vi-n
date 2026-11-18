@@ -6,6 +6,14 @@
   <title>Lofi Train — Thung lũng Tulip</title>
   <meta name="color-scheme" content="dark">
   <link rel="stylesheet" href="../lounge.css?v=avatar">
+<style>
+#table-lamp-tool { position: fixed; z-index: 5; width: 152px; padding: 9px;
+  border: 1px solid #bd9468; border-radius: 11px; background: #291c17f4;
+  box-shadow: 0 5px 20px #140b0b70; font-size: 12px; }
+#table-lamp-tool button { width: 100%; padding: 6px 7px; }
+#table-lamp-tool label { display: block; margin: 6px 0 2px; }
+#table-lamp-tool input { width: 100%; accent-color: #d8a66f; }
+</style>
 </head>
 <body>
   <main aria-label="Toa lounge Lofi Train">
@@ -34,11 +42,13 @@
         <label><input id="cabin-lamp-switch" type="checkbox" checked> Bật đèn toàn toa</label>
         <label for="cabin-lamp-level">Độ sáng toàn toa</label>
         <input id="cabin-lamp-level" type="range" min="0" max="100" value="100">
-        <label><input id="bay-lamp-switch" type="checkbox" checked> Bật đèn bàn</label>
-        <label for="bay-lamp-level">Độ sáng đèn bàn</label>
-        <input id="bay-lamp-level" type="range" min="0" max="100" value="42" aria-label="Độ sáng đèn bàn">
       </div>
     </details>
+    <div id="table-lamp-tool" aria-label="Đèn bàn đang nhìn" hidden>
+      <button id="bay-lamp-switch" type="button" aria-pressed="true">Tắt đèn bàn</button>
+      <label for="bay-lamp-level">Độ sáng đèn bàn</label>
+      <input id="bay-lamp-level" type="range" min="0" max="100" value="42">
+    </div>
     <button id="seat-hint" type="button" hidden><kbd>E</kbd> Ngồi</button>
     <div class="actions" aria-label="Điều khiển">
       <select id="activity-picker" aria-label="Hoạt động của nhân vật" disabled>
@@ -118,7 +128,7 @@
     window.addEventListener('pageshow', () => { picker.value = scene; });
 
     try {
-      const { start } = await import('../village-scene.js?v=cabin-lights');
+      const { start } = await import('../village-scene.js?v=pov-table-light');
       if (scene === 'tri-ton') {
         const { buildTriTon } = await import('../tri-ton-scene.js');
         document.querySelector('.route').textContent = '— Mùa vàng Tri Tôn';
