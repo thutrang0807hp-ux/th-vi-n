@@ -899,7 +899,7 @@ function play(renderer, { mascot, feet }, { layers, animateAmbient, sceneryFrame
     if (firstPerson) follow.copy(position);
     else follow.lerp(position, 1 - Math.exp(-dt * 15));
     updateTimer();
-    ambientTime += sceneryDt;
+    ambientTime += dt;
     if (trainMoving) {
       for (const { strip, speed, length } of layers) {
         strip.position.z = (strip.position.z + sceneryDt * speed) % length;
