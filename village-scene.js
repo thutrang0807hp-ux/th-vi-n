@@ -657,14 +657,15 @@ function buildMascot() {
   const skin = material('#ff9f9d', 0.56);
   const blush = material('#e16a70');
   const ink = material('#432320', 0.47);
-  const capLeather = material('#70432f', 0.71);
+  const capLeather = material('#683825', 0.73);
   const trim = material('#af7040', 0.61);
   const brass = material('#de9d4e', 0.34, 0.36);
   const glass = material('#756881', 0.28, 0.14);
-  const scarfRed = material('#a33830', 0.82);
+  const scarfRed = material('#943a31', 0.82);
   const scarfShade = material('#782723', 0.85);
   const feet = [];
   const arms = [];
+  const blinkingEyes = [];
   const mascot = new T.Group();
   const group = build => {
     const first = scene.children.length;
@@ -680,41 +681,61 @@ function buildMascot() {
 
   oval(new T.MeshBasicMaterial({ color: '#220c12', transparent: true, opacity: 0.28, depthWrite: false }),
     0, 0.017, 0, 0.44, 0.009, 0.42);
-  oval(skin, 0, 0.48, 0, 0.338, 0.35, 0.238);
-  box(0.99, 0.77, 0.72, skin, 0, 1.082, 0, 0.235);
+  const body = oval(skin, 0, 0.465, 0, 0.351, 0.31, 0.25);
+  const head = new RoundedBoxGeometry(1.02, 0.735, 0.72, 5, 0.245);
+  const vertices = head.attributes.position;
+  for (let i = 0; i < vertices.count; i++) {
+    const x = vertices.getX(i);
+    const y = vertices.getY(i);
+    const z = vertices.getZ(i);
+    const fullness = Math.max(0, 1 - (x / 0.53) ** 2 - (y / 0.42) ** 2);
+    const crown = T.MathUtils.smoothstep(y, 0.19, 0.3675);
+    vertices.setX(i, x * (1 - 0.15 * crown));
+    vertices.setZ(i, z * (1 + 0.085 * fullness - 0.16 * crown));
+  }
+  mesh(head, skin, 0, 1.103, 0);
   for (const side of [-1, 1]) {
     feet.push(oval(skin, side * 0.175, 0.16, -0.025, 0.149, 0.16, 0.19));
     const arm = oval(skin, side * 0.348, 0.48, -0.015, 0.111, 0.193, 0.126);
     arm.rotation.z = side * 0.31;
     arms.push(arm);
-    oval(blush, side * 0.299, 0.978, -0.355, 0.066, 0.033, 0.013).rotation.y = side * -0.16;
+    oval(blush, side * 0.299, 0.978, -0.378, 0.072, 0.027, 0.01).rotation.y = side * -0.16;
   }
 
   const expressions = {
     gentle: group(() => {
       for (const x of [-0.18, 0.18]) {
-        oval(ink, x, 1.09, -0.359, 0.035, 0.073, 0.019);
-        oval(material('#eac0ab'), x - 0.009, 1.116, -0.376, 0.008, 0.014, 0.004);
+        const eye = new T.Group();
+        const pupil = oval(ink, 0, 0, 0, 0.034, 0.066, 0.013);
+        const glint = oval(material('#eac0ab'), -0.009, 0.026, -0.013, 0.008, 0.014, 0.004);
+        eye.add(pupil, glint);
+        eye.position.set(x, 1.09, -0.385);
+        scene.add(eye);
+        blinkingEyes.push(eye);
       }
-      stroke([[-0.031, 1.001, -0.362], [0, 0.991, -0.366], [0.031, 1.001, -0.362]], 0.008, ink);
+      stroke([[-0.031, 1.001, -0.388], [0, 0.991, -0.392], [0.031, 1.001, -0.388]], 0.008, ink);
     }),
     happy: group(() => {
       for (const x of [-0.18, 0.18]) {
-        stroke([[x - 0.049, 1.082, -0.362], [x, 1.119, -0.369], [x + 0.049, 1.082, -0.362]], 0.014, ink);
+        stroke([[x - 0.049, 1.082, -0.388], [x, 1.119, -0.395], [x + 0.049, 1.082, -0.388]], 0.014, ink);
       }
-      oval(ink, 0, 1.008, -0.36, 0.058, 0.043, 0.02);
-      oval(blush, 0, 0.987, -0.375, 0.032, 0.015, 0.008);
+      oval(ink, 0, 1.008, -0.386, 0.058, 0.043, 0.02);
+      oval(blush, 0, 0.987, -0.401, 0.032, 0.015, 0.008);
+    }),
+    surprised: group(() => {
+      for (const x of [-0.18, 0.18]) oval(ink, x, 1.097, -0.388, 0.032, 0.061, 0.014);
+      oval(ink, 0, 0.997, -0.389, 0.031, 0.035, 0.012);
     }),
     sleepy: group(() => {
       for (const x of [-0.18, 0.18]) {
-        stroke([[x - 0.046, 1.087, -0.36], [x, 1.068, -0.369], [x + 0.046, 1.087, -0.36]], 0.012, ink);
+        stroke([[x - 0.046, 1.087, -0.36], [x, 1.068, -0.395], [x + 0.046, 1.087, -0.36]], 0.012, ink);
       }
-      oval(ink, 0, 0.995, -0.362, 0.016, 0.019, 0.007);
+      oval(ink, 0, 0.995, -0.388, 0.016, 0.019, 0.007);
     }),
   };
   const scarf = group(() => {
-    oval(scarfShade, 0, 0.727, -0.07, 0.366, 0.091, 0.278);
-    oval(scarfRed, 0, 0.788, -0.07, 0.398, 0.071, 0.289);
+    oval(scarfShade, 0, 0.726, -0.103, 0.364, 0.087, 0.265);
+    oval(scarfRed, 0, 0.785, -0.091, 0.389, 0.074, 0.284);
     box(0.14, 0.31, 0.08, scarfRed, -0.208, 0.655, 0.207, 0.038).rotation.z = -0.17;
     for (const x of [-0.268, -0.236, -0.204, -0.172]) {
       box(0.015, 0.072, 0.038, scarfShade, x, 0.499, 0.217, 0.007).rotation.z = -0.17;
@@ -722,14 +743,28 @@ function buildMascot() {
   });
   const accessories = {
     pilot: group(() => {
-      const dome = mesh(new T.SphereGeometry(1, 30, 16, 0, Math.PI * 2, 0, 1.29), capLeather, 0, 1.23, 0.022);
-      dome.scale.set(0.53, 0.39, 0.43);
-      const band = mesh(new T.TorusGeometry(1, 0.062, 8, 40), trim, 0, 1.343, 0.022);
-      band.rotation.x = Math.PI / 2;
-      band.scale.set(0.513, 0.418, 0.45);
+      const shell = new T.SphereGeometry(1, 48, 24, 0, Math.PI * 2, 0, 1);
+      const rim = [];
+      const capPoint = (angle, fraction) => {
+        const back = (1 + Math.sin(angle)) * 0.5;
+        const polar = (1.115 + back * 0.915) * fraction;
+        return new T.Vector3(-0.545 * Math.cos(angle) * Math.sin(polar),
+          1.173 + 0.458 * Math.cos(polar), 0.02 + 0.535 * Math.sin(angle) * Math.sin(polar));
+      };
+      const points = shell.attributes.position;
+      for (let row = 0; row <= 24; row++) {
+        for (let col = 0; col <= 48; col++) {
+          const point = capPoint(col * Math.PI / 24, row / 24);
+          points.setXYZ(row * 49 + col, point.x, point.y, point.z);
+          if (row === 24 && col < 48) rim.push(point);
+        }
+      }
+      shell.computeVertexNormals();
+      mesh(shell, capLeather, 0, 0, 0);
+      mesh(new T.TubeGeometry(new T.CatmullRomCurve3(rim, true), 64, 0.026, 8, true), trim, 0, 0, 0);
       for (const side of [-1, 1]) {
-        oval(capLeather, side * 0.447, 1.191, 0.044, 0.103, 0.206, 0.204).rotation.x = -0.22;
-        oval(brass, side * 0.537, 1.17, -0.019, 0.029, 0.068, 0.069);
+        oval(capLeather, side * 0.465, 1.157, 0.033, 0.085, 0.181, 0.167).rotation.x = -0.24;
+        oval(brass, side * 0.536, 1.14, -0.025, 0.026, 0.061, 0.06);
         const lens = new T.Group();
         const first = scene.children.length;
         const bezel = mesh(new T.TorusGeometry(0.112, 0.025, 10, 28), brass, 0, 0, -0.021);
@@ -737,11 +772,13 @@ function buildMascot() {
         oval(glass, 0, 0, -0.017, 0.126, 0.105, 0.037);
         oval(material('#e6b9ac'), -0.037, 0.039, -0.051, 0.04, 0.009, 0.004).rotation.z = 0.18;
         lens.add(...scene.children.slice(first));
-        lens.position.set(side * 0.174, 1.465, -0.307);
+        lens.position.set(side * 0.174, 1.495, -0.37);
         lens.rotation.set(0.42, -side * 0.17, side * 0.13);
         scene.add(lens);
       }
-      box(0.14, 0.056, 0.066, trim, 0, 1.46, -0.308, 0.026);
+      box(0.14, 0.056, 0.066, trim, 0, 1.49, -0.371, 0.026);
+    }),
+    satchel: group(() => {
       box(0.067, 0.4, 0.048, trim, 0.07, 0.592, -0.23, 0.023).rotation.z = 0.83;
       box(0.27, 0.208, 0.106, leather, 0.157, 0.447, -0.224, 0.047);
       box(0.27, 0.086, 0.038, trim, 0.157, 0.507, -0.282, 0.023);
@@ -763,11 +800,18 @@ function buildMascot() {
   function applyStyle({ color, accessory, expression }) {
     skin.color.set(mascotColors[color][0]);
     blush.color.set(mascotColors[color][1]);
-    for (const [name, item] of Object.entries(accessories)) item.visible = name === accessory;
+    accessories.pilot.visible = accessory === 'pilot' || accessory === 'cap';
+    accessories.satchel.visible = accessory === 'pilot' || accessory === 'satchel';
+    accessories.headphones.visible = accessory === 'headphones';
     for (const [name, item] of Object.entries(expressions)) item.visible = name === expression;
     scarf.visible = accessory === 'pilot' || accessory === 'scarf';
   }
-  return { mascot, feet, arms, applyStyle };
+  function animateIdle(time, walking) {
+    const blink = 1 - 0.91 * Math.pow(Math.max(0, Math.cos((time - 1.4) * 1.53)), 110);
+    for (const eye of blinkingEyes) eye.scale.y = blink;
+    body.scale.y = 0.31 + (walking ? 0 : Math.sin(time * 2.25) * 0.005);
+  }
+  return { mascot, feet, arms, applyStyle, animateIdle };
 }
 
 function setupMascotCustomizer(avatar, renderer, onChange, onOpen) {
@@ -792,12 +836,12 @@ function setupMascotCustomizer(avatar, renderer, onChange, onOpen) {
       display.setSize(252, 208, false);
       panel.querySelector('.avatar-preview').append(display.domElement);
       const studio = new T.Scene();
-      studio.add(new T.HemisphereLight('#ffead7', '#836674', 2.05));
-      const key = new T.DirectionalLight('#ffe1bd', 2.35);
+      studio.add(new T.HemisphereLight('#ffe5e1', '#aa8194', 2.3));
+      const key = new T.DirectionalLight('#ffe9d3', 2.0);
       key.position.set(-3, 4, -4);
       studio.add(key);
       const camera = new T.PerspectiveCamera(36, 252 / 208, 0.05, 15);
-      camera.position.set(0, 1.16, -3.22);
+      camera.position.set(0, 1.16, -3.03);
       camera.lookAt(0, 0.81, 0);
       const turntable = new T.Group();
       studio.add(turntable);
@@ -873,7 +917,8 @@ function play(renderer, avatar,
   { layers, animateAmbient, sceneryFrameLimit = 0.08, trainSpeed = 0 }, cabin) {
   const { mascot, feet, arms } = avatar;
   const motionButton = document.querySelector('#motion-toggle');
-  let trainMoving = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let trainMoving = !reduceMotion;
   function updateMotionButton() {
     motionButton.textContent = trainMoving ? 'Dừng tàu' : 'Chạy tàu';
   }
@@ -1099,6 +1144,7 @@ function play(renderer, avatar,
     const sinYaw = Math.sin(yaw);
     const cosYaw = Math.cos(yaw);
     mascot.visible = !firstPerson;
+    if (!firstPerson && !reduceMotion) avatar.animateIdle(ambientTime, moving);
     if (firstPerson) {
       const eyeHeight = y + 1.45;
       camera.position.set(x, eyeHeight, z);
