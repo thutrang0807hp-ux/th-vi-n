@@ -472,7 +472,7 @@ function buildScenery(kit) {
   riverMaterial.onBeforeCompile = shader => {
     shader.uniforms.riverTime = breeze;
     shader.vertexShader = 'varying vec2 riverPosition;\n' + shader.vertexShader.replace(
-      '#include <begin_vertex>', '#include <begin_vertex>\nriverPosition = position.xz;');
+      '#include <begin_vertex>', '#include <begin_vertex>\nriverPosition = (modelMatrix * vec4(position, 1.0)).xz;');
     shader.fragmentShader = 'uniform float riverTime;\nvarying vec2 riverPosition;\n' +
       shader.fragmentShader.replace('#include <color_fragment>', `
         #include <color_fragment>
@@ -560,7 +560,7 @@ function buildScenery(kit) {
           const z = driftZ + along * spreadZ;
           const bow = Math.sin(along * 2.1) * spreadX * 0.54;
           const x = centerX + Math.cos(angle) * radius * spreadX + bow;
-          if (!distant && side === 1 && x < 16.2 && Math.abs(z) < 34) continue;
+          if (!distant && side === 1 && x < 16.2) continue;
           if (x < minX + 0.75 || x > maxX - 0.7) continue;
           if (!distant && Math.abs(x - riverCenter(z, length, side)) < 5.1) continue;
           dummy.position.set(side * x, terrain(x, z, length, side, distant), z);
@@ -640,7 +640,7 @@ function buildScenery(kit) {
         for (const [x, z, scale] of [[12, -25, 1.02], [31, -8, 1.28], [9, 17, 0.88], [31, 29, 1.10]]) {
           const along = z + side * 4;
           const shoreX = Math.abs(x - riverCenter(along, length, side)) < 5.6 ? x + (x < 20 ? -4.5 : 4.5) : x;
-          if (side === 1 && Math.abs(along) < 34) continue;
+          if (side === 1) continue;
           cherryTree(side * shoreX, terrain(shoreX, along, length, side, false), along, scale);
         }
       }
@@ -713,10 +713,10 @@ function buildScenery(kit) {
       }
     }
   });
-  const studyStart = scene.children.length;
-  plantExteriorStudy(scene, kit, (x, z) => terrain(x, z, 96, 1, x > 36));
-  const study = scene.children[studyStart];
-  layers.push({ strip: study, length: 96, speed: 6.9 });
+  const near = layers[0];
+  const studyTile = plantExteriorStudy(scene, kit, (x, z) => terrain(x, z, near.length, 1, x > 36), near.length);
+  for (const tile of near.strip.children) tile.add(studyTile.clone());
+  scene.remove(studyTile);
   return { layers, driftPetals };
 }
 
@@ -952,7 +952,7 @@ function play(renderer, { mascot, feet }, { layers, driftPetals }) {
   const pressed = (letter, arrow) => Number(keys.has(letter) || keys.has(arrow));
   let lastFrame = performance.now();
   let lastSceneryRender = 0;
-  let sceneryTime = 0;
+  let ambientTime = 0;
 
   renderer.setAnimationLoop(now => {
     const dt = clamp((now - lastFrame) / 1000, 0, 0.08);
@@ -998,15 +998,15 @@ function play(renderer, { mascot, feet }, { layers, driftPetals }) {
     if (firstPerson) follow.copy(position);
     else follow.lerp(position, 1 - Math.exp(-dt * 15));
     updateTimer();
+    ambientTime += dt;
     if (trainMoving) {
-      sceneryTime += dt;
       for (const { strip, speed, length } of layers) {
         strip.position.z = (strip.position.z + dt * speed) % length;
       }
     }
-    if (!needsRender && !cameraMoving && (!trainMoving || now - lastSceneryRender < 1000 / 30)) return;
+    if (!needsRender && !cameraMoving && now - lastSceneryRender < 1000 / 30) return;
     lastSceneryRender = now;
-    if (trainMoving) driftPetals(sceneryTime);
+    driftPetals(ambientTime);
     needsRender = false;
 
     const { x, y, z } = follow;

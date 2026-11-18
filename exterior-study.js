@@ -86,9 +86,9 @@ function grassCard() {
   })];
 }
 
-export function plantExteriorStudy(scene, kit, ground) {
+export function plantExteriorStudy(scene, kit, ground, length) {
   const root = new T.Group();
-  root.name = 'Single tulip valley study';
+  root.name = 'Tulip meadow tile';
   scene.add(root);
   const random = T.MathUtils.seededRandom;
   random(3279);
@@ -131,16 +131,24 @@ export function plantExteriorStudy(scene, kit, ground) {
   }
 
   const colors = ['#f12b32', '#ffcf35', '#ffe9bb', '#f75c93', '#b470d2', '#ffad2a', '#ff83ad'];
-  const flowers = [];
+  const halfLength = length / 2;
+  const sectionCount = Math.ceil(length / 12);
+  const sectionLength = length / sectionCount;
+  const sections = Array.from({ length: sectionCount }, () => []);
+  const columns = Math.ceil(length / 0.52);
+  const spacing = length / columns;
+  const cream = new T.Color('#fff1d6');
   for (let row = 0; row < 30; row++) {
-    for (let column = 0; column < 131; column++) {
-      const z = -34 + column * 0.52 + random() * 0.31;
-      const x = 5.78 + row * 0.33 + 0.60 * Math.sin(z * 0.105) + 0.14 * random();
+    for (let column = 0; column < columns; column++) {
+      const z = -halfLength + (column + 0.2 + random() * 0.65) * spacing;
+      const phase = z * Math.PI * 2 / length;
+      const x = 5.78 + row * 0.33 + 0.52 * Math.sin(phase * 2) + 0.14 * random();
       if (ground(x, z) < -0.52) continue;
       const band = row < 6 && random() < 0.56 ? (random() < 0.68 ? 0 : 3) :
-        Math.floor(row / 3.6 + 1.05 * Math.sin(z * 0.065) + 2) % colors.length;
-      const tint = new T.Color(colors[band]).lerp(new T.Color('#fff1d6'), random() * 0.16);
-      flowers.push([x, z, 0.69 + random() * 0.44, random() * Math.PI * 2, tint]);
+        Math.floor(row / 3.6 + 1.05 * Math.sin(phase) + 2) % colors.length;
+      const tint = new T.Color(colors[band]).lerp(cream, random() * 0.16);
+      const section = Math.floor((z + halfLength) / sectionLength);
+      sections[section].push([x, z, 0.69 + random() * 0.44, random() * Math.PI * 2, tint]);
     }
   }
   const leaf = new T.PlaneGeometry(0.21, 0.51, 2, 4);
@@ -155,27 +163,38 @@ export function plantExteriorStudy(scene, kit, ground) {
   const opposite = leaf.clone().rotateY(Math.PI * 0.83).translate(0, -0.045, 0);
   const stem = new T.CylinderGeometry(0.012, 0.019, 0.54, 5).translate(0, 0.27, 0);
   const foliage = mergeGeometries([leaf, opposite, stem]);
-  const bulbs = new T.InstancedMesh(tulipCup(), surface('#ffffff', { vertexColors: true, flatShading: true }), flowers.length);
-  bulbs.material.side = T.DoubleSide;
-  const greens = new T.InstancedMesh(foliage, tone('#739e36', 0.20), flowers.length);
-  greens.material.side = T.DoubleSide;
-  flowers.forEach(([x, z, scale, angle, tint], i) => {
-    put(bulbs, i, x, ground(x, z), z, scale, angle, tint);
-    put(greens, i, x, ground(x, z), z, scale, angle);
-  });
-  root.add(bulbs, greens);
+  const cup = tulipCup();
+  const petalMaterial = surface('#ffffff', { vertexColors: true, flatShading: true, side: T.DoubleSide });
+  const leafMaterial = tone('#739e36', 0.20);
+  leafMaterial.side = T.DoubleSide;
+  for (const flowers of sections) {
+    const bulbs = new T.InstancedMesh(cup, petalMaterial, flowers.length);
+    bulbs.name = 'Tulip blooms';
+    const greens = new T.InstancedMesh(foliage, leafMaterial, flowers.length);
+    flowers.forEach(([x, z, scale, angle, tint], i) => {
+      const y = ground(x, z);
+      put(bulbs, i, x, y, z, scale, angle, tint);
+      put(greens, i, x, y, z, scale, angle);
+    });
+    bulbs.computeBoundingSphere();
+    greens.computeBoundingSphere();
+    root.add(bulbs, greens);
+  }
 
-  for (let z = -29; z <= 31; z += 3) {
+  const fenceBay = length / Math.ceil(length / 3);
+  for (let z = -halfLength; z < halfLength - fenceBay / 2; z += fenceBay) {
     const y = ground(5.2, z);
     box(oak, 5.2, y + 0.38, z, 0.16, 0.77, 0.17);
-    if (z < 31) box(oak, 5.2, y + 0.50, z + 1.5, 0.10, 0.12, 3.0);
+    const rail = box(oak, 5.2, (y + ground(5.2, z + fenceBay)) / 2 + 0.50,
+      z + fenceBay / 2, 0.10, 0.12, fenceBay);
+    rail.rotation.x = -Math.atan2(ground(5.2, z + fenceBay) - y, fenceBay);
   }
   const meadow = [];
   const banks = [];
   const verge = [];
-  for (let i = 0; i < 5700; i++) {
+  for (let i = 0; i < Math.round(5700 * length / 68); i++) {
     const x = 4.55 + random() * 30;
-    const z = -34 + random() * 68;
+    const z = -halfLength + random() * length;
     if (ground(x, z) < -0.52) continue;
     const wave = 0.55 + 0.45 * Math.sin(x * 1.55 + z * 0.58) * Math.cos(z * 0.43);
     if (random() > wave + (x < 17 ? 0.39 : 0.18)) continue;
@@ -186,9 +205,9 @@ export function plantExteriorStudy(scene, kit, ground) {
   }
   const closeGrass = meadow.filter(([x]) => x < 7.9);
   const cards = meadow.filter(([x]) => x >= 7.9);
-  for (let i = 0; i < 6200; i++) {
+  for (let i = 0; i < Math.round(6200 * length / 56); i++) {
     const x = 4.55 + random() * 13.2;
-    const z = -28 + random() * 56;
+    const z = -halfLength + random() * length;
     if (ground(x, z) > -0.51) cards.push([x, z, 0.25 + random() * 0.29]);
   }
   const [cardGeometry, cardMaterial] = grassCard();
@@ -318,20 +337,18 @@ export function plantExteriorStudy(scene, kit, ground) {
   scene.add(skyClouds);
 
   const ridges = [
-    { x: 61, width: 58, relief: 6.7, offset: 0.7, shade: '#766382', light: '#d3a17d' },
-    { x: 75, width: 54, relief: 18, offset: 1.8, shade: '#655e87', light: '#c4a0ad', snow: 15 },
-    { x: 99, width: 49, relief: 25, offset: 3.4, shade: '#7885b4', light: '#bec5e4', snow: 12 },
+    { x: 59, width: 53, relief: 5.8, offset: 0.7, shade: '#536b36', light: '#a0b654' },
+    { x: 70, width: 62, relief: 20, offset: 1.8, shade: '#3d632b', light: '#a9c441' },
+    { x: 90, width: 52, relief: 30, offset: 3.4, shade: '#506e45', light: '#a5be6e' },
   ];
   const sun = new T.Vector3(-0.66, 0.60, -0.44).normalize();
-  const stoneShadow = new T.Color('#a1a0c4');
-  const snowColor = new T.Color('#fff4eb');
-  const profiles = [0, 0.24, 0.52, 0.76, 1];
+  const profiles = [0, 0.30, 0.61, 0.84, 1];
   for (const ridge of ridges) {
     const { x, width, relief, offset } = ridge;
     const points = [], triangles = [];
     const peaks = Array.from({ length: width }, (_, i) => {
       const z = i / (width - 1) * 9.3;
-      const mass = Math.pow(0.5 + 0.5 * Math.sin(z * 2.6 + offset), 1.5);
+      const mass = Math.pow(0.5 + 0.5 * Math.sin(z * 2.6 + offset), 2.1);
       const spur = 0.08 * Math.sin(z * 13.0 + offset) + 0.08 * Math.cos(z * 6.3);
       return relief * Math.max(0.20, 0.22 + mass * 0.78 + spur);
     });
@@ -340,7 +357,7 @@ export function plantExteriorStudy(scene, kit, ground) {
         const z = -120 + i * 240 / (width - 1) + (random() - 0.5) * 2.4;
         const height = -1.10 + peaks[i] * profiles[row] + (random() - 0.5) * (0.6 + relief * 0.07);
         const slope = (Math.cos(i * 0.61 + offset) * 2.4 + Math.sin(i * 0.27) * 2.3) * Math.sin(row * 0.77);
-        points.push(x + row * (relief * 0.16 + 0.85) + slope, height, z);
+        points.push(x + row * (relief * 0.115 + 0.82) + slope, height, z);
         if (row && i) {
           const d = row * width + i, c = d - 1, b = d - width, a = b - 1;
           if ((row + i) % 2 === 0) triangles.push(a, c, d, a, d, b);
@@ -364,16 +381,14 @@ export function plantExteriorStudy(scene, kit, ground) {
       normal.fromBufferAttribute(normals, i);
       if (normal.dot(front) < 0) normal.negate();
       const daylight = T.MathUtils.clamp(0.50 + normal.dot(sun) * 0.53 + (random() - 0.5) * 0.25, 0, 1);
-      const height = (positions.getY(i) + positions.getY(i + 1) + positions.getY(i + 2)) / 3;
-      const z = positions.getZ(i);
       const color = shade.clone().lerp(light, daylight);
-      if (ridge.snow) {
-        const snowline = ridge.snow + 1.9 * Math.sin(z * 0.32 + offset) + Math.sin(z * 0.91);
-        if (height > snowline) color.copy(stoneShadow).lerp(snowColor, 0.25 + daylight * 0.75);
-      }
       for (let vertex = 0; vertex < 3; vertex++) colors.push(color.r, color.g, color.b);
     }
     faces.setAttribute('color', new T.Float32BufferAttribute(colors, 3));
-    add(faces, new T.MeshBasicMaterial({ side: T.DoubleSide, vertexColors: true, toneMapped: false }), 0, 0, 0);
+    const mountain = new T.Mesh(faces,
+      new T.MeshBasicMaterial({ side: T.DoubleSide, vertexColors: true, toneMapped: false }));
+    mountain.name = 'Distant mountain ridge';
+    scene.add(mountain);
   }
+  return root;
 }
