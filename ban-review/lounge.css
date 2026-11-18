@@ -235,3 +235,43 @@ dialog h2 { margin: 0 0 12px; font-size: 1.1rem; }
 @media (max-width: 540px) {
   #focus-panel { top: auto; right: 9px; bottom: 9px; max-height: calc(100dvh - 38px); }
 }
+
+#focus-widget {
+  --focus-progress: 0%;
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: 74px;
+  display: flex;
+  gap: 3px;
+  border: 1px solid #9c7958;
+  border-radius: 13px;
+  background: #2a201bea;
+  padding: 4px 5px 6px;
+}
+#focus-widget::after {
+  content: "";
+  position: absolute;
+  inset: auto 6px 3px;
+  height: 2px;
+  background: linear-gradient(to right,#e8ba86 var(--focus-progress),#755640 var(--focus-progress));
+}
+#focus-widget button { border: 0; border-radius: 7px; padding: 5px 7px; background: transparent; }
+#focus-widget button:hover, #focus-widget button:focus-visible { background: #6f4a32; }
+#focus-widget time { margin-left: 6px; color: #ffdda9; font-variant-numeric: tabular-nums; }
+.focus-widget-notice:not(:empty) {
+  position: absolute; right: 0; bottom: calc(100% + 5px); white-space: nowrap;
+  background: #2a201b; border-radius: 7px; padding: 4px 7px; color: #ffdda9;
+}
+#focus-panel .timer-actions { grid-template-columns: 1fr auto auto; }
+.focus-timer-settings {
+  border: 1px solid #81654e; border-radius: 9px; padding: 6px 8px;
+  margin-bottom: 12px; font-size: .83rem;
+}
+.focus-timer-settings summary { cursor: pointer; color: #f1d7b1; }
+.focus-timer-settings > label { display: block; margin-top: 4px; }
+.focus-timer-settings input { accent-color: #e6b87a; }
+.focus-timer-durations { display: grid; gap: 5px; margin: 9px 0; }
+.focus-timer-durations input {
+  width: 49px; color: inherit; background: #241a16; border: 1px solid #946b4f;
+  border-radius: 5px; font: inherit; padding: 3px; margin-left: 4px;
+}

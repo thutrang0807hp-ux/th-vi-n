@@ -1,3 +1,4 @@
+import { mountFocusTimer } from './focus/timer.js';
 import { loadExteriorStudy, plantExteriorStudy } from './exterior-study.js';
 import * as T from './vendor/three-r164/three.module.min.js';
 import { RoundedBoxGeometry } from './vendor/three-r164/RoundedBoxGeometry.js';
@@ -1596,10 +1597,6 @@ function play(renderer, avatar,
   const seatButton = document.querySelector('#seat-toggle');
   const activityPicker = document.querySelector('#activity-picker');
   const panel = document.querySelector('#focus-panel');
-  const timer = document.querySelector('#focus-clock');
-  const timerButton = document.querySelector('#timer-start');
-  const timerStatus = document.querySelector('#focus-status');
-  const focusModes = Array.from(panel.querySelectorAll('[data-focus-mode]'));
   const focusActivity = document.querySelector('#focus-activity');
   const focusRoute = document.querySelector('#focus-route');
   const routePicker = document.querySelector('#route-picker');
@@ -1649,12 +1646,6 @@ function play(renderer, avatar,
   windSwitch.addEventListener('change', () => playSound(wind, windSwitch, windSwitch.checked));
   railSwitch.addEventListener('change', syncRail);
 
-  let countingUp = false;
-  let duration = 25 * 60 * 1000;
-  let remaining = duration;
-  let startedAt = null;
-  let elapsedTime = 0;
-  let lastTimerSecond = -1;
   let firstPerson = false;
   let seated = false;
   let currentSeat;
@@ -1841,32 +1832,6 @@ function play(renderer, avatar,
     }
   }
 
-  function updateTimer() {
-    const total = elapsedTime + (startedAt === null ? 0 : performance.now() - startedAt);
-    remaining = Math.max(0, duration - total);
-    if (!countingUp && !remaining && startedAt !== null) {
-      startedAt = null;
-      elapsedTime = duration;
-      timerButton.textContent = 'Bắt đầu';
-      timerStatus.textContent = 'Phiên đã hoàn thành';
-    }
-    const seconds = countingUp ? Math.floor(total / 1000) : Math.ceil(remaining / 1000);
-    if (seconds === lastTimerSecond) return;
-    lastTimerSecond = seconds;
-    const format = value => String(value).padStart(2, '0');
-    timer.textContent = [format(Math.floor(seconds / 60)), format(seconds % 60)].join(':');
-    panel.style.setProperty('--focus-progress', (countingUp ? (seconds % 60) / 60 : 1 - remaining / duration) * 100 + '%');
-  }
-
-  function resetTimer() {
-    startedAt = null;
-    elapsedTime = 0;
-    lastTimerSecond = -1;
-    timerButton.textContent = 'Bắt đầu';
-    timerStatus.textContent = 'Sẵn sàng';
-    updateTimer();
-  }
-
   cameraButton.addEventListener('click', toggleCamera);
   seatButton.addEventListener('click', () => toggleSeat());
   seatHint.addEventListener('click', () => { if (nearbySeat) toggleSeat(nearbySeat); });
@@ -1885,28 +1850,16 @@ function play(renderer, avatar,
     needsRender = true;
   });
   document.querySelector('#focus-toggle').addEventListener('click', toggleFocus);
-  timerButton.addEventListener('click', () => {
-    if (startedAt !== null) {
-      elapsedTime += performance.now() - startedAt;
-      startedAt = null;
-      timerButton.textContent = 'Tiếp tục';
-      timerStatus.textContent = 'Đang tạm dừng';
-    } else {
-      if (!countingUp && !remaining) elapsedTime = 0;
-      startedAt = performance.now();
-      timerButton.textContent = 'Tạm dừng';
-      timerStatus.textContent = 'Đang chạy';
-    }
-    updateTimer();
+  const focusWidget = document.querySelector('#focus-widget');
+  focusWidget.querySelector('[data-widget-open]').addEventListener('click',toggleFocus);
+  let focusSmileUntil = 0;
+  panel.addEventListener('focus:completed', () => {
+    if (reduceMotion || firstPerson || velocity.lengthSq() > .01) return;
+    if (seated) focusSmileUntil = performance.now() + 1250;
+    else avatar.animator.cue('happy');
+    needsRender = true;
   });
-  document.querySelector('#timer-reset').addEventListener('click', resetTimer);
-  for (const mode of focusModes) mode.addEventListener('click', () => {
-    if (mode.getAttribute('aria-pressed') === 'true') return;
-    for (const option of focusModes) option.setAttribute('aria-pressed', option === mode);
-    countingUp = mode.dataset.focusMode === 'up';
-    if (!countingUp) duration = Number(mode.dataset.focusMode) * 60 * 1000;
-    resetTimer();
-  });
+  mountFocusTimer(panel,focusWidget);
 
   const avatarPanel = setupMascotCustomizer(avatar, renderer,
     () => { needsRender = true; },
@@ -2020,7 +1973,6 @@ function play(renderer, avatar,
     const cameraMoving = follow.distanceToSquared(position) > 0.000002;
     if (firstPerson) follow.copy(position);
     else follow.lerp(position, 1 - Math.exp(-dt * 15));
-    updateTimer();
     ambientTime += dt;
     const working = seated && activity !== 'idle';
     if (working && !reduceMotion) activityTime += dt;
@@ -2041,7 +1993,7 @@ function play(renderer, avatar,
     const sinYaw = Math.sin(yaw);
     const cosYaw = Math.cos(yaw);
     mascot.visible = !firstPerson;
-    if (seated && !reduceMotion) avatar.showFace(null, ambientTime);
+    if (seated && !reduceMotion) avatar.showFace(now < focusSmileUntil ? 'happy' : null, ambientTime);
     if (firstPerson) {
       const eyeHeight = y + (seated ? 0.72 : 1.45);
       camera.position.set(x, eyeHeight, z);
