@@ -206,6 +206,12 @@ export function plantExteriorStudy(scene, kit, ground, length) {
   const foliage = mergeGeometries([leaf, opposite, stem]);
   const cup = tulipCup();
   const petalMaterial = surface('#ffffff', { vertexColors: true, flatShading: true, side: T.DoubleSide });
+  petalMaterial.onBeforeCompile = shader => {
+    shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `
+      outgoingLight = mix(outgoingLight, diffuseColor.rgb * 1.28, 0.59);
+      #include <opaque_fragment>
+    `);
+  };
   const leafMaterial = tone('#739e36', 0.20);
   leafMaterial.side = T.DoubleSide;
   for (const flowers of sections) {
