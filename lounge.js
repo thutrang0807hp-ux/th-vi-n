@@ -331,54 +331,22 @@ function buildBulkhead(z, facesFront) {
 
 function buildScenery() {
   const layers = [];
-  const ground = material('#394947');
-  const lake = material('#4e6486', 0.29, 0.20);
-  lake.onBeforeCompile = shader => {
-    shader.vertexShader = 'varying vec3 lakePosition;\n' + shader.vertexShader.replace(
-      '#include <begin_vertex>',
-      '#include <begin_vertex>\nlakePosition = (modelMatrix * vec4(position, 1.0)).xyz;'
-    );
-    shader.fragmentShader = 'varying vec3 lakePosition;\n' + shader.fragmentShader.replace(
-      '#include <opaque_fragment>', `
-        vec3 delta = lakePosition - cameraPosition;
-        float x = abs(delta.x);
-        float sideways = delta.z + x * 0.25;
-        float drift = 0.36 * sin(lakePosition.x * 0.57 + lakePosition.z * 0.30);
-        float width = mix(0.65, 1.9, smoothstep(12.0, 44.0, x));
-        float plume = exp(-pow(abs(sideways + drift) / width, 2.0));
-        float glow = exp(-abs(sideways) * 0.27);
-        float fade = smoothstep(12.0, 23.0, x) * (1.0 - smoothstep(35.0, 47.0, x));
-        float broken = smoothstep(-0.48, 0.9,
-          sin(lakePosition.x * 1.34 + lakePosition.z * 0.81)
-          + 0.64 * cos(lakePosition.x * 2.14 - lakePosition.z * 1.33));
-        outgoingLight += vec3(0.56, 0.37, 0.32) * fade * (0.12 * glow + plume * (0.10 + 0.18 * broken));
-        #include <opaque_fragment>
-      `
-    );
-  };
-  const siding = ['#896b60', '#a78670', '#715c63'].map(color => material(color));
-  const roof = material('#4a3f55');
-  const timber = material('#4e3a39');
-  const windowLight = new T.MeshBasicMaterial({ color: '#ffcf85' });
-  const lanternReflection = new T.MeshBasicMaterial({ color: '#b58f97' });
-  const autumn = ['#805261', '#a86163', '#704657'].map(color => material(color));
+  const grass = new T.MeshStandardMaterial({ color: '#596553', roughness: 1, side: T.DoubleSide });
+  const rock = material('#736a77');
+  const trunks = material('#58464d');
+  const foliage = ['#566859', '#484e56', '#744c67'].map(color => material(color));
+  const firGeometry = new T.ConeGeometry(1, 1, 7);
   const crownGeometry = new T.IcosahedronGeometry(1, 1);
-  const trunks = material('#554639');
-  const gravel = material('#7e7769');
-  const grass = material('#606d54');
-  const ochre = material('#b19a66');
-  const shrub = material('#59794b');
-  const pines = ['#234c49', '#355b48', '#557253'].map(color => material(color));
-  const conifer = new T.ConeGeometry(1, 1, 7);
-  const ripple = new T.MeshBasicMaterial({ color: '#7084a4' });
+  const panorama = new T.TextureLoader().load(new URL('./assets/twilight-river.webp', import.meta.url).href);
+  panorama.colorSpace = T.SRGBColorSpace;
+  panorama.anisotropy = 4;
 
-  scene.fog.color.set('#a397bb');
-  const sky = new T.ShaderMaterial({
+  scene.background.set('#8584a9');
+  scene.fog.color.set('#8584a9');
+  const backdrop = new T.ShaderMaterial({
     side: T.BackSide,
-    uniforms: {
-      horizon: { value: new T.Color('#e7adbc') },
-      zenith: { value: new T.Color('#6c75b6') }
-    },
+    depthWrite: false,
+    uniforms: { panorama: { value: panorama } },
     vertexShader: `
       varying vec3 direction;
       void main() {
@@ -387,33 +355,20 @@ function buildScenery() {
       }
     `,
     fragmentShader: `
-      uniform vec3 horizon;
-      uniform vec3 zenith;
+      uniform sampler2D panorama;
       varying vec3 direction;
       void main() {
-        float height = smoothstep(-0.04, 0.42, normalize(direction).y);
         vec3 ray = normalize(direction);
-        float bands = sin(ray.x * 10.0 + ray.z * 4.0 + ray.y * 42.0)
-          + 0.55 * sin(ray.z * 17.0 + ray.y * 71.0);
-        float cloud = smoothstep(0.65, 1.4, bands) * smoothstep(0.07, 0.2, ray.y)
-          * (1.0 - smoothstep(0.36, 0.66, ray.y));
-        vec3 skyColor = mix(horizon, zenith, height);
-        skyColor = mix(skyColor, horizon * 1.14, cloud * 0.27);
-        vec3 moonDirection = normalize(vec3(1.0, 0.22, -0.25));
-        float angle = distance(vec3(abs(ray.x), ray.yz), moonDirection);
-        float halo = 0.16 * (1.0 - smoothstep(0.025, 0.145, angle));
-        float moon = 1.0 - smoothstep(0.020, 0.023, angle);
-        vec3 moonColor = vec3(1.0, 0.84, 0.67);
-        gl_FragColor = vec4(mix(skyColor, moonColor, max(halo, moon)), 1.0);
+        float longitude = atan(ray.z, max(abs(ray.x), 0.0001));
+        float latitude = asin(clamp(ray.y, -1.0, 1.0));
+        vec2 uv = vec2(0.5 + longitude / 3.18, 0.34 + latitude / 0.90);
+        gl_FragColor = texture2D(panorama, clamp(uv, vec2(0.0), vec2(1.0)));
         #include <colorspace_fragment>
       }
     `
   });
-  mesh(new T.SphereGeometry(142, 32, 16), sky, 0, 0, -2);
-  box(220, 0.15, 300, ground, 0, -2.48, 0);
-  for (const side of [-1, 1]) {
-    box(35, 0.12, 300, lake, side * 28.5, -2.36, 0);
-  }
+  const horizon = mesh(new T.SphereGeometry(125, 36, 18), backdrop, 0, 1.25, -2);
+  horizon.renderOrder = -1;
 
   function loop(length, speed, copies, build) {
     const start = scene.children.length;
@@ -431,162 +386,47 @@ function buildScenery() {
     layers.push({ strip, length, speed });
   }
 
-  function grove(x, z, height, variety) {
-    const trunk = mesh(conifer, trunks, x, -2.39 + height * 0.22, z);
-    trunk.scale.set(0.115, height * 0.44, 0.115);
-    for (let level = 0; level < 4; level++) {
-      const branch = mesh(conifer, pines[(variety + Number(level === 3)) % pines.length], x,
-        -2.39 + height * (0.34 + level * 0.166), z);
-      const width = height * (0.22 - level * 0.043);
-      branch.scale.set(width, height * (0.47 - level * 0.043), width);
-      branch.rotation.y = variety + level * 0.53;
-    }
-  }
-
-  function maple(x, y, z, scale, color) {
-    const trunk = mesh(conifer, trunks, x, y + scale * 0.61, z);
-    trunk.scale.set(scale * 0.095, scale * 1.22, scale * 0.095);
-    for (const [dx, height, dz, width] of [[0, 1.3, 0, 0.65], [0.36, 1.13, 0.22, 0.48], [-0.31, 1.23, -0.23, 0.50]]) {
-      const crown = mesh(crownGeometry, autumn[color], x + dx * scale, y + height * scale, z + dz * scale);
-      crown.scale.set(width * scale, width * scale * 0.79, width * scale);
-      crown.rotation.y = 0.8 + dx;
-    }
-  }
-
-  function cottage(side, x, z, size, groundLevel, finish) {
-    const walls = siding[finish];
-    const facade = x - side * size * 0.54;
-    const eave = groundLevel + size * 0.65;
-    box(size * 1.07, size * 0.69, size * 1.32, walls, x, groundLevel + size * 0.34, z);
-    for (const sign of [-1, 1]) {
-      const slope = box(size * 1.21, size * 0.084, size * 0.81, roof,
-        x, eave + size * 0.18, z + sign * size * 0.35);
-      slope.rotation.x = sign * 0.46;
-      const windowZ = z + sign * size * 0.36;
-      box(0.055, size * 0.35, size * 0.35, timber, facade, groundLevel + size * 0.39, windowZ);
-      box(0.058, size * 0.26, size * 0.27, windowLight,
-        facade - side * 0.026, groundLevel + size * 0.39, windowZ);
-      box(0.061, size * 0.26, size * 0.025, timber,
-        facade - side * 0.049, groundLevel + size * 0.39, windowZ);
-    }
-    const gable = new T.Shape();
-    gable.moveTo(-size * 0.66, 0);
-    gable.lineTo(size * 0.66, 0);
-    gable.lineTo(0, size * 0.35);
-    gable.closePath();
-    const wall = mesh(new T.ExtrudeGeometry(gable, { depth: size * 1.05, bevelEnabled: false }),
-      walls, x - size * 0.525, eave, z);
-    wall.rotation.y = Math.PI / 2;
-    box(size * 0.19, size * 0.40, size * 0.18, timber, x + size * 0.24, eave + size * 0.30, z + size * 0.28);
-    box(0.065, size * 0.45, size * 0.28, timber, facade - side * 0.03,
-      groundLevel + size * 0.23, z);
-  }
-
-  loop(74, 9.2, 3, length => {
+  loop(88, 6.3, 3, length => {
     for (const side of [-1, 1]) {
-      const geometry = new T.PlaneGeometry(length, 1, 60, 10);
-      const vertices = geometry.attributes.position;
-      function bank(z) {
-        const phase = z / length * Math.PI * 2;
-        return 13.2 + 2.15 * Math.sin(phase * 2 + side) + 1.45 * Math.cos(phase * 3);
+      const bank = new T.PlaneGeometry(length, 1, 48, 8);
+      const nodes = bank.attributes.position;
+      for (let i = 0; i < nodes.count; i++) {
+        const z = nodes.getX(i);
+        const t = nodes.getY(i) + 0.5;
+        const wave = z / length * Math.PI * 2;
+        const edge = 7.7 + 2.8 * Math.cos(wave * 2 + side) + Math.sin(wave * 3) * 0.9;
+        nodes.setXYZ(i, side * (4.2 + t * (edge - 4.2)),
+          -0.65 - t * 1.85 + Math.sin(t * Math.PI) * (0.24 + Math.sin(wave) * 0.15), z);
       }
-      for (let i = 0; i < vertices.count; i++) {
-        const z = vertices.getX(i);
-        const t = vertices.getY(i) + 0.5;
-        const edge = bank(z);
-        const slope = Math.sin(t * Math.PI) ** 1.25;
-        const y = -2.45 + slope * (0.73 + 0.29 * Math.cos(z / length * Math.PI * 6 + side));
-        vertices.setXYZ(i, side * (4.4 + t * (edge - 4.4)), y, z);
-      }
-      if (side === -1) {
-        const indices = geometry.index.array;
-        for (let i = 0; i < indices.length; i += 3) {
-          [indices[i + 1], indices[i + 2]] = [indices[i + 2], indices[i + 1]];
+      bank.computeVertexNormals();
+      mesh(bank, grass, 0, 0, 0);
+      for (let group = 0; group < 3; group++) {
+        const middle = -length / 2 + 12 + group * 27 + random() * 7;
+        for (let j = 0; j < 3; j++) {
+          const x = side * (5.45 + random() * 1.65);
+          const z = middle + (random() - 0.5) * 7;
+          const height = 1.2 + random() * 1.95;
+          const trunk = mesh(firGeometry, trunks, x, -1.4 + height * 0.23, z);
+          trunk.scale.set(0.10, height * 0.55, 0.10);
+          if (group === 1) {
+            const crown = mesh(crownGeometry, foliage[2], x, -1.4 + height * 0.78, z);
+            crown.scale.set(height * 0.31, height * 0.31, height * 0.39);
+            crown.rotation.y = j * 0.86;
+          } else {
+            for (let tier = 0; tier < 3; tier++) {
+              const branch = mesh(firGeometry, foliage[tier % 2], x, -1.4 + height * (0.39 + tier * 0.22), z);
+              const width = height * (0.24 - tier * 0.047);
+              branch.scale.set(width, height * 0.53, width);
+              branch.rotation.y = tier * 0.45 + j;
+            }
+          }
         }
       }
-      geometry.computeVertexNormals();
-      grass.side = T.DoubleSide;
-      mesh(geometry, grass, 0, 0, 0);
-      for (let cluster = 0; cluster < 5; cluster++) {
-        const center = -length / 2 + 6 + cluster * 14 + random() * 5;
-        const count = 1 + Math.floor(random() * 3);
-        for (let i = 0; i < count; i++) {
-          const z = center + (random() - 0.5) * 7;
-          const x = 6.8 + random() * Math.max(1, bank(z) - 8);
-          if (cluster % 2 === 0) maple(side * x, -2.05, z, 0.85 + random() * 0.78, cluster % 3);
-          else grove(side * x, z, 1.6 + random() * 2.6, i % 3);
-        }
-      }
-      for (let i = 0; i < 26; i++) {
+      for (let i = 0; i < 11; i++) {
         const z = (random() - 0.5) * length;
-        const x = side * (6 + random() * (bank(z) - 5));
-        const size = 0.13 + random() * 0.45;
-        const mound = oval([gravel, shrub, ochre][i % 3], x, -2.02, z, size, size * 0.39, size * 1.35);
-        mound.rotation.y = random() * Math.PI;
-      }
-    }
-  });
-
-  loop(98, 3.25, 2, length => {
-    for (const side of [-1, 1]) {
-      for (let i = 0; i < 27; i++) {
-        const glint = box(0.05 + random() * 0.17, 0.007, 0.45 + random() * 3.4, ripple,
-          side * (14 + random() * 29), -2.293, (random() - 0.5) * length);
-        glint.rotation.y = (random() - 0.5) * 0.4;
-      }
-      for (let i = 0; i < 9; i++) {
-        const z = -44 + i * 11;
-        oval(grass, side * (48 + random() * 2), -2.53, z, 7.1 + random() * 2.4, 1.45, 8.5);
-        for (let n = 0; n < 3; n++) {
-          grove(side * (48 + random() * 5), z + (random() - 0.5) * 9, 2.1 + random() * 3.2, n % 3);
-        }
-      }
-      const villageZ = -24 + side * 4;
-      const homes = [[0, 0, 2.85, -1.55], [6.5, 4.0, 1.65, -0.72], [9.4, 0.8, 2.2, -1.47], [25.5, 6.4, 2.42, -0.52]];
-      for (const [i, [along, inland, size, terrace]] of homes.entries()) {
-        const z = villageZ + along;
-        const x = side * (42.5 + inland);
-        oval(grass, x + side * 0.9, -2.36, z, 3.1 + size, terrace + 2.36, 3.2 + size);
-        cottage(side, x, z, size, terrace, i % siding.length);
-        if (i !== 1) maple(x + side * 0.9, terrace - 0.12, z - 2.15 - (i % 2), 1.25 + size * 0.27, i % autumn.length);
-        for (let gleam = 0; gleam < 3; gleam++) {
-          const gap = 1.1 + random() * 3;
-          box(0.18 + random() * 0.33, 0.006, 0.13 + random() * 0.4, lanternReflection,
-            side * (Math.abs(x) - 5.6 - gap), -2.292, z + (random() - 0.5) * 1.1);
-        }
-      }
-    }
-  });
-
-  const ridge = new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.98, flatShading: true, side: T.DoubleSide });
-  const warmRock = new T.Color('#697698');
-  const highRock = new T.Color('#8994b5');
-  const snow = new T.Color('#efe8f0');
-  const tint = new T.Color();
-  loop(116, 0.65, 2, length => {
-    for (const side of [-1, 1]) {
-      for (let row = 0; row < 2; row++) {
-        const geometry = new T.PlaneGeometry(length, 32, 48, 12);
-        const vertices = geometry.attributes.position;
-        const colors = [];
-        for (let i = 0; i < vertices.count; i++) {
-          const z = vertices.getX(i);
-          const slope = vertices.getY(i) / 32 + 0.5;
-          const angle = z / length * Math.PI * 2;
-          const jagged = 0.46 * Math.sin(angle * 5 + side) + 0.28 * Math.cos(angle * 11 + row);
-          const rolling = 0.65 + 0.35 * Math.cos(angle * 2 - row * 1.6 + side);
-          const peak = 4 + 6 * row + 7.4 * rolling * Math.sin(angle * (2 + row) + row * 1.4) ** 2
-            + jagged * (1.25 + row * 1.2);
-          const height = Math.sin(slope * Math.PI) ** 1.4 * peak + Math.sin(angle * 17 + slope * 17)
-            * Math.sin(slope * Math.PI) * 0.60;
-          vertices.setXYZ(i, side * (52 + row * 28 + slope * 32), -2.45 + height, z);
-          tint.copy(warmRock).lerp(highRock, T.MathUtils.smoothstep(height, 4, 19));
-          tint.lerp(snow, T.MathUtils.smoothstep(height + jagged * 5, 19 + row * 3, 26 + row * 3));
-          colors.push(tint.r, tint.g, tint.b);
-        }
-        geometry.setAttribute('color', new T.Float32BufferAttribute(colors, 3));
-        geometry.computeVertexNormals();
-        mesh(geometry, ridge, 0, 0, 0);
+        const size = 0.16 + random() * 0.28;
+        const boulder = mesh(crownGeometry, rock, side * (6 + random() * 1.4), -1.46, z);
+        boulder.scale.set(size * 1.4, size * 0.62, size);
       }
     }
   });
