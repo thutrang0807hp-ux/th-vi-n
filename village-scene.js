@@ -1136,12 +1136,21 @@ function play(renderer, avatar,
     needsRender = true;
     if (seated) {
       const booth = clamp(Math.round((mascot.position.z + 13.3) / 3.6), 0, 7);
-      mascot.position.set(boothCenter - 0.48, 0.28, -13.3 + booth * 3.6 + 0.95);
-      mascot.rotation.y = Math.PI;
+      // Center on the bench and leave room for the head in front of the backrest.
+      mascot.position.set(boothCenter, 0.665, -13.3 + booth * 3.6 + 0.735);
+      mascot.rotation.y = 0;
     } else {
       mascot.position.set(aisleLimit - 0.18, 0, mascot.position.z);
       mascot.rotation.y = 0;
     }
+    follow.copy(mascot.position);
+    strideWeight = 0;
+    feet.forEach((foot, index) => {
+      foot.position.y = seated ? 0.107 : mochiHipY;
+      foot.position.z = seated ? -0.119 : -0.021;
+      foot.rotation.x = seated ? 0.9 : 0;
+      arms[index].rotation.x = seated ? 0.10 : 0;
+    });
     yaw = 0;
     pitch = 0;
     seatButton.textContent = seated ? 'Đứng dậy' : 'Ngồi';
@@ -1319,9 +1328,15 @@ function play(renderer, avatar,
     mascot.visible = !firstPerson;
     if (!firstPerson && !reduceMotion) avatar.animateIdle(ambientTime, moving);
     if (firstPerson) {
-      const eyeHeight = y + 1.45;
+      const eyeHeight = y + (seated ? 0.72 : 1.45);
       camera.position.set(x, eyeHeight, z);
       look.set(x + sinYaw * Math.cos(pitch), eyeHeight + Math.sin(pitch), z - cosYaw * Math.cos(pitch));
+    } else if (seated) {
+      const reach = clamp(distance * 0.57, 1.65, 2.85);
+      camera.position.set(clamp(0.65 - sinYaw * 1.05, -1.15, 1.47),
+        clamp(y + 1.37 - pitch * 0.9, 1.55, 2.8),
+        clamp(z - reach + (1 - cosYaw) * 1.24, -16.8, 12.95));
+      look.set(x, y + 0.59, z);
     } else {
       const pivotX = clamp(x, -cameraAisleLimit + 0.08, cameraAisleLimit - 0.08);
       const elevation = clamp(0.14 - pitch, -0.33, 0.72);
