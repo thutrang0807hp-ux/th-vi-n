@@ -405,6 +405,69 @@ function cumulus() {
   return clouds;
 }
 
+function movingSurf(layer, coast, waveTime) {
+  const positions = [], fade = [];
+  function triangle(a, b, c, opacity) {
+    positions.push(...a, ...b, ...c);
+    fade.push(...opacity);
+  }
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 28; i++) {
+      const z = -travelLength / 2 + (i + 0.42) * travelLength / 28;
+      const x = side * (10.0 + ((i * 7) % 19) * 0.84);
+      const length = 1.8 + ((i * 3) % 8) * 0.45;
+      const width = 0.28 + (i % 4) * 0.13;
+      for (let part = 0; part < 5; part++) {
+        const a = part / 5, b = (part + 1) / 5;
+        const ridge = t => x + side * (Math.sin(t * 3.14) * 0.54 + Math.sin(t * 13 + i) * 0.14);
+        const opacity = t => Math.sin(t * Math.PI) * (part % 2 ? 0.63 : 0.98);
+        const p = [ridge(a), 0, z + length * a], q = [ridge(b), 0, z + length * b];
+        const r = [q[0] + side * width, 0, q[2] - 0.17];
+        const v = [p[0] + side * width, 0, p[2] - 0.17];
+        triangle(p, q, r, [opacity(a), opacity(b), 0]);
+        triangle(p, r, v, [opacity(a), 0, 0]);
+      }
+    }
+  }
+  const geometry = new T.BufferGeometry();
+  geometry.setAttribute('position', new T.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('fade', new T.Float32BufferAttribute(fade, 1));
+  const material = new T.ShaderMaterial({
+    uniforms: {
+      shoreTravel: { value: coast.strip.position }, swellTravel: { value: layer.strip.position }, waveTime,
+    },
+    side: T.DoubleSide, transparent: true, depthWrite: false,
+    vertexShader: shoreMath + `
+      attribute float fade;
+      varying float amount;
+      void main() {
+        vec3 p = (modelMatrix * vec4(position, 1.0)).xyz;
+        float radius = abs(p.x);
+        float depth = radius - mix(8.6, shore(p.z), 1.0 - smoothstep(23.0, 56.0, radius));
+        float swell = pow(0.5 + 0.5 * sin(wavePhase(depth, p.z)), 6.0);
+        float breaks = smoothstep(0.0, 1.1, depth) * (1.0 - smoothstep(16.0, 30.0, depth));
+        breaks *= 0.78 + 0.22 * sin(waveTime * 0.48 + p.z * 0.08);
+        p.y = -0.446 + (1.0 - smoothstep(-5.0, -0.2, depth)) * 0.17 + swell * breaks * 0.22;
+        amount = fade * smoothstep(0.35, 1.9, depth) * (0.70 + 0.30 * swell);
+        gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+      }
+    `,
+    fragmentShader: `
+      varying float amount;
+      void main() {
+        gl_FragColor = vec4(0.68, 0.89, 0.90, amount * 0.72);
+        #include <colorspace_fragment>
+      }
+    `,
+  });
+  for (let i = -2; i <= 1; i++) {
+    const surf = new T.Mesh(geometry, material);
+    surf.position.z = i * travelLength;
+    surf.frustumCulled = false; // Vertices are lifted to the displaced waterline by the shader.
+    layer.strip.add(surf);
+  }
+}
+
 function oceanLife(scene) {
   const bone = new T.MeshBasicMaterial({ color: '#fbf7ee', side: T.DoubleSide });
   const dark = new T.MeshBasicMaterial({ color: '#526379', side: T.DoubleSide });
@@ -455,28 +518,57 @@ function oceanLife(scene) {
   function makeBoat() {
     const boat = new T.Group();
     boat.name = 'Tàu cá';
-    const hull = new T.BufferGeometry();
-    const rim = [[0,0,3.1], [-0.92,0,1.55], [-0.86,0,-2.44], [0.86,0,-2.44], [0.92,0,1.55]];
-    const hullPoints = [];
-    for (let i = 0; i < rim.length; i++) {
-      const a = rim[i], b = rim[(i+1) % rim.length];
-      const aLow = [a[0]*0.70,-0.49,a[2]*0.94], bLow = [b[0]*0.70,-0.49,b[2]*0.94];
-      hullPoints.push(...a,...b,...aLow, ...b,...bLow,...aLow, 0,0,0,...b,...a);
+    const navy = '#31577a', white = '#dee8e6', glass = '#8ab0bd', cream = '#e8d4ab';
+    const rim = [[0,0,2.93], [-0.90,0,1.73], [-1.06,0,0.12], [-0.89,0,-2.13],
+      [0.89,0,-2.13], [1.06,0,0.12], [0.90,0,1.73]];
+    function hullBand(top, low, upper, lower, shade) {
+      const points = [];
+      for (let i = 0; i < rim.length; i++) {
+        const a = rim[i], b = rim[(i + 1) % rim.length];
+        const p = [a[0] * upper, top, a[2] * upper], q = [b[0] * upper, top, b[2] * upper];
+        const r = [a[0] * lower, low, a[2] * lower], s = [b[0] * lower, low, b[2] * lower];
+        points.push(...p, ...q, ...r, ...q, ...s, ...r);
+      }
+      const geometry = new T.BufferGeometry();
+      geometry.setAttribute('position', new T.Float32BufferAttribute(points, 3));
+      boat.add(new T.Mesh(geometry, new T.MeshBasicMaterial({ color: shade, side: T.DoubleSide })));
     }
-    hull.setAttribute('position', new T.Float32BufferAttribute(hullPoints,3));
-    boat.add(new T.Mesh(hull, new T.MeshBasicMaterial({ color: '#39738b', side: T.DoubleSide })));
-    function fit(width, height, depth, shade, x, y, z) {
-      const piece = new T.Mesh(new T.BoxGeometry(width,height,depth), new T.MeshBasicMaterial({ color: shade }));
-      piece.position.set(x,y,z);
-      boat.add(piece);
+    hullBand(0.43, 0.05, 1, 0.93, '#b5c9ce');
+    hullBand(0.05, -0.40, 0.93, 0.71, navy);
+    hullBand(0.46, 0.39, 1.018, 1.018, '#527c95');
+    hullBand(0.38, 0.20, 1.0, 0.79, '#edf0e9');
+    function fit(w, h, d, shade, x, y, z) {
+      const mesh = new T.Mesh(new T.BoxGeometry(w, h, d), new T.MeshBasicMaterial({ color: shade }));
+      mesh.position.set(x, y, z);
+      boat.add(mesh);
     }
-    fit(1.22,0.83,1.66,'#f2eee0',0,0.40,-0.71);
-    fit(1.44,0.14,1.85,'#bb634b',0,0.85,-0.71);
-    for (const side of [-1,1]) {
-      fit(0.053,0.30,0.92,'#56748a',side*0.62,0.57,-0.52);
+    fit(1.39, 0.10, 3.94, '#c3cfcd', 0, 0.24, -0.14);
+    fit(0.93, 1.04, 1.39, white, 0, 0.84, -0.48);
+    fit(1.20, 0.15, 1.66, cream, 0, 1.42, -0.48);
+    fit(0.67, 0.44, 0.03, glass, 0, 1.07, 0.23);
+    fit(0.048, 0.46, 0.04, white, 0, 1.07, 0.25);
+    for (const side of [-1, 1]) {
+      fit(0.032, 0.46, 0.83, glass, side * 0.474, 1.07, -0.42);
+      fit(0.049, 0.49, 0.07, white, side * 0.487, 1.07, -0.39);
+      fit(0.055, 0.87, 0.06, white, side * 0.77, 0.72, -1.85);
+      fit(0.054, 0.054, 1.04, white, side * 0.77, 1.12, -1.41);
+      fit(0.058, 0.86, 0.06, '#b7aa87', side * 0.27, 1.91, -0.69);
+      for (const z of [-1.43, 0.94]) {
+        const tire = new T.Mesh(new T.TorusGeometry(0.19, 0.053, 5, 10), new T.MeshBasicMaterial({ color: navy }));
+        tire.rotation.y = Math.PI / 2;
+        tire.position.set(side * 1.018, 0.23, z);
+        boat.add(tire);
+      }
     }
-    fit(0.19,0.80,0.19,'#dfd9c8',0,0.96,-1.88);
-    fit(0.67,0.10,0.09,'#d0cabf',0,1.34,-1.88);
+    const wakeShape = new T.BufferGeometry();
+    wakeShape.setAttribute('position', new T.Float32BufferAttribute([
+      0, 0.13, -1.4, -1.24, 0.11, -7.2, -0.95, 0.12, -3.2,
+      0, 0.13, -1.4, 1.24, 0.11, -7.2, 0.95, 0.12, -3.2,
+      -0.38, 0.11, -3.2, 0, 0.11, -7.6, 0.42, 0.11, -3.2,
+    ],3));
+    boat.add(new T.Mesh(wakeShape, new T.MeshBasicMaterial({
+      color: '#c6edf0', transparent: true, opacity: 0.44, side: T.DoubleSide, depthWrite: false,
+    })));
     return boat;
   }
   const boats = [1,-1].map(side => {
@@ -509,11 +601,17 @@ function oceanLife(scene) {
       whale.rotation.x = Math.sin(t * Math.PI * 2) * 0.23;
     }
     for (const { boat, side } of boats) {
-      const pass = (time + (side > 0 ? 0 : 17)) % 62;
-      boat.visible = pass > 6 && pass < 32;
+      const pass = (time + (side > 0 ? 0 : 20)) % 146;
+      const duration = 126;
+      boat.visible = pass < duration;
       if (!boat.visible) continue;
-      const t = pass - 6;
-      boat.position.set(side * 61.0, waterline + Math.sin(time * 1.6) * 0.089, -46 + t * 3.72);
+      const progress = pass / duration;
+      const arc = Math.cos(progress * Math.PI);
+      const distance = 49 + 71 * arc * arc;
+      const z = -132 + pass * 2.1;
+      boat.position.set(side * distance, waterline - 0.09 + Math.sin(time * 1.6) * 0.066, z);
+      const crossSpeed = -71 * Math.PI * Math.sin(progress * Math.PI * 2) / duration;
+      boat.rotation.y = Math.atan2(side * crossSpeed, 2.1);
       boat.rotation.z = Math.sin(time * 1.19) * 0.044;
     }
   };
@@ -526,7 +624,8 @@ export function buildOceanCoast(scene) {
   const waveTime = { value: 0 };
   // The surface stays in place; periodic world-space shader offsets supply the two parallax speeds.
   const layers = [6.9, 3.1].map(speed => ({ strip: new T.Object3D(), length: travelLength, speed }));
-  scene.add(sky(), coastalSurface(cloudDrift, waveTime, layers), clouds);
+  movingSurf(layers[1], layers[0], waveTime);
+  scene.add(sky(), coastalSurface(cloudDrift, waveTime, layers), clouds, layers[1].strip);
   return {
     layers,
     animateAmbient(time) {
