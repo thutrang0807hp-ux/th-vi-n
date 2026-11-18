@@ -30,7 +30,6 @@ const ceiling = material('#895942');
 const lightShade = new T.MeshStandardMaterial({
   color: '#ffe4b2', emissive: '#ffac59', emissiveIntensity: 1.15, roughness: 0.45
 });
-const pink = material('#ed859e', 0.49);
 const leather = material('#774828');
 const bookColors = ['#793e36', '#36514e', '#a98650', '#525930'].map(color => material(color));
 
@@ -643,30 +642,196 @@ function batchScenery(root = scene, useSections = true) {
   }
 }
 
+const mascotColors = {
+  peach: ['#ff9f9d', '#e16a70'],
+  cream: ['#ffd0aa', '#d88668'],
+  lilac: ['#cba7e6', '#aa77bc'],
+  sky: ['#9bcbef', '#689dc5'],
+  mint: ['#a7d8b6', '#6dac90'],
+};
+const mascotDefaults = { color: 'peach', accessory: 'pilot', expression: 'gentle' };
+const mascotStorageKey = 'lofi-train-avatar-v1';
+
 function buildMascot() {
   const start = scene.children.length;
-  const z = 0;
+  const skin = material('#ff9f9d', 0.56);
+  const blush = material('#e16a70');
+  const ink = material('#432320', 0.47);
+  const capLeather = material('#70432f', 0.71);
+  const trim = material('#af7040', 0.61);
+  const brass = material('#de9d4e', 0.34, 0.36);
+  const glass = material('#756881', 0.28, 0.14);
+  const scarfRed = material('#a33830', 0.82);
+  const scarfShade = material('#782723', 0.85);
   const feet = [];
-  oval(new T.MeshBasicMaterial({ color: '#220c12', transparent: true, opacity: 0.28, depthWrite: false }),
-    0, 0.017, z, 0.44, 0.009, 0.42);
-  box(0.63, 0.65, 0.43, pink, 0, 0.47, z, 0.16);
-  box(1.01, 0.87, 0.72, pink, 0, 1.1, z, 0.22);
-  for (const side of [-1, 1]) {
-    feet.push(oval(pink, side * 0.19, 0.16, z - 0.025, 0.16, 0.16, 0.19));
-    oval(pink, side * 0.35, 0.46, z, 0.12, 0.22, 0.13).rotation.z = side * 0.35;
-    box(0.064, 0.42, 0.083, leather, side * 0.24, 0.55, z + 0.195, 0.025).rotation.z = side * 0.16;
-  }
-  box(0.51, 0.39, 0.21, leather, 0, 0.5, z + 0.24, 0.064);
-  box(0.51, 0.16, 0.222, darkWood, 0, 0.61, z + 0.247, 0.05);
-  for (const side of [-1, 1]) {
-    box(0.055, 0.21, 0.024, bronze, side * 0.125, 0.5, z + 0.366, 0.01);
-    box(0.078, 0.059, 0.018, darkWood, side * 0.125, 0.465, z + 0.38, 0.01);
-  }
+  const arms = [];
   const mascot = new T.Group();
-  for (const child of scene.children.slice(start)) mascot.add(child);
+  const group = build => {
+    const first = scene.children.length;
+    build();
+    const result = new T.Group();
+    result.add(...scene.children.slice(first));
+    mascot.add(result);
+    return result;
+  };
+  const stroke = (points, radius, surface) => mesh(new T.TubeGeometry(
+    new T.CatmullRomCurve3(points.map(point => new T.Vector3(...point))), 10, radius, 6, false),
+  surface, 0, 0, 0);
+
+  oval(new T.MeshBasicMaterial({ color: '#220c12', transparent: true, opacity: 0.28, depthWrite: false }),
+    0, 0.017, 0, 0.44, 0.009, 0.42);
+  oval(skin, 0, 0.48, 0, 0.338, 0.35, 0.238);
+  box(0.99, 0.77, 0.72, skin, 0, 1.082, 0, 0.235);
+  for (const side of [-1, 1]) {
+    feet.push(oval(skin, side * 0.175, 0.16, -0.025, 0.149, 0.16, 0.19));
+    const arm = oval(skin, side * 0.348, 0.48, -0.015, 0.111, 0.193, 0.126);
+    arm.rotation.z = side * 0.31;
+    arms.push(arm);
+    oval(blush, side * 0.299, 0.978, -0.355, 0.066, 0.033, 0.013).rotation.y = side * -0.16;
+  }
+
+  const expressions = {
+    gentle: group(() => {
+      for (const x of [-0.18, 0.18]) {
+        oval(ink, x, 1.09, -0.359, 0.035, 0.073, 0.019);
+        oval(material('#eac0ab'), x - 0.009, 1.116, -0.376, 0.008, 0.014, 0.004);
+      }
+      stroke([[-0.031, 1.001, -0.362], [0, 0.991, -0.366], [0.031, 1.001, -0.362]], 0.008, ink);
+    }),
+    happy: group(() => {
+      for (const x of [-0.18, 0.18]) {
+        stroke([[x - 0.049, 1.082, -0.362], [x, 1.119, -0.369], [x + 0.049, 1.082, -0.362]], 0.014, ink);
+      }
+      oval(ink, 0, 1.008, -0.36, 0.058, 0.043, 0.02);
+      oval(blush, 0, 0.987, -0.375, 0.032, 0.015, 0.008);
+    }),
+    sleepy: group(() => {
+      for (const x of [-0.18, 0.18]) {
+        stroke([[x - 0.046, 1.087, -0.36], [x, 1.068, -0.369], [x + 0.046, 1.087, -0.36]], 0.012, ink);
+      }
+      oval(ink, 0, 0.995, -0.362, 0.016, 0.019, 0.007);
+    }),
+  };
+  const scarf = group(() => {
+    oval(scarfShade, 0, 0.727, -0.07, 0.366, 0.091, 0.278);
+    oval(scarfRed, 0, 0.788, -0.07, 0.398, 0.071, 0.289);
+    box(0.14, 0.31, 0.08, scarfRed, -0.208, 0.655, 0.207, 0.038).rotation.z = -0.17;
+    for (const x of [-0.268, -0.236, -0.204, -0.172]) {
+      box(0.015, 0.072, 0.038, scarfShade, x, 0.499, 0.217, 0.007).rotation.z = -0.17;
+    }
+  });
+  const accessories = {
+    pilot: group(() => {
+      const dome = mesh(new T.SphereGeometry(1, 30, 16, 0, Math.PI * 2, 0, 1.29), capLeather, 0, 1.23, 0.022);
+      dome.scale.set(0.53, 0.39, 0.43);
+      const band = mesh(new T.TorusGeometry(1, 0.062, 8, 40), trim, 0, 1.343, 0.022);
+      band.rotation.x = Math.PI / 2;
+      band.scale.set(0.513, 0.418, 0.45);
+      for (const side of [-1, 1]) {
+        oval(capLeather, side * 0.447, 1.191, 0.044, 0.103, 0.206, 0.204).rotation.x = -0.22;
+        oval(brass, side * 0.537, 1.17, -0.019, 0.029, 0.068, 0.069);
+        const lens = new T.Group();
+        const first = scene.children.length;
+        const bezel = mesh(new T.TorusGeometry(0.112, 0.025, 10, 28), brass, 0, 0, -0.021);
+        bezel.scale.x = 1.18;
+        oval(glass, 0, 0, -0.017, 0.126, 0.105, 0.037);
+        oval(material('#e6b9ac'), -0.037, 0.039, -0.051, 0.04, 0.009, 0.004).rotation.z = 0.18;
+        lens.add(...scene.children.slice(first));
+        lens.position.set(side * 0.174, 1.465, -0.307);
+        lens.rotation.set(0.42, -side * 0.17, side * 0.13);
+        scene.add(lens);
+      }
+      box(0.14, 0.056, 0.066, trim, 0, 1.46, -0.308, 0.026);
+      box(0.067, 0.4, 0.048, trim, 0.07, 0.592, -0.23, 0.023).rotation.z = 0.83;
+      box(0.27, 0.208, 0.106, leather, 0.157, 0.447, -0.224, 0.047);
+      box(0.27, 0.086, 0.038, trim, 0.157, 0.507, -0.282, 0.023);
+      box(0.052, 0.058, 0.016, brass, 0.157, 0.48, -0.306, 0.012);
+    }),
+    headphones: group(() => {
+      const arc = mesh(new T.TorusGeometry(0.485, 0.037, 10, 32, Math.PI), capLeather, 0, 1.12, 0);
+      arc.scale.y = 1.02;
+      for (const side of [-1, 1]) {
+        oval(ink, side * 0.478, 1.115, 0, 0.064, 0.169, 0.14);
+        oval(brass, side * 0.53, 1.115, 0, 0.061, 0.151, 0.128);
+        oval(trim, side * 0.585, 1.115, 0, 0.016, 0.092, 0.082);
+      }
+    }),
+  };
+  mascot.add(...scene.children.slice(start));
   mascot.position.z = 5.95;
   scene.add(mascot);
-  return { mascot, feet };
+  function applyStyle({ color, accessory, expression }) {
+    skin.color.set(mascotColors[color][0]);
+    blush.color.set(mascotColors[color][1]);
+    for (const [name, item] of Object.entries(accessories)) item.visible = name === accessory;
+    for (const [name, item] of Object.entries(expressions)) item.visible = name === expression;
+    scarf.visible = accessory === 'pilot' || accessory === 'scarf';
+  }
+  return { mascot, feet, arms, applyStyle };
+}
+
+function setupMascotCustomizer(avatar, renderer, onChange, onOpen) {
+  const button = document.querySelector('#avatar-toggle');
+  const panel = document.querySelector('#avatar-panel');
+  const controls = Array.from(panel.querySelectorAll('select'));
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(mascotStorageKey)) ?? {}; } catch {}
+  for (const control of controls) {
+    const value = saved[control.name];
+    control.value = Array.from(control.options).some(option => option.value === value)
+      ? value : mascotDefaults[control.name];
+  }
+
+  let preview;
+  function drawPreview() {
+    if (!preview) {
+      const display = new T.WebGLRenderer({ antialias: true, alpha: true });
+      display.toneMapping = renderer.toneMapping;
+      display.toneMappingExposure = renderer.toneMappingExposure;
+      display.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+      display.setSize(252, 208, false);
+      panel.querySelector('.avatar-preview').append(display.domElement);
+      const studio = new T.Scene();
+      studio.add(new T.HemisphereLight('#ffead7', '#836674', 2.05));
+      const key = new T.DirectionalLight('#ffe1bd', 2.35);
+      key.position.set(-3, 4, -4);
+      studio.add(key);
+      const camera = new T.PerspectiveCamera(36, 252 / 208, 0.05, 15);
+      camera.position.set(0, 1.16, -3.22);
+      camera.lookAt(0, 0.81, 0);
+      const turntable = new T.Group();
+      studio.add(turntable);
+      preview = { display, studio, camera, turntable };
+    }
+    const { display, studio, camera, turntable } = preview;
+    const model = avatar.mascot.clone();
+    model.position.set(0, 0, 0);
+    model.rotation.set(0, -0.37, 0);
+    model.visible = true;
+    turntable.clear();
+    turntable.add(model);
+    display.render(studio, camera);
+  }
+  function apply(save = false) {
+    const style = Object.fromEntries(controls.map(control => [control.name, control.value]));
+    avatar.applyStyle(style);
+    onChange();
+    if (save) {
+      try { localStorage.setItem(mascotStorageKey, JSON.stringify(style)); } catch {}
+    }
+    if (panel.open) {
+      try { drawPreview(); } catch { panel.querySelector('.avatar-preview').hidden = true; }
+    }
+  }
+  panel.addEventListener('change', () => apply(true));
+  button.addEventListener('click', () => {
+    onOpen();
+    panel.showModal();
+    apply();
+  });
+  button.disabled = false;
+  apply();
+  return panel;
 }
 
 export async function start({ buildExterior } = {}) {
@@ -704,8 +869,9 @@ export async function start({ buildExterior } = {}) {
   status.remove();
 }
 
-function play(renderer, { mascot, feet },
+function play(renderer, avatar,
   { layers, animateAmbient, sceneryFrameLimit = 0.08, trainSpeed = 0 }, cabin) {
+  const { mascot, feet, arms } = avatar;
   const motionButton = document.querySelector('#motion-toggle');
   let trainMoving = !matchMedia('(prefers-reduced-motion: reduce)').matches;
   function updateMotionButton() {
@@ -804,9 +970,13 @@ function play(renderer, { mascot, feet },
     updateTimer();
   });
 
+  const avatarPanel = setupMascotCustomizer(avatar, renderer,
+    () => { needsRender = true; },
+    () => { keys.clear(); velocity.set(0, 0); });
+
   const movement = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'ShiftLeft', 'ShiftRight']);
   window.addEventListener('keydown', event => {
-    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.ctrlKey || event.metaKey || event.altKey || avatarPanel.open) return;
     if (!event.repeat && event.code === 'KeyF') toggleFocus();
     if (panel.open) return;
     if (movement.has(event.code)) {
@@ -903,6 +1073,7 @@ function play(renderer, { mascot, feet },
         const step = Math.sin(stride + index * Math.PI) * strideWeight;
         foot.position.y = 0.16 + Math.max(0, step) * 0.075;
         foot.position.z = -0.025 + step * 0.115;
+        arms[index].rotation.x = step * -0.52;
       });
       needsRender = true;
     }

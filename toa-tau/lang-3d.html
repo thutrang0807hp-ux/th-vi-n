@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lofi Train — Thung lũng Tulip</title>
   <meta name="color-scheme" content="dark">
-  <link rel="stylesheet" href="../lounge.css?v=local-three">
+  <link rel="stylesheet" href="../lounge.css?v=avatar">
 </head>
 <body>
   <main aria-label="Toa lounge Lofi Train">
@@ -23,6 +23,7 @@
           <option value="ocean">Bờ biển xanh</option>
         </select>
         <button id="motion-toggle" type="button">Dừng tàu</button>
+        <button id="avatar-toggle" type="button" aria-haspopup="dialog" disabled>Nhân vật</button>
         <button id="camera-toggle" type="button" aria-pressed="false">Camera POV</button>
       </div>
     </header>
@@ -37,6 +38,37 @@
       <button type="button" data-key="KeyS" aria-label="Lùi">↓</button>
       <button type="button" data-key="KeyD" aria-label="Phải">→</button>
     </div>
+    <dialog id="avatar-panel" aria-labelledby="avatar-title">
+      <h2 id="avatar-title">Tùy chỉnh nhân vật</h2>
+      <div class="avatar-preview" aria-hidden="true"></div>
+      <div class="avatar-options">
+        <label>Màu nhân vật
+          <select name="color">
+            <option value="peach">Hồng đào</option>
+            <option value="cream">Kem</option>
+            <option value="lilac">Tím nhạt</option>
+            <option value="sky">Xanh trời</option>
+            <option value="mint">Xanh bạc hà</option>
+          </select>
+        </label>
+        <label>Phụ kiện
+          <select name="accessory">
+            <option value="pilot">Bộ phi công</option>
+            <option value="scarf">Khăn đỏ</option>
+            <option value="headphones">Tai nghe</option>
+            <option value="plain">Cơ bản</option>
+          </select>
+        </label>
+        <label>Biểu cảm
+          <select name="expression">
+            <option value="gentle">Dịu dàng</option>
+            <option value="happy">Vui vẻ</option>
+            <option value="sleepy">Buồn ngủ</option>
+          </select>
+        </label>
+      </div>
+      <form method="dialog"><button>Đóng</button></form>
+    </dialog>
     <dialog id="focus-panel" aria-labelledby="focus-title">
       <h2 id="focus-title">Đồng hồ Focus</h2>
       <output id="focus-clock" role="timer">25:00</output>
@@ -61,7 +93,7 @@
     window.addEventListener('pageshow', () => { picker.value = scene; });
 
     try {
-      const { start } = await import('../village-scene.js?v=pastel-stream');
+      const { start } = await import('../village-scene.js?v=avatar');
       if (scene === 'tri-ton') {
         const { buildTriTon } = await import('../tri-ton-scene.js');
         document.querySelector('.route').textContent = '— Mùa vàng Tri Tôn';
