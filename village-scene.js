@@ -878,8 +878,8 @@ function buildFocusProps() {
       }
     }
   });
-  book.position.set(0, 0.464, -0.252);
-  book.rotation.set(0.65, 0, -0.075);
+  book.position.set(0, 0.409, -0.421);
+  book.rotation.set(0.23, -0.14, 0);
 
   const notebook = collect('write', () => {
     box(0.29, 0.015, 0.28, cover, 0, 0, 0, 0.005);
@@ -939,7 +939,7 @@ function buildFocusProps() {
   pencil.add(cylinder(0.008, 0.001, 0.023, darkWood, 0, -0.0115, 0));
   notebook.add(pencil);
   scene.add(props);
-  return { props, variants, pencil, book, checklist, tea };
+  return { props, variants, pencil, checklist, tea };
 }
 
 function buildMascot() {
@@ -1089,7 +1089,7 @@ function buildMascot() {
     }
     body.scale.y = 1 + (walking ? 0 : Math.sin(time * 2.25) * 0.004);
   }
-  const { props, variants, pencil, book, checklist, tea } = buildFocusProps();
+  const { props, variants, pencil, checklist, tea } = buildFocusProps();
   function setActivity(activity) {
     headPivot.rotation.set(0, 0, 0);
     for (const arm of arms) arm.rotation.z = 0;
@@ -1101,13 +1101,10 @@ function buildMascot() {
     const wave = Math.sin(time * 2.2);
     headPivot.rotation.x = activity === 'work' ? -0.08 : -0.18 + wave * 0.018;
     if (activity === 'read') {
-      arms[0].rotation.x = 1.71 + wave * 0.035;
-      arms[1].rotation.x = 1.68 + wave * 0.04;
+      arms[0].rotation.x = 1.19 + wave * 0.025;
+      arms[1].rotation.x = 1.14 - wave * 0.025;
       arms[0].rotation.z = 0.14;
       arms[1].rotation.z = -0.14;
-      book.position.y = 0.464 + wave * 0.004;
-      book.rotation.x = 0.65 + wave * 0.025;
-      book.rotation.z = -0.075 + wave * 0.013;
     } else if (activity === 'write') {
       arms[0].rotation.x = 0.95;
       arms[1].rotation.x = 1.15 + Math.sin(time * 9) * 0.09;
