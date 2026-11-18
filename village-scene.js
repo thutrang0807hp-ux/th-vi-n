@@ -749,7 +749,7 @@ function mochiFaceTexture(expression) {
     }
   } else {
     for (const x of [154, 358]) {
-      if (expression === 'happy' || expression === 'sleepy' || expression === 'blink') {
+      if (expression === 'happy' || expression === 'sleepy' || expression === 'blink' || expression === 'yawn') {
         const curve = expression === 'happy' ? -19 : 13;
         ctx.beginPath();
         ctx.moveTo(x - 17, 115);
@@ -766,6 +766,8 @@ function mochiFaceTexture(expression) {
       ellipse(256, 158, 20, 13);
       ctx.fillStyle = '#ee8688';
       ellipse(256, 164, 11, 5);
+    } else if (expression === 'yawn') {
+      ellipse(256, 156, 14, 19);
     } else if (expression === 'surprised') {
       ellipse(256, 154, 9, 10);
     } else if (expression === 'sleepy') {
@@ -942,6 +944,177 @@ function buildFocusProps() {
   return { props, variants, pencil, checklist, tea };
 }
 
+function createMochiAnimator(mascot, pose, upper, head, arms, feet, showFace) {
+  // Clip channels hold pose offsets. Locomotion can blend these without writing over the clips.
+  const channels = new T.Group();
+  const offsets = new T.Object3D();
+  offsets.name = 'bodyCue';
+  const aim = new T.Object3D();
+  aim.name = 'headCue';
+  const hands = new T.Object3D();
+  hands.name = 'handCue';
+  channels.add(offsets, aim, hands);
+  const mixer = new T.AnimationMixer(channels);
+  function clip(name, times, body, scale, headAngles, armAngles) {
+    const track = (path, values) => new T.VectorKeyframeTrack(path, times, values.flat(), T.InterpolateSmooth);
+    return new T.AnimationClip(name, times.at(-1), [
+      track('bodyCue.position', body),
+      track('bodyCue.scale', scale),
+      track('headCue.position', headAngles),
+      track('handCue.position', armAngles),
+    ]);
+  }
+
+  const still = [0, 0, 0];
+  const neutral = [1, 1, 1];
+  const idle = mixer.clipAction(clip('Idle', [0, 1.2, 2.4, 3.6, 4.8],
+    [still, [-0.010, 0.005, -0.021], still, [0.010, 0.004, 0.019], still],
+    [neutral, [0.996, 1.014, 0.997], neutral, [0.997, 1.012, 0.997], neutral],
+    [still, [-0.012, 0.028, 0.018], still, [-0.010, -0.024, -0.015], still],
+    [still, [0.028, -0.015, 0], still, [-0.014, 0.025, 0], still]));
+  idle.play();
+  const gestures = {
+    happy: mixer.clipAction(clip('Happy', [0, .18, .34, .50, .68, .82, 1.04],
+      [still, [0, -.038, 0], [0, .115, 0], [0, .218, 0], [0, .112, 0], [0, -.021, 0], still],
+      [neutral, [1.075, .87, 1.065], [.94, 1.135, .95], neutral, [.975, 1.04, .978],
+        [1.056, .91, 1.05], neutral],
+      [still, [-.095, 0, 0], [.105, 0, -.07], [.080, 0, .075], [-.095, 0, .03], [-.09, 0, 0], still],
+      [still, [-.16, -.16, .04], [1.08, 1.08, .71], [1.25, 1.25, .88], [.80, .80, .61],
+        [.20, .20, .12], still])),
+    sleepy: mixer.clipAction(clip('Sleepy', [0, .28, .57, .95, 1.26, 1.51, 1.7, 1.89, 2.12, 2.42],
+      [still, still, [0, .01, 0], [0, .01, 0], [0, -.012, -.03], [-.018, -.012, -.02],
+        [-.022, -.014, -.036], [-.018, -.012, -.02], [-.01, -.01, 0], still],
+      [neutral, neutral, [.995, 1.045, 1], [.995, 1.04, 1], [1.014, .968, 1.01], neutral, neutral,
+        neutral, [1.01, .985, 1], neutral],
+      [still, [-.08, 0, .05], [.16, 0, .05], [.15, 0, .035], [-.075, .07, -.055], [-.14, .16, -.09],
+        [-.12, .11, -.12], [-.14, .16, -.09], [-.095, .03, -.045], still],
+      [still, [.08, 0, 0], [1.9, 0, .24], [1.76, 0, .20], [.4, 0, 0], [2.15, 0, .15],
+        [2.24, 0, .25], [2.15, 0, .15], [.38, 0, .06], still])),
+  };
+  for (const action of Object.values(gestures)) {
+    action.setLoop(T.LoopOnce, 1);
+    action.clampWhenFinished = true;
+  }
+
+  const { lerp, damp, clamp, smoothstep, euclideanModulo } = T.MathUtils;
+  const shortAngle = angle => Math.atan2(Math.sin(angle), Math.cos(angle));
+  const contacts = feet.map(foot => ({ x: 0, z: 0, restX: foot.position.x, planted: false }));
+  const restZ = feet[0].position.z;
+  let phase = 0;
+  let strideWeight = 0;
+  let runWeight = 0;
+  let gaitYaw = 0;
+  let headYaw = 0;
+  let gesture;
+  let gestureName;
+  let gestureTime = 0;
+  let gestureWeight = 0;
+
+  function cue(name) {
+    gesture?.stop();
+    gesture = gestures[name];
+    gestureName = name;
+    gestureTime = 0;
+    gestureWeight = 0;
+    gesture?.reset().setEffectiveWeight(0).play();
+  }
+
+  function reset() {
+    phase = 0;
+    strideWeight = 0;
+    runWeight = 0;
+    gaitYaw = headYaw = 0;
+    cue(null);
+    idle.setEffectiveWeight(1);
+    pose.position.set(0, 0, 0);
+    pose.scale.set(1, 1, 1);
+    upper.position.set(0, 0, 0);
+    upper.rotation.set(0, 0, 0);
+    head.rotation.set(0, 0, 0);
+    feet.forEach((foot, index) => {
+      contacts[index].planted = false;
+      foot.position.set(contacts[index].restX, mochiHipY, restZ);
+    });
+  }
+
+  function update(dt, dx, dz, sprint, time, reduceMotion) {
+    const distance = Math.hypot(dx, dz);
+    if (distance > 0.0001) gaitYaw = Math.atan2(-dx, -dz);
+    mascot.rotation.y += shortAngle(gaitYaw - mascot.rotation.y) * (1 - Math.exp(-dt * 14));
+    headYaw += shortAngle(mascot.rotation.y - headYaw) * (1 - Math.exp(-dt * 9));
+    const speed = dt > 0 ? distance / dt : 0;
+    strideWeight = damp(strideWeight, smoothstep(speed, 0.035, 0.95), distance > 0.0001 ? 16 : 13, dt);
+    runWeight = damp(runWeight, sprint ? smoothstep(speed, 1.3, 3.9) : 0, 9, dt);
+
+    const cycle = lerp(.66, .84, runWeight);
+    const stance = lerp(.48, .38, runWeight);
+    const reach = cycle * stance * .5;
+    phase = euclideanModulo(phase + distance / cycle, 1);
+    const sin = Math.sin(mascot.rotation.y);
+    const cos = Math.cos(mascot.rotation.y);
+    for (const [index, foot] of feet.entries()) {
+      const contact = contacts[index];
+      const tick = euclideanModulo(phase + index * .5, 1);
+      const planted = tick < stance && strideWeight > .16;
+      const swing = clamp((tick - stance) / (1 - stance), 0, 1);
+      const step = lerp(reach, -reach, smoothstep(swing, 0, 1));
+      let localX = contact.restX;
+      let localZ = restZ + step;
+      if (planted) {
+        if (!contact.planted) {
+          const touchdown = restZ + lerp(-reach, reach, tick / stance);
+          contact.x = mascot.position.x + cos * localX + sin * touchdown;
+          contact.z = mascot.position.z - sin * localX + cos * touchdown;
+        }
+        const x = contact.x - mascot.position.x;
+        const z = contact.z - mascot.position.z;
+        localX = clamp(cos * x - sin * z, contact.restX - .052, contact.restX + .052);
+        localZ = clamp(sin * x + cos * z, restZ - .22, restZ + .22);
+      }
+      contact.planted = planted;
+      const lift = planted ? 0 : Math.sin(Math.PI * swing) ** 2;
+      foot.position.set(lerp(contact.restX, localX, strideWeight), mochiHipY
+        + (reduceMotion ? .035 : lerp(.053, .097, runWeight)) * lift * strideWeight,
+      lerp(restZ, localZ, strideWeight));
+      foot.rotation.x = reduceMotion ? 0 : Math.sin(Math.PI * 2 * swing) * .30 * strideWeight;
+      arms[index].rotation.x = -Math.cos(Math.PI * 2 * tick) * lerp(.35, .59, runWeight) * strideWeight;
+      arms[index].rotation.z = 0;
+    }
+
+    if (reduceMotion) return;
+    if (gesture) {
+      gestureTime += dt;
+      const duration = gesture.getClip().duration;
+      const envelope = smoothstep(gestureTime, 0, .14) * (1 - smoothstep(gestureTime, duration - .17, duration));
+      gestureWeight = damp(gestureWeight, envelope * (1 - smoothstep(strideWeight, .1, .55)), 20, dt);
+      gesture.setEffectiveWeight(gestureWeight);
+      if (gestureTime > duration + .16) cue(null);
+    }
+    idle.setEffectiveWeight(1 - gestureWeight);
+    mixer.update(dt);
+
+    const idleWeight = 1 - strideWeight;
+    const bounce = Math.abs(Math.sin(phase * Math.PI * 2));
+    pose.position.y = Math.max(0, offsets.position.y) * idleWeight;
+    pose.scale.copy(offsets.scale).lerp(neutralScale, strideWeight);
+    upper.position.set(offsets.position.x * idleWeight, Math.min(0, offsets.position.y) * idleWeight +
+      (bounce - .37) * lerp(.032, .052, runWeight) * strideWeight, 0);
+    upper.rotation.set(-lerp(.035, .16, runWeight) * strideWeight, 0,
+      offsets.position.z * idleWeight + Math.sin(phase * Math.PI * 2) * .045 * strideWeight);
+    head.rotation.set(aim.position.x * idleWeight + .038 * runWeight,
+      aim.position.y * idleWeight + clamp(shortAngle(headYaw - mascot.rotation.y), -.28, .28),
+      aim.position.z * idleWeight);
+    arms[0].rotation.x += hands.position.x * idleWeight;
+    arms[1].rotation.x += hands.position.y * idleWeight;
+    arms[0].rotation.z += hands.position.z * idleWeight;
+    arms[1].rotation.z -= hands.position.z * idleWeight;
+    const yawning = gestureName === 'sleepy' && gestureWeight > .3 && gestureTime > .43 && gestureTime < 1.07;
+    showFace(yawning ? 'yawn' : null, time);
+  }
+  const neutralScale = new T.Vector3(1, 1, 1);
+  return { update, reset, cue };
+}
+
 function buildMascot() {
   const start = scene.children.length;
   const skin = material('#f5a0a3', 0.78);
@@ -962,7 +1135,7 @@ function buildMascot() {
     return result;
   };
 
-  oval(new T.MeshBasicMaterial({ color: '#32151a', transparent: true, opacity: 0.22, depthWrite: false }),
+  const shadow = oval(new T.MeshBasicMaterial({ color: '#32151a', transparent: true, opacity: 0.22, depthWrite: false }),
     0, 0.017, 0, 0.37, 0.007, 0.33);
   const { body, feet, arms } = buildMochiBody(skin);
   const head = mesh(makeMochiHead(), skin, 0, mochiHeadY, 0);
@@ -976,7 +1149,7 @@ function buildMascot() {
   const cheekDecal = mesh(patch, blush, 0, mochiHeadY, 0);
   cheekDecal.scale.copy(head.scale);
   cheekDecal.renderOrder = 1;
-  const expressions = Object.fromEntries(['gentle', 'happy', 'sleepy', 'surprised', 'blink'].map(name => {
+  const expressions = Object.fromEntries(['gentle', 'happy', 'sleepy', 'surprised', 'blink', 'yawn'].map(name => {
     const surface = new T.MeshBasicMaterial({
       map: mochiFaceTexture(name), transparent: true, depthWrite: false,
     });
@@ -1063,7 +1236,11 @@ function buildMascot() {
     part.position.y -= mochiHeadY;
     headPivot.add(part);
   }
-  mascot.add(headPivot);
+  const pose = new T.Group();
+  const upper = new T.Group();
+  upper.add(body, headPivot, scarf, accessories.satchel, ...arms);
+  pose.add(upper, ...feet);
+  mascot.add(shadow, pose);
   mascot.position.z = 5.95;
   scene.add(mascot);
   function applyStyle({ color, accessory, expression }) {
@@ -1078,17 +1255,18 @@ function buildMascot() {
     accessories.satchel.visible = accessory === 'pilot' || accessory === 'satchel';
     accessories.headphones.visible = accessory === 'headphones';
     selectedExpression = expression;
-    for (const [name, item] of Object.entries(expressions)) item.visible = name === expression;
+    showFace(null, 0);
     scarf.visible = accessory === 'pilot' || accessory === 'scarf';
   }
-  function animateIdle(time, walking) {
-    if (selectedExpression === 'gentle') {
-      const blink = (time + 3.2) % 4.4 < 0.115;
-      expressions.gentle.visible = !blink;
-      expressions.blink.visible = blink;
-    }
-    body.scale.y = 1 + (walking ? 0 : Math.sin(time * 2.25) * 0.004);
+  let visibleExpression;
+  function showFace(override, time) {
+    const blink = (time + 3.2) % 4.4 < 0.115;
+    const name = override ?? (selectedExpression === 'gentle' && blink ? 'blink' : selectedExpression);
+    if (visibleExpression === name) return;
+    for (const [key, item] of Object.entries(expressions)) item.visible = key === name;
+    visibleExpression = name;
   }
+  const animator = createMochiAnimator(mascot, pose, upper, headPivot, arms, feet, showFace);
   const { props, variants, pencil, checklist, tea } = buildFocusProps();
   function setActivity(activity) {
     headPivot.rotation.set(0, 0, 0);
@@ -1132,7 +1310,8 @@ function buildMascot() {
     }
   }
   setActivity('idle');
-  return { mascot, feet, arms, props, applyStyle, animateIdle, setActivity, animateActivity };
+  return { mascot, feet, arms, props, applyStyle, setActivity, animateActivity, animator,
+    cueExpression: () => animator.cue(selectedExpression), showFace };
 }
 
 function setupMascotCustomizer(avatar, renderer, onChange, onOpen) {
@@ -1267,8 +1446,6 @@ function play(renderer, avatar,
   let drag = null;
   let distance = 4.85;
   let needsRender = true;
-  let stride = 0;
-  let strideWeight = 0;
   const velocity = new T.Vector2();
   const follow = mascot.position.clone();
   const look = new T.Vector3();
@@ -1298,7 +1475,8 @@ function play(renderer, avatar,
       avatar.setActivity(activity);
     }
     follow.copy(mascot.position);
-    strideWeight = 0;
+    avatar.animator.reset();
+    avatar.showFace(null, 0);
     feet.forEach((foot, index) => {
       foot.position.y = seated ? 0.107 : mochiHipY;
       foot.position.z = seated ? -0.119 : -0.021;
@@ -1364,6 +1542,10 @@ function play(renderer, avatar,
   const avatarPanel = setupMascotCustomizer(avatar, renderer,
     () => { needsRender = true; },
     () => { keys.clear(); velocity.set(0, 0); });
+
+  avatarPanel.addEventListener('close', () => {
+    if (!seated && !reduceMotion) avatar.cueExpression();
+  });
 
   const movement = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'ShiftLeft', 'ShiftRight']);
   window.addEventListener('keydown', event => {
@@ -1448,26 +1630,10 @@ function play(renderer, avatar,
       position.x = clamp(position.x + velocity.x * dt, -aisleLimit, aisleLimit);
       position.z = clamp(position.z + velocity.y * dt, -15.6, 7.7);
     }
-    const travel = Math.hypot(position.x - oldX, position.z - oldZ);
-    if (travel > 0.0001) {
-      const angle = Math.atan2(oldX - position.x, oldZ - position.z);
-      const difference = angle - mascot.rotation.y;
-      mascot.rotation.y += Math.atan2(Math.sin(difference), Math.cos(difference)) * blend;
-      stride += travel * 8.5;
-      needsRender = true;
-    }
-    const previousWeight = strideWeight;
-    strideWeight = T.MathUtils.lerp(strideWeight, travel > 0.0001 ? 1 : 0, blend);
-    if (strideWeight < 0.01) strideWeight = 0;
-    if (previousWeight !== strideWeight || travel > 0.0001) {
-      feet.forEach((foot, index) => {
-        const step = Math.sin(stride + index * Math.PI) * strideWeight;
-        foot.position.y = mochiHipY + Math.max(0, step) * 0.014;
-        foot.rotation.x = step * 0.39;
-        arms[index].rotation.x = step * -0.34;
-      });
-      needsRender = true;
-    }
+    const dxMoved = position.x - oldX;
+    const dzMoved = position.z - oldZ;
+    if (!seated) avatar.animator.update(dt, dxMoved, dzMoved, sprint, ambientTime, reduceMotion);
+    if (Math.abs(dxMoved) + Math.abs(dzMoved) > 0.0001) needsRender = true;
 
     const cameraMoving = follow.distanceToSquared(position) > 0.000002;
     if (firstPerson) follow.copy(position);
@@ -1493,7 +1659,7 @@ function play(renderer, avatar,
     const sinYaw = Math.sin(yaw);
     const cosYaw = Math.cos(yaw);
     mascot.visible = !firstPerson;
-    if (!firstPerson && !reduceMotion) avatar.animateIdle(ambientTime, moving);
+    if (seated && !reduceMotion) avatar.showFace(null, ambientTime);
     if (firstPerson) {
       const eyeHeight = y + (seated ? 0.72 : 1.45);
       camera.position.set(x, eyeHeight, z);
