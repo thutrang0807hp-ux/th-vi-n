@@ -308,11 +308,64 @@ export function parseYouTubeLink(value) {
   return { embed:embed.href, direct:direct.href };
 }
 
+function enableDockMovement(dock, handle, signal) {
+  const margin = 8;
+  let drag;
+
+  function place(x, y) {
+    const { width, height } = dock.getBoundingClientRect();
+    dock.style.left = Math.max(margin, Math.min(x, innerWidth - width - margin)) + 'px';
+    dock.style.top = Math.max(margin, Math.min(y, innerHeight - height - margin)) + 'px';
+    dock.style.bottom = 'auto';
+  }
+
+  function fit() {
+    const { left, top } = dock.getBoundingClientRect();
+    place(left, top);
+  }
+
+  handle.addEventListener('pointerdown', event => {
+    if (!event.isPrimary || event.button !== 0) return;
+    const { left, top } = dock.getBoundingClientRect();
+    drag = { id: event.pointerId, x: event.clientX - left, y: event.clientY - top };
+    handle.setPointerCapture(event.pointerId);
+  });
+  handle.addEventListener('pointermove', event => {
+    if (drag?.id === event.pointerId) place(event.clientX - drag.x, event.clientY - drag.y);
+  });
+  handle.addEventListener('lostpointercapture', () => { drag = undefined; });
+  handle.addEventListener('keydown', event => {
+    const offset = { ArrowLeft: [-16, 0], ArrowRight: [16, 0], ArrowUp: [0, -16], ArrowDown: [0, 16] }[event.key];
+    if (!offset) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const { left, top } = dock.getBoundingClientRect();
+    place(left + offset[0], top + offset[1]);
+  });
+  window.addEventListener('resize', fit, { signal });
+  return fit;
+}
+
+export function showFocusPanel(panel) {
+  if (document.querySelector('.youtube-dock')) panel.show();
+  else panel.showModal();
+}
+
 function mountYouTube(view) {
   const form = view.querySelector('#focus-youtube-form');
   const input = view.querySelector('#focus-youtube-url');
   const status = view.querySelector('#focus-youtube-status');
+  const panel = view.closest('dialog');
   let dock;
+  let movement;
+  function removeDock() {
+    movement?.abort();
+    dock?.remove();
+    dock = undefined;
+  }
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && panel.open && !panel.matches(':modal')) panel.close();
+  });
   form.addEventListener('submit',event => {
     event.preventDefault();
     const link = parseYouTubeLink(input.value);
@@ -322,23 +375,35 @@ function mountYouTube(view) {
       return;
     }
     status.textContent = '';
-    dock?.remove();
+    removeDock();
+    movement = new AbortController();
     dock = document.createElement('section');
     dock.className = 'youtube-dock';
     dock.setAttribute('aria-label','Trình phát YouTube');
     const controls = document.createElement('div');
+    const handle = document.createElement('button');
+    handle.type = 'button';
+    handle.className = 'youtube-drag';
+    handle.textContent = '⠿ Kéo';
+    handle.setAttribute('aria-label', 'Di chuyển trình phát YouTube');
+    handle.title = 'Kéo hoặc dùng phím mũi tên';
+    const fit = enableDockMovement(dock, handle, movement.signal);
     const open = document.createElement('a');
     open.href = link.direct;
     open.target = '_blank';
     open.rel = 'noopener noreferrer';
     open.textContent = 'Mở trên YouTube';
+    const collapse = document.createElement('button');
+    collapse.type = 'button';
+    collapse.textContent = 'Thu gọn';
+    collapse.setAttribute('aria-expanded', 'true');
+    collapse.title = 'Thu gọn và dừng video trong toa';
     const close = document.createElement('button');
     close.type = 'button';
     close.textContent = 'Đóng';
     close.addEventListener('click',() => {
-      dock.remove();
-      dock = undefined;
-      document.querySelector('#focus-toggle')?.focus();
+      removeDock();
+      (panel.open ? input : document.querySelector('#focus-toggle'))?.focus();
     });
     const frame = document.createElement('iframe');
     frame.src = link.embed;
@@ -346,14 +411,20 @@ function mountYouTube(view) {
     frame.allow = 'encrypted-media; picture-in-picture; fullscreen';
     frame.allowFullscreen = true;
     frame.referrerPolicy = 'strict-origin-when-cross-origin';
-    controls.append(open,close);
+    collapse.addEventListener('click', () => {
+      const expanded = frame.isConnected;
+      if (expanded) frame.remove();
+      else dock.append(frame);
+      collapse.textContent = expanded ? 'Hiện video' : 'Thu gọn';
+      collapse.setAttribute('aria-expanded', String(!expanded));
+      fit();
+    });
+    controls.append(handle,open,collapse,close);
     dock.append(controls,frame);
     document.querySelector('main').append(dock);
-    view.closest('dialog').close();
+    if (dock.getBoundingClientRect().top < 8) fit();
+    panel.close();
     close.focus();
   });
-  window.addEventListener('pagehide',() => {
-    dock?.remove();
-    dock = undefined;
-  });
+  window.addEventListener('pagehide', removeDock);
 }

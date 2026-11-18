@@ -1,5 +1,5 @@
 import { mountFocusPlanner } from './planner.js';
-import { mountFocusSound } from './sound.js';
+import { showFocusPanel, mountFocusSound } from './sound.js';
 import { mountFocusTimer } from './timer.js';
 
 export function mountFocusFallback() {
@@ -18,7 +18,7 @@ export function mountFocusFallback() {
     if (panel.open) panel.close();
     else {
       focusRoute.value = route.value;
-      panel.showModal();
+      showFocusPanel(panel);
     }
   }
   document.querySelector('#focus-toggle').addEventListener('click',toggle);

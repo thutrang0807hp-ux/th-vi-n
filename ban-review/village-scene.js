@@ -1,5 +1,5 @@
 import { mountFocusCompanion } from './focus/companion.js';
-import { mountFocusSound } from './focus/sound.js';
+import { showFocusPanel, mountFocusSound } from './focus/sound.js';
 import { mountFocusTimer } from './focus/timer.js';
 import { mountFocusPlanner } from './focus/planner.js';
 import { loadExteriorStudy, plantExteriorStudy } from './exterior-study.js';
@@ -1843,7 +1843,7 @@ function play(renderer, avatar,
     else {
       focusActivity.value = activityPicker.value;
       focusRoute.value = routePicker.value;
-      panel.showModal();
+      showFocusPanel(panel);
     }
   }
 
