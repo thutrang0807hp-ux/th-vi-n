@@ -46,17 +46,6 @@ function settings() {
     selected:Object.hasOwn(presets,stored.selected) ? stored.selected : 'train' };
 }
 
-function glide(parameter, target, context, fade = 0.12) {
-  const now = context.currentTime;
-  if (parameter.cancelAndHoldAtTime) parameter.cancelAndHoldAtTime(now);
-  else {
-    const current = parameter.value;
-    parameter.cancelScheduledValues(now);
-    parameter.setValueAtTime(current,now);
-  }
-  parameter.setTargetAtTime(target,now,fade);
-}
-
 const mountedMixers = new WeakMap();
 export function mountFocusSound(panel, { moving, route }) {
   if (mountedMixers.has(panel)) return mountedMixers.get(panel);
@@ -71,24 +60,11 @@ export function mountFocusSound(panel, { moving, route }) {
   const channels = new Map();
   let playing = false;
   let trainMoving = moving;
-  let context;
-  let master;
   let navigatingAway = false;
 
   function remember() {
     try { localStorage.setItem(storageKey,JSON.stringify(state)); }
     catch { saveStatus.textContent = 'Trình duyệt chưa cho phép lưu bộ âm.'; }
-  }
-
-  function activate() {
-    playing = true;
-    context = focusAudioContext();
-    if (context && !master) {
-      master = context.createGain();
-      master.gain.value = state.master / 100;
-      master.connect(context.destination);
-    }
-    if (context?.state === 'suspended') void context.resume().catch(() => {});
   }
 
   function setChannelStatus(channel, label) {
@@ -110,15 +86,6 @@ export function mountFocusSound(panel, { moving, route }) {
     element.src = source.href + (usingOgg ? '.ogg' : '.mp3');
     element.volume = 0;
     channel.element = element;
-    if (!mirror && context && master) {
-      try {
-        channel.source = context.createMediaElementSource(element);
-        channel.gain = context.createGain();
-        channel.gain.gain.value = 0;
-        channel.source.connect(channel.gain).connect(master);
-        element.volume = 1;
-      } catch {}
-    }
     element.addEventListener('waiting', () => {
       if (channel.wanted && channel.element === element) setChannelStatus(channel,'Đang tải…');
     });
@@ -132,9 +99,6 @@ export function mountFocusSound(panel, { moving, route }) {
         element.src = base.href + '.mp3';
         apply(channel,true);
       } else if (!mirror && previewMirror(base)) {
-        channel.source?.disconnect();
-        channel.gain?.disconnect();
-        channel.source = channel.gain = undefined;
         createTrack(channel, { mirror: true });
         element.pause();
         element.removeAttribute('src');
@@ -147,18 +111,20 @@ export function mountFocusSound(panel, { moving, route }) {
   }
 
   function setGain(channel, level) {
-    if (channel.gain) {
-      glide(channel.gain.gain,level,context);
-      return;
-    }
     if (!channel.element) return;
     clearInterval(channel.volumeTick);
-    const from = channel.element.volume;
+    const element = channel.element;
+    const target = level * state.master / 100;
+    const from = element.volume;
+    if (target > 0) element.muted = false;
     const started = performance.now();
     channel.volumeTick = setInterval(() => {
       const t = Math.min(1,(performance.now()-started)/350);
-      channel.element.volume = from + (level*state.master/100-from)*t;
-      if (t === 1) clearInterval(channel.volumeTick);
+      element.volume = from + (target - from) * t;
+      if (t === 1) {
+        element.muted = target === 0;
+        clearInterval(channel.volumeTick);
+      }
     },35);
   }
 
@@ -205,7 +171,6 @@ export function mountFocusSound(panel, { moving, route }) {
     const mutedMessage = 'Âm lượng tổng đang ở 0%. Kéo thanh âm lượng lên để nghe.';
     if (playing && state.master === 0) saveStatus.textContent = mutedMessage;
     else if (saveStatus.textContent === mutedMessage) saveStatus.textContent = '';
-    if (master) glide(master.gain,state.master/100,context);
     for (const channel of channels.values()) apply(channel,retry);
   }
 
@@ -230,7 +195,7 @@ export function mountFocusSound(panel, { moving, route }) {
 
     input.addEventListener('change', () => {
       state.channels[id].on = input.checked;
-      if (input.checked) activate();
+      if (input.checked) playing = true;
       remember();
       applyAll(input.checked);
     });
@@ -255,7 +220,7 @@ export function mountFocusSound(panel, { moving, route }) {
         if (state.channels.lofi.level === 0) state.channels.lofi.level = tracks.lofi[1];
         remember();
       }
-      activate();
+      playing = true;
     }
     applyAll(true);
   });
@@ -267,7 +232,7 @@ export function mountFocusSound(panel, { moving, route }) {
     }
     state.selected = id;
     presetPicker.value = id;
-    activate();
+    playing = true;
     remember();
     applyAll(true);
     saveStatus.textContent = 'Đã áp dụng bộ âm.';
@@ -297,9 +262,7 @@ export function mountFocusSound(panel, { moving, route }) {
         channel.element.removeAttribute('src');
         channel.element.load();
       }
-      channel.source?.disconnect();
-      channel.gain?.disconnect();
-      channel.element = channel.source = channel.gain = undefined;
+      channel.element = undefined;
     }
   });
   window.addEventListener('pageshow', () => {
