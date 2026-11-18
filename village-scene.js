@@ -653,7 +653,8 @@ const mascotDefaults = { color: 'peach', accessory: 'plain', expression: 'gentle
 const mascotStorageKey = 'lofi-train-avatar-v1';
 
 // Superellipsoid with a broader lower face and a slightly tilted crown.
-const mochiHeadY = 1.077;
+const mochiHeadY = 0.882;
+const mochiHeadScale = 0.8;
 const mochiPower = 3.65;
 const mochiYRadius = 0.433;
 function mochiHeadProfile(y) {
@@ -753,9 +754,9 @@ function mochiFaceTexture(expression) {
         ctx.quadraticCurveTo(x, 115 + curve, x + 17, 115);
         ctx.stroke();
       } else {
-        ellipse(x, 112, 18, 34);
+        ellipse(x, 112, 24, 36);
         ctx.fillStyle = '#a7635b';
-        ellipse(x - 3, 101, 3, 6);
+        ellipse(x - 5, 100, 5, 6);
         ctx.fillStyle = '#472323';
       }
     }
@@ -780,137 +781,42 @@ function mochiFaceTexture(expression) {
 }
 
 function buildMochiBody(surface) {
-  const hips = [0, 0.308, 0.014, 0.286, 0.195, 0.203];
-  const chest = [0, 0.453, 0.018, 0.262, 0.223, 0.187];
-  const arms = [-1, 1].map(side => [side * 0.337, 0.374, 0, 0.106, 0.166, 0.106]);
-  const feet = [-1, 1].map(side => [side * 0.141, 0.137, -0.043, 0.118, 0.127, 0.141]);
-  const ellipsoid = (x, y, z, [cx, cy, cz, rx, ry, rz]) => {
-    const dx = (x - cx) / rx;
-    const dy = (y - cy) / ry;
-    const dz = (z - cz) / rz;
-    return (Math.sqrt(dx * dx + dy * dy + dz * dz) - 1) * Math.min(rx, ry, rz);
-  };
-  const blend = (a, b, width) => {
-    const overlap = Math.max(0, width - Math.abs(a - b)) / width;
-    return Math.min(a, b) - overlap * overlap * width * 0.25;
-  };
-  const field = (x, y, z) => {
-    let value = blend(ellipsoid(x, y, z, hips), ellipsoid(x, y, z, chest), 0.071);
-    for (const arm of arms) value = blend(value, ellipsoid(x, y, z, arm), 0.094);
-    for (const foot of feet) value = blend(value, ellipsoid(x, y, z, foot), 0.085);
-    return value;
-  };
-
-  // Contour a smooth union so the shoulders and ankles are part of one skin.
-  const step = 0.02;
-  const size = [49, 37, 27];
-  const origin = [-0.48, -0.02, -0.26];
-  const row = size[0];
-  const layer = row * size[1];
-  const samples = new Float32Array(layer * size[2]);
-  const point = index => new T.Vector3(
-    origin[0] + (index % row) * step,
-    origin[1] + (Math.floor(index / row) % size[1]) * step,
-    origin[2] + Math.floor(index / layer) * step,
-  );
-  for (let i = 0; i < samples.length; i++) {
-    const p = point(i);
-    samples[i] = field(p.x, p.y, p.z);
+  const shape = new T.SphereGeometry(1, 40, 28);
+  const positions = shape.attributes.position;
+  const power = 2.65;
+  for (let i = 0; i < positions.count; i++) {
+    const x = positions.getX(i);
+    const y = positions.getY(i);
+    const z = positions.getZ(i);
+    const radius = (Math.abs(x) ** power + Math.abs(y) ** power
+      + Math.abs(z) ** power) ** (1 / power);
+    const height = y / radius;
+    const width = 0.226 * (1 - 0.11 * height);
+    positions.setXYZ(i, x / radius * width, height * 0.221, z / radius * 0.167);
   }
-  const positions = [];
-  const normals = [];
-  const indices = [];
-  const joints = [];
-  const weights = [];
-  const vertices = new Map();
-  const edge = (a, b) => {
-    const key = Math.min(a, b) * samples.length + Math.max(a, b);
-    if (vertices.has(key)) return vertices.get(key);
-    const vertex = positions.length / 3;
-    vertices.set(key, vertex);
-    const { x, y, z } = point(a).lerp(point(b), samples[a] / (samples[a] - samples[b]));
-    const d = 0.001;
-    const normal = new T.Vector3(field(x + d, y, z) - field(x - d, y, z),
-      field(x, y + d, z) - field(x, y - d, z),
-      field(x, y, z + d) - field(x, y, z - d)).normalize();
-    positions.push(x, y, z);
-    normals.push(normal.x, normal.y, normal.z);
-    const smooth = T.MathUtils.smoothstep;
-    const arm = smooth(Math.abs(x), 0.226, 0.402) * smooth(y, 0.155, 0.27);
-    const foot = (1 - smooth(y, 0.102, 0.265)) * smooth(Math.abs(x), 0.016, 0.135);
-    joints.push(0, x < 0 ? 1 : 2, x < 0 ? 3 : 4, 0);
-    weights.push(1 - arm - foot, arm, foot, 0);
-    return vertex;
-  };
-  const p = new T.Vector3();
-  const ab = new T.Vector3();
-  const ac = new T.Vector3();
-  const normal = new T.Vector3();
-  const triangle = (a, b, c) => {
-    p.fromArray(positions, a * 3);
-    ab.fromArray(positions, b * 3).sub(p);
-    ac.fromArray(positions, c * 3).sub(p);
-    normal.fromArray(normals, a * 3);
-    if (ab.cross(ac).dot(normal) < 0) indices.push(a, c, b);
-    else indices.push(a, b, c);
-  };
-  const offsets = [0, 1, row, row + 1, layer, layer + 1, layer + row, layer + row + 1];
-  const tetrahedra = [[0, 1, 3, 7], [0, 3, 2, 7], [0, 2, 6, 7],
-    [0, 6, 4, 7], [0, 4, 5, 7], [0, 5, 1, 7]];
-  for (let z = 0; z < size[2] - 1; z++) {
-    for (let y = 0; y < size[1] - 1; y++) {
-      for (let x = 0; x < size[0] - 1; x++) {
-        const start = x + y * row + z * layer;
-        const corners = offsets.map(offset => start + offset);
-        if (corners.every(i => samples[i] >= 0) || corners.every(i => samples[i] < 0)) continue;
-        for (const tetrahedron of tetrahedra) {
-          const inside = [];
-          const outside = [];
-          for (const corner of tetrahedron) {
-            const index = corners[corner];
-            (samples[index] < 0 ? inside : outside).push(index);
-          }
-          if (!inside.length || !outside.length) continue;
-          if (inside.length === 2) {
-            const [a, b] = inside;
-            const [c, d] = outside;
-            const ac = edge(a, c), ad = edge(a, d), bc = edge(b, c), bd = edge(b, d);
-            triangle(ac, ad, bd);
-            triangle(ac, bd, bc);
-          } else {
-            const [tip, base] = inside.length === 1 ? [inside[0], outside] : [outside[0], inside];
-            triangle(...base.map(vertex => edge(tip, vertex)));
-          }
-        }
-      }
-    }
-  }
+  shape.computeVertexNormals();
+  const body = mesh(shape, surface, 0, 0.347, 0.012);
+  const feet = [];
+  const arms = [];
+  for (const side of [-1, 1]) {
+    // Each limb has its own joint, recessed into the body at its attachment.
+    const shoulder = new T.Group();
+    shoulder.position.set(side * 0.203, 0.488, 0.008);
+    const arm = oval(surface, side * 0.054, -0.107, -0.004, 0.075, 0.145, 0.085);
+    arm.rotation.z = side * 0.29;
+    shoulder.add(arm);
+    scene.add(shoulder);
+    arms.push(shoulder);
 
-  const geometry = new T.BufferGeometry();
-  geometry.setIndex(indices);
-  geometry.setAttribute('position', new T.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('normal', new T.Float32BufferAttribute(normals, 3));
-  geometry.setAttribute('skinIndex', new T.Uint16BufferAttribute(joints, 4));
-  geometry.setAttribute('skinWeight', new T.Float32BufferAttribute(weights, 4));
-  const body = new T.SkinnedMesh(geometry, surface);
-  body.frustumCulled = false;
-  const root = new T.Bone();
-  const armBones = [-1, 1].map(side => {
-    const bone = new T.Bone();
-    bone.position.set(side * 0.278, 0.477, 0);
-    root.add(bone);
-    return bone;
-  });
-  const footBones = [-1, 1].map(side => {
-    const bone = new T.Bone();
-    bone.position.set(side * 0.141, 0.16, -0.025);
-    root.add(bone);
-    return bone;
-  });
-  body.add(root);
-  body.updateMatrixWorld(true);
-  body.bind(new T.Skeleton([root, ...armBones, ...footBones]));
-  return { body, feet: footBones, arms: armBones };
+    const hip = new T.Group();
+    hip.position.set(side * 0.12, 0.16, -0.025);
+    const foot = oval(surface, side * 0.01, -0.061, -0.026, 0.105, 0.091, 0.127);
+    foot.rotation.y = -side * 0.13;
+    hip.add(foot);
+    scene.add(hip);
+    feet.push(hip);
+  }
+  return { body, feet, arms };
 }
 
 function buildMascot() {
@@ -936,20 +842,22 @@ function buildMascot() {
   oval(new T.MeshBasicMaterial({ color: '#32151a', transparent: true, opacity: 0.22, depthWrite: false }),
     0, 0.017, 0, 0.37, 0.007, 0.33);
   const { body, feet, arms } = buildMochiBody(skin);
-  scene.add(body);
-  mesh(makeMochiHead(), skin, 0, mochiHeadY, 0);
+  mesh(makeMochiHead(), skin, 0, mochiHeadY, 0).scale.setScalar(mochiHeadScale);
 
   const patch = mochiFacePatch();
   // Surface decals keep the soft blush and features flush with the curved head.
   const blush = new T.MeshBasicMaterial({
     color: '#db6269', map: mochiFaceTexture('blush'), transparent: true, depthWrite: false,
   });
-  mesh(patch, blush, 0, mochiHeadY, 0).renderOrder = 1;
+  const cheekDecal = mesh(patch, blush, 0, mochiHeadY, 0);
+  cheekDecal.scale.setScalar(mochiHeadScale);
+  cheekDecal.renderOrder = 1;
   const expressions = Object.fromEntries(['gentle', 'happy', 'sleepy', 'surprised', 'blink'].map(name => {
     const surface = new T.MeshBasicMaterial({
       map: mochiFaceTexture(name), transparent: true, depthWrite: false,
     });
     const face = mesh(patch, surface, 0, mochiHeadY, 0);
+    face.scale.setScalar(mochiHeadScale);
     face.renderOrder = 2;
     return [name, face];
   }));
@@ -1016,6 +924,14 @@ function buildMascot() {
       }
     }),
   };
+  for (const headwear of [accessories.pilot, accessories.headphones]) {
+    headwear.scale.setScalar(mochiHeadScale);
+    headwear.position.y = mochiHeadY - 1.077 * mochiHeadScale;
+  }
+  scarf.scale.setScalar(0.87);
+  scarf.position.y = -0.09;
+  accessories.satchel.scale.setScalar(0.86);
+  accessories.satchel.position.y = -0.035;
   mascot.add(...scene.children.slice(start));
   mascot.position.z = 5.95;
   scene.add(mascot);
@@ -1069,18 +985,14 @@ function setupMascotCustomizer(avatar, renderer, onChange, onOpen) {
       key.position.set(-3, 4, -4);
       studio.add(key);
       const camera = new T.PerspectiveCamera(36, 252 / 208, 0.05, 15);
-      camera.position.set(0, 1.16, -3.03);
-      camera.lookAt(0, 0.81, 0);
+      camera.position.set(0, 0.97, -2.66);
+      camera.lookAt(0, 0.64, 0);
       const turntable = new T.Group();
       studio.add(turntable);
       preview = { display, studio, camera, turntable };
     }
     const { display, studio, camera, turntable } = preview;
     const model = avatar.mascot.clone();
-    const posedBody = model.children.find(child => child.isSkinnedMesh);
-    const restBody = new T.Mesh(posedBody.geometry, posedBody.material);
-    model.remove(posedBody);
-    model.add(restBody);
     model.position.set(0, 0, 0);
     model.rotation.set(0, -0.22, 0);
     model.visible = true;
@@ -1348,9 +1260,9 @@ function play(renderer, avatar,
     if (previousWeight !== strideWeight || travel > 0.0001) {
       feet.forEach((foot, index) => {
         const step = Math.sin(stride + index * Math.PI) * strideWeight;
-        foot.position.y = 0.16 + Math.max(0, step) * 0.075;
-        foot.position.z = -0.025 + step * 0.115;
-        arms[index].rotation.x = step * -0.52;
+        foot.position.y = 0.16 + Math.max(0, step) * 0.042;
+        foot.position.z = -0.025 + step * 0.058;
+        arms[index].rotation.x = step * -0.34;
       });
       needsRender = true;
     }
