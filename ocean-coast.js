@@ -51,13 +51,14 @@ const shoreMath = `
   float swellPhase(float z) { return (z - swellTravel.z) * coastUnit; }
   float shore(float z) {
     float a = nearPhase(z);
-    return 8.6 + 1.16 * sin(a * 2.0 + 0.35) + 0.48 * sin(a * 4.0 + 1.11);
+    return 8.6 + 1.76 * sin(a * 3.0 + 0.35)
+      + 0.83 * sin(a * 5.0 + 1.11) + 0.23 * sin(a * 9.0 - 0.2);
   }
   float wavePhase(float depth, float z) {
     float a = swellPhase(z);
-    float nearCoast = 1.0 - smoothstep(15.0, 45.0, depth);
-    float shoreCurves = 0.68 * sin(a * 5.0 + depth * 0.18 + waveTime * 0.16)
-      + 0.33 * sin(a * 12.0 - depth * 0.19 - waveTime * 0.12);
+    float nearCoast = 1.0 - smoothstep(19.0, 56.0, depth);
+    float shoreCurves = 1.24 * sin(a * 5.0 + depth * 0.18 + waveTime * 0.16)
+      + 0.43 * sin(a * 12.0 - depth * 0.19 - waveTime * 0.12);
     float openRipples = 0.29 * sin(z * 0.18 + depth * 0.08);
     return depth * 1.48 + waveTime * 1.12 + mix(openRipples, shoreCurves, nearCoast);
   }
@@ -140,8 +141,11 @@ function coastalSurface(cloudDrift, waveTime, layers) {
         float d = depth - swash;
         float grain = noise(surfPoint.xz * 4.3);
         float damp = smoothstep(-2.9, -0.31, d);
-        float sandbars = 0.5 + 0.5 * sin(coast * 4.0 + radius * 1.84 + sin(coast * 7.0) * 1.6);
-        vec3 sand = mix(drySand, wetSand, damp) * (0.89 + grain * 0.11 + sandbars * 0.10);
+        float sandbars = 0.5 + 0.5 * sin(coast * 5.0 + radius * 1.84 + sin(coast * 7.0) * 1.6);
+        float banks = smoothstep(0.12, 0.91,
+          0.50 + 0.30 * sin(coast * 6.0 + radius * 0.95) + 0.17 * cos(coast * 9.0 - radius * 0.52));
+        vec3 sand = mix(drySand, wetSand, damp) * (0.78 + grain * 0.10 + sandbars * 0.12 + banks * 0.19);
+        sand = mix(sand, drySand * 1.13, smoothstep(0.62, 0.96, banks) * 0.28 * (1.0 - damp));
         sand += vec3(0.20, 0.36, 0.50) * damp * damp * (0.09 + 0.10 * noise(uv * 0.89));
         vec3 water = mix(lagoon, shelf, smoothstep(1.4, 16.0, d));
         water = mix(water, blueWater, smoothstep(12.0, 52.0, d));
@@ -151,6 +155,12 @@ function coastalSurface(cloudDrift, waveTime, layers) {
         float ripple = sin(depth * 5.1 + z * 0.24 + waveTime * 1.5 + noise(uv * 0.47) * 3.4);
         float fine = 1.0 - smoothstep(24.0, 82.0, radius);
         float crest = pow(front, 10.0);
+        float drift = swellPhase(z);
+        float swellPatch = smoothstep(0.08, 0.87, 0.50 + 0.32 * sin(drift * 5.0 + depth * 0.22)
+          + 0.17 * sin(drift * 9.0 - depth * 0.39));
+        float shallows = 1.0 - smoothstep(14.0, 44.0, d);
+        water *= 1.0 + (swellPatch - 0.53) * shallows * 0.34;
+        water += vec3(0.015, 0.10, 0.082) * swellPatch * shallows * 0.40;
         float shoulder = 0.5 + 0.5 * sin(phase - 0.72);
         water *= 0.86 + 0.045 * shoulder + 0.17 * front * (0.48 + fine * 0.52) + ripple * fine * 0.037;
         water += vec3(0.02, 0.18, 0.17) * crest * (1.0 - smoothstep(15.0, 32.0, d));
@@ -173,8 +183,9 @@ function coastalSurface(cloudDrift, waveTime, layers) {
         wash += lace * smoothstep(0.52, 0.92, front) * smoothstep(1.0, 2.0, d)
           * (1.0 - smoothstep(13.0, 22.0, d)) * 0.52;
         float spray = breaker * smoothstep(0.17, 0.78,
-          scallops + 0.10 * sin(z * 2.1 - waveTime * 1.18));
-        sceneColor = mix(sceneColor, foamTint, clamp(swashLine * (0.6 + scallops * 0.3) + spray * 0.85 + wash * (0.19 + 0.22 * scallops), 0.0, 0.97));
+          scallops + 0.10 * sin(z * 2.1 - waveTime * 1.18)) * (0.45 + 0.55 * swellPatch);
+        float foamPockets = wash * smoothstep(0.45, 0.92, swellPatch);
+        sceneColor = mix(sceneColor, foamTint, clamp(swashLine * (0.6 + scallops * 0.3) + spray * 0.89 + wash * (0.16 + 0.19 * scallops) + foamPockets * 0.17, 0.0, 0.97));
 
         vec3 viewDir = normalize(surfPoint - cameraPosition);
         vec3 oceanRay = vec3(abs(viewDir.x), -viewDir.y, viewDir.z);
@@ -394,8 +405,123 @@ function cumulus() {
   return clouds;
 }
 
+function oceanLife(scene) {
+  const bone = new T.MeshBasicMaterial({ color: '#fbf7ee', side: T.DoubleSide });
+  const dark = new T.MeshBasicMaterial({ color: '#526379', side: T.DoubleSide });
+  const waterline = -0.48;
+  const gulls = [];
+  const gullBody = new T.SphereGeometry(0.18, 8, 5).scale(0.53, 0.52, 1.25);
+  for (const side of [1, -1]) {
+    for (let i = 0; i < 5; i++) {
+      const bird = new T.Group();
+      bird.name = 'Hải âu';
+      bird.add(new T.Mesh(gullBody, bone));
+      const wings = [];
+      for (const sign of [-1, 1]) {
+        const geometry = new T.BufferGeometry();
+        geometry.setAttribute('position', new T.Float32BufferAttribute([
+          0, 0, 0.14, sign * 0.73, 0.055, -0.02, sign * 0.45, -0.035, -0.22,
+          sign * 0.73, 0.055, -0.02, sign * 1.15, 0.10, -0.18, sign * 0.45, -0.035, -0.22,
+        ], 3));
+        geometry.addGroup(0, 3, 0);
+        geometry.addGroup(3, 3, 1);
+        const wing = new T.Mesh(geometry, [bone, dark]);
+        bird.add(wing);
+        wings.push(wing);
+      }
+      bird.visible = false;
+      scene.add(bird);
+      gulls.push({ bird, wings, side, i });
+    }
+  }
+
+  const whales = [1, -1].map(side => {
+    const whale = new T.Group();
+    whale.name = 'Cá voi';
+    const skin = new T.MeshBasicMaterial({ color: '#2b6073' });
+    const back = new T.Mesh(new T.SphereGeometry(1, 15, 8).scale(0.91, 0.51, 2.15), skin);
+    const finGeometry = new T.BufferGeometry();
+    finGeometry.setAttribute('position', new T.Float32BufferAttribute([
+      -0.12,0.21,0.32, 0.12,0.21,0.32, 0,0.91,-0.54, 0.12,0.21,0.32, 0,0.12,-1.06, 0,0.91,-0.54,
+      0,0.12,-1.06, -0.12,0.21,0.32, 0,0.91,-0.54,
+    ],3));
+    const fin = new T.Mesh(finGeometry, new T.MeshBasicMaterial({ color: '#235368', side: T.DoubleSide }));
+    whale.add(back, fin);
+    whale.visible = false;
+    scene.add(whale);
+    return { whale, side };
+  });
+
+  function makeBoat() {
+    const boat = new T.Group();
+    boat.name = 'Tàu cá';
+    const hull = new T.BufferGeometry();
+    const rim = [[0,0,3.1], [-0.92,0,1.55], [-0.86,0,-2.44], [0.86,0,-2.44], [0.92,0,1.55]];
+    const hullPoints = [];
+    for (let i = 0; i < rim.length; i++) {
+      const a = rim[i], b = rim[(i+1) % rim.length];
+      const aLow = [a[0]*0.70,-0.49,a[2]*0.94], bLow = [b[0]*0.70,-0.49,b[2]*0.94];
+      hullPoints.push(...a,...b,...aLow, ...b,...bLow,...aLow, 0,0,0,...b,...a);
+    }
+    hull.setAttribute('position', new T.Float32BufferAttribute(hullPoints,3));
+    boat.add(new T.Mesh(hull, new T.MeshBasicMaterial({ color: '#39738b', side: T.DoubleSide })));
+    function fit(width, height, depth, shade, x, y, z) {
+      const piece = new T.Mesh(new T.BoxGeometry(width,height,depth), new T.MeshBasicMaterial({ color: shade }));
+      piece.position.set(x,y,z);
+      boat.add(piece);
+    }
+    fit(1.22,0.83,1.66,'#f2eee0',0,0.40,-0.71);
+    fit(1.44,0.14,1.85,'#bb634b',0,0.85,-0.71);
+    for (const side of [-1,1]) {
+      fit(0.053,0.30,0.92,'#56748a',side*0.62,0.57,-0.52);
+    }
+    fit(0.19,0.80,0.19,'#dfd9c8',0,0.96,-1.88);
+    fit(0.67,0.10,0.09,'#d0cabf',0,1.34,-1.88);
+    return boat;
+  }
+  const boats = [1,-1].map(side => {
+    const boat = makeBoat();
+    boat.visible = false;
+    scene.add(boat);
+    return { boat, side };
+  });
+
+  return time => {
+    for (const { bird, wings, side, i } of gulls) {
+      const pass = (time + (side > 0 ? 2 : 9)) % 29;
+      bird.visible = pass > 3 && pass < 13;
+      if (!bird.visible) continue;
+      const t = pass - 3;
+      bird.position.set(side * (33 + i * 2.1 + Math.sin(t * 0.52 + i) * 2.5),
+        7.4 + i * 0.37 + Math.sin(t * 0.77 + i * 0.58) * 0.82,
+        -29 + t * 6.0 - i * 3.3);
+      const pulse = Math.sin(time * 7.1 + i * 0.9) * 0.56 * (0.6 + 0.4 * Math.sin(t));
+      wings[0].rotation.z = pulse;
+      wings[1].rotation.z = -pulse;
+    }
+    for (const { whale, side } of whales) {
+      const pass = (time + (side > 0 ? 0 : 27)) % 78;
+      whale.visible = pass > 16 && pass < 22;
+      if (!whale.visible) continue;
+      const t = (pass - 16) / 6;
+      whale.position.set(side * (34 + Math.sin(t * Math.PI) * 1.9), waterline - 1.10 + Math.sin(t * Math.PI) * 0.96,
+        3.8 + t * 10.4);
+      whale.rotation.x = Math.sin(t * Math.PI * 2) * 0.23;
+    }
+    for (const { boat, side } of boats) {
+      const pass = (time + (side > 0 ? 0 : 17)) % 62;
+      boat.visible = pass > 6 && pass < 32;
+      if (!boat.visible) continue;
+      const t = pass - 6;
+      boat.position.set(side * 61.0, waterline + Math.sin(time * 1.6) * 0.089, -46 + t * 3.72);
+      boat.rotation.z = Math.sin(time * 1.19) * 0.044;
+    }
+  };
+}
+
 export function buildOceanCoast(scene) {
   const clouds = cumulus();
+  const animateLife = oceanLife(scene);
   const cloudDrift = { value: 0 };
   const waveTime = { value: 0 };
   // The surface stays in place; periodic world-space shader offsets supply the two parallax speeds.
@@ -407,6 +533,7 @@ export function buildOceanCoast(scene) {
       waveTime.value = time;
       cloudDrift.value = Math.sin(time * 0.036) * 9.5;
       clouds.position.z = cloudDrift.value;
+      animateLife(time);
     },
   };
 }
