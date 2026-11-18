@@ -3,7 +3,7 @@ import * as T from './vendor/three-r164/three.module.min.js';
 const span = 128;
 const tau = Math.PI * 2;
 const waterline = -0.52;
-const villageBank = 58.4;
+const villageBank = 46.8;
 
 function randomSource(seed) {
   return () => {
@@ -30,15 +30,15 @@ const auroraShader = `
     float h = ray.y - height - fold - a*0.048;
     float strands = noise(vec2(a*42.0+t*0.40,0.75))*0.58
       + noise(vec2(a*112.0+t*0.64,3.1))*0.25;
-    float layer = exp(-pow((h-0.011)/width,2.0))*0.39
+    float layer = exp(-pow(abs(h-0.011)/width,2.0))*0.39
       + smoothstep(-0.015,0.014,h)*exp(-max(h,0.0)/(width*2.2))*0.73;
-    float rim = exp(-pow(h/(width*0.37),2.0))*0.34;
+    float rim = exp(-pow(abs(h)/(width*0.37),2.0))*0.34;
     float envelope = 0.47 + 0.53*smoothstep(0.22,0.88,noise(vec2(a*2.6+7.0,t*0.25)));
     return mix(low,high,smoothstep(0.012,width*2.2,h))*(layer+rim)*(0.35+strands)*envelope;
   }
   vec3 ribbons(vec3 ray) {
-    return curtain(ray, 0.25, 0.248, 0.032, vec3(0.058,1.04,0.55), vec3(0.43,0.045,0.88))*1.15
-      + curtain(ray,-0.94,0.153,0.020,vec3(0.21,0.50,0.72),vec3(0.48,0.066,1.02))*0.76
+    return curtain(ray, 0.25, 0.235, 0.030, vec3(0.058,1.04,0.55), vec3(0.43,0.045,0.88))*1.15
+      + curtain(ray,-0.94,0.125,0.020,vec3(0.21,0.50,0.72),vec3(0.48,0.066,1.02))*0.76
       + curtain(ray,1.41,0.407,0.027,vec3(0.27,0.045,0.64),vec3(0.32,0.024,0.63))*0.37;
   }
 `;
@@ -57,7 +57,7 @@ function sky(time) {
       varying vec3 ray;
       void main() {
         vec3 r = normalize(ray);
-        vec3 color = mix(vec3(0.050,0.084,0.191), vec3(0.008,0.008,0.042),
+        vec3 color = mix(vec3(0.027,0.050,0.133), vec3(0.004,0.006,0.031),
           smoothstep(-0.03,0.52,r.y));
         color += vec3(0.033,0.016,0.066) * exp(-abs(r.y-0.045)*9.0);
         vec2 uv = vec2(atan(r.z,r.x),asin(r.y));
@@ -110,7 +110,7 @@ function lake(time) {
             * noise(vec2(p.x*2.5 - time*0.27,p.y*0.42));
           float deep = smoothstep(3.0,55.0,abs(p.x));
           vec3 color = mix(vec3(0.012,0.037,0.073),vec3(0.023,0.055,0.111),deep);
-          color += ribbons(mirror)*(0.22+shimmer*0.27)*(1.0-deep*0.29);
+          color += ribbons(mirror)*(0.20+shimmer*0.36)*(1.0-deep*0.29);
           color += vec3(0.052,0.085,0.152)*smoothstep(0.20,0.80,shimmer)*0.49;
           gl_FragColor = vec4(color,1.0);
           #include <colorspace_fragment>
@@ -183,12 +183,12 @@ function mountain(side, range, salt) {
   }
 
   const distance = [77, 100, 124][range];
-  const heights = [[3.4,7.3],[7.2,13.3],[10.2,17.9]][range];
+  const profiles = [[4.3, 6.8, 3.6], [11.5, 8.7, 9.9, 13.1], [17.0, 12.6, 18.8]][range];
   const entries = [3,4,3][range];
   for(let i=0;i<entries;i++){
     const z = -span/2 + (i+.5)*span/entries + (rand()-.5)*8;
     const x = side*(distance+(rand()-.5)*5.8);
-    const height = T.MathUtils.lerp(heights[0],heights[1],rand());
+    const height = profiles[i] * (0.85 + rand() * 0.21);
     peak(x,z,height,14+rand()*6.8,9+rand()*5);
     if(i === 1 || (range === 0 && i === 3)) {
       peak(x-side*(3+rand()*2),z+(rand()<.5?-1:1)*(5+rand()*4),
@@ -327,12 +327,12 @@ function town(side,time) {
       void main(){
         float trail=(1.0-abs(vUv.x*2.0-1.0))*(1.0-abs(vUv.y*2.0-1.0));
         float broken=0.27+0.73*smoothstep(.22,.83,noise(vec2(vUv.y*41.0+time*.76,vUv.x*2.2)));
-        gl_FragColor=vec4(.93,.32,.085,pow(max(trail,0.0),1.55)*broken*.66);
+        gl_FragColor=vec4(.95,.39,.115,pow(max(trail,0.0),1.45)*broken*.74);
         #include <colorspace_fragment>
       }
     `,
   });
-  const houseCount = 21;
+  const houseCount = 27;
   const basic = new T.MeshBasicMaterial({color:'#ffffff',side:T.DoubleSide,fog:false});
   const houses = new T.InstancedMesh(walls,basic,houseCount);
   const roofs = new T.InstancedMesh(roof,basic,houseCount);
@@ -347,12 +347,12 @@ function town(side,time) {
     pose.updateMatrix(); mesh.setMatrixAt(index,pose.matrix);
     if(color) mesh.setColorAt(index,new T.Color(color));
   }
-  const clusters = [-53,-36,-7,14,36,52];
+  const clusters = [-45, -38, -30, -12, -7.5, -2, 5, 21, 44];
   const roofColors = ['#8e514c','#785657','#3f647b','#586955','#655775'];
   for(let i=0;i<houseCount;i++){
-    const z = clusters[i%clusters.length]+(rand()-.5)*8.8;
+    const z = clusters[i%clusters.length]+(rand()-.5)*5.2;
     const x = side*(villageBank+1.25+rand()*2.25);
-    const h=.69+rand()*.43, w=.94+rand()*.80, d=.70+rand()*.45;
+    const h=.74+rand()*.53, w=1.05+rand()*.81, d=.76+rand()*.45;
     const front = x-side*(d*.5+.07);
     stamp(houses,i,x,h*.5+.035,z,d,h,w,'#6d4b43');
     for(let row=0;row<7;row++){
@@ -369,52 +369,91 @@ function town(side,time) {
       stamp(windows,i*4+j,front-side*.024,h*(.534+Math.floor(j/2)*.123),
         z+w*(.132+(j%2)*.127),1,h*.094,w*.101,j%2?'#ffc06e':'#ffe2a0');
     }
-    stamp(reflections,i,side*(villageBank-3.1+rand()*1.2),waterline+.009,z+w*.19,3.2+rand()*1.9,1,.57+rand()*.46);
+    stamp(reflections,i,side*(villageBank-4.0+rand()*1.4),waterline+.009,z+w*.19,4.2+rand()*2.8,1,.57+rand()*.46);
   }
-  group.add(houses,roofs,logs,trim,windows,reflections);
+  const chapel = new T.Group();
+  chapel.position.set(side * (villageBank + 1.2), 0.04, -6.4);
+  function chapelPiece(geometry, color, x, y, z) {
+    const part = new T.Mesh(geometry, new T.MeshBasicMaterial({ color, side: T.DoubleSide, fog: false }));
+    part.position.set(x, y, z);
+    chapel.add(part);
+    return part;
+  }
+  chapelPiece(new T.BoxGeometry(1.65, 0.94, 1.69), '#bb9b95', 0, 0.47, 0.52);
+  const chapelRoof = chapelPiece(roof, '#50648e', 0, 0.94, 0.52);
+  chapelRoof.scale.set(1.85, 0.58, 1.91);
+  chapelPiece(new T.BoxGeometry(0.52, 2.1, 0.55), '#b79a96', -side * 0.61, 1.05, -0.25);
+  chapelPiece(new T.ConeGeometry(0.45, 0.76, 4), '#6276a4', -side * 0.61, 2.45, -0.25)
+    .rotation.y = Math.PI / 4;
+  chapelPiece(new T.BoxGeometry(0.045, 0.23, 0.14), '#ffd396', -side * 0.895, 1.61, -0.25);
+  for (const z of [0.16, 0.69, 1.15]) {
+    chapelPiece(new T.BoxGeometry(0.044, 0.28, 0.14), '#ffd091', -side * 0.84, 0.55, z);
+  }
+  group.add(houses,roofs,logs,trim,windows,reflections,chapel);
   return group;
 }
 
 function lightSnow(time) {
   const rand = randomSource(8156);
-  const points = [], phases = [];
-  for (const side of [-1,1]) for (let i=0;i<210;i++) {
-    const depth = 4.75 + (rand()**1.45)*23;
-    points.push(side*depth,rand()*8 - .35,(rand()-.5)*54);
-    phases.push(rand());
+  const points = [], phases = [], layers = [];
+  const bands = [
+    { near: 4.38, far: 9.9, count: 193 },
+    { near: 9.9, far: 24, count: 170 },
+    { near: 24, far: 46, count: 130 },
+  ];
+  for (const side of [-1, 1]) {
+    for (const [layer, band] of bands.entries()) {
+      for (let i = 0; i < band.count; i++) {
+        points.push(side * T.MathUtils.lerp(band.near, band.far, rand()), rand() * 7.5, (rand() - 0.5) * 62);
+        phases.push(rand());
+        layers.push(layer);
+      }
+    }
   }
   const geometry = new T.BufferGeometry();
-  geometry.setAttribute('position',new T.Float32BufferAttribute(points,3));
-  geometry.setAttribute('phase',new T.Float32BufferAttribute(phases,1));
-  const snow = new T.Points(geometry,new T.ShaderMaterial({
-    transparent:true, depthWrite:false, uniforms:{time},
-    vertexShader:`
+  geometry.setAttribute('position', new T.Float32BufferAttribute(points, 3));
+  geometry.setAttribute('phase', new T.Float32BufferAttribute(phases, 1));
+  geometry.setAttribute('snowBand', new T.Float32BufferAttribute(layers, 1));
+  const snow = new T.Points(geometry, new T.ShaderMaterial({
+    transparent: true, depthWrite: false, uniforms: { time },
+    vertexShader: `
       uniform float time;
       attribute float phase;
+      attribute float snowBand;
       varying float alpha;
-      void main(){
-        vec3 p=position;
-        float cycle=mod(p.y+0.35-time*(0.29+phase*0.21),8.0);
-        p.y=cycle-0.35;
-        p.x+=sin(time*0.45+phase*14.0)*0.23;
-        p.z+=sin(time*0.22+phase*21.0)*0.46;
-        vec4 view=modelViewMatrix*vec4(p,1.0);
-        gl_Position=projectionMatrix*view;
-        gl_PointSize=clamp((21.0+phase*11.7)/max(1.0,-view.z),0.95,2.65);
-        alpha=(0.28+phase*.37)*smoothstep(0.03,.7,cycle)*
-          (1.0-smoothstep(7.2,8.0,cycle))*(1.0-smoothstep(25.0,43.0,-view.z));
+      varying float rotation;
+      void main() {
+        vec3 p = position;
+        float cycle = mod(p.y - time * (0.36 + phase * 0.38 - snowBand * 0.054), 7.5);
+        p.y = cycle - 0.29;
+        p.x += sin(time * 0.55 + phase * 15.0) * 0.28;
+        p.x = sign(position.x) * max(abs(p.x), 4.36);
+        p.z = mod(p.z + 31.0 + time * (1.43 - snowBand * 0.33) + sin(time * 0.4 + phase * 20.0) * 0.36, 62.0) - 31.0;
+        vec4 view = modelViewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * view;
+        gl_PointSize = clamp((48.0 + phase * 18.0) / max(1.0, -view.z), 1.45, 8.8 - snowBand * 1.65);
+        alpha = (0.66 + phase * 0.27 - snowBand * 0.16) * smoothstep(0.05, 0.8, cycle)
+          * (1.0 - smoothstep(6.7, 7.5, cycle)) * (1.0 - smoothstep(28.0, 58.0, -view.z));
+        rotation = phase * 6.283 + time * (0.37 + phase * 0.34);
       }
     `,
-    fragmentShader:`
+    fragmentShader: `
       varying float alpha;
-      void main(){
-        float shape=1.0-smoothstep(.12,.49,length(gl_PointCoord-.5));
-        gl_FragColor=vec4(.64,.77,.96,alpha*shape);
+      varying float rotation;
+      void main() {
+        vec2 uv = gl_PointCoord - 0.5;
+        float r = length(uv);
+        float theta = atan(uv.y, uv.x) + rotation;
+        float arms = abs(sin(theta * 3.0)) * r;
+        float flake = (1.0 - smoothstep(0.035, 0.13, arms)) * (1.0 - smoothstep(0.30, 0.51, r));
+        float core = 1.0 - smoothstep(0.08, 0.24, r);
+        gl_FragColor = vec4(0.81, 0.88, 1.0, alpha * max(core, flake * 0.76));
         #include <colorspace_fragment>
       }
     `,
   }));
-  snow.frustumCulled=false;
+  snow.frustumCulled = false;
+  snow.renderOrder = 4;
   return snow;
 }
 
