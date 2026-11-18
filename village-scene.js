@@ -1,6 +1,7 @@
 import * as T from 'https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js';
 import { RoundedBoxGeometry } from 'https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/utils/BufferGeometryUtils.js';
+import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/loaders/GLTFLoader.js';
 
 const scene = new T.Scene();
 scene.background = new T.Color('#d8a899');
@@ -329,7 +330,7 @@ function buildBulkhead(z, facesFront) {
   scene.add(wall);
 }
 
-function buildScenery() {
+function buildScenery(buildings) {
   const layers = [];
   const grass = new T.MeshStandardMaterial({ color: '#596553', roughness: 1, side: T.DoubleSide });
   const rock = material('#736a77');
@@ -432,46 +433,22 @@ function buildScenery() {
   });
   const meadow = material('#616455');
   const soil = material('#6a5c60');
-  const plaster = ['#aa8974', '#8a7779', '#9c8490'].map(color => material(color));
-  const slate = ['#4c465c', '#634b58'].map(color => material(color));
-  const beam = material('#453743');
-  const glass = new T.MeshBasicMaterial({ color: '#ffd797' });
   const glow = new T.MeshBasicMaterial({ color: '#a592b1' });
 
-  function chalet(side, x, z, width, finish) {
-    const floorY = -0.83;
-    const depth = width * 0.66;
-    const eaves = width * 0.47;
-    const gable = width * 0.29;
-    const facade = x - side * depth / 2;
-    box(depth, eaves, width, plaster[finish], x, floorY + eaves / 2, z);
-    box(depth + 0.07, 0.10, width + 0.10, soil, x, floorY, z);
-    const profile = new T.Shape();
-    profile.moveTo(-width / 2, 0);
-    profile.lineTo(width / 2, 0);
-    profile.lineTo(0, gable);
-    profile.closePath();
-    const gableWall = mesh(new T.ExtrudeGeometry(profile, { depth, bevelEnabled: false }),
-      plaster[finish], x - depth / 2, floorY + eaves, z);
-    gableWall.rotation.y = Math.PI / 2;
-    const pitch = Math.atan2(gable, width / 2);
-    for (const edge of [-1, 1]) {
-      const roof = box(depth + 0.33, 0.10, Math.hypot(width / 2, gable) + 0.16,
-        slate[finish % slate.length], x, floorY + eaves + gable / 2 + 0.05, z + edge * width / 4);
-      roof.rotation.x = edge * pitch;
-      box(0.085, eaves, 0.07, beam, facade - side * 0.025, floorY + eaves / 2, z + edge * width * 0.459);
-      const windowZ = z + edge * width * 0.282;
-      const windowY = floorY + eaves * 0.57;
-      box(0.085, width * 0.20, width * 0.19, beam, facade - side * 0.028, windowY, windowZ);
-      box(0.093, width * 0.155, width * 0.145, glass, facade - side * 0.048, windowY, windowZ);
-      box(0.103, width * 0.155, 0.026, beam, facade - side * 0.053, windowY, windowZ);
-      box(0.103, 0.025, width * 0.145, beam, facade - side * 0.053, windowY, windowZ);
-    }
-    box(0.09, 0.076, width, beam, facade - side * 0.025, floorY + eaves, z);
-    box(0.086, eaves * 0.79, width * 0.17, beam, facade - side * 0.035, floorY + eaves * 0.39, z);
-    box(0.11, gable * 0.33, width * 0.10, glass, facade - side * 0.047, floorY + eaves + gable * 0.39, z);
-    box(width * 0.105, width * 0.27, width * 0.10, soil, x + depth * 0.18,
-      floorY + eaves + gable * 0.67, z + width * 0.21);
+  function placeBuilding(model, side, x, z, width, turn) {
+    const building = model.clone(true);
+    const bounds = new T.Box3().setFromObject(building);
+    const center = bounds.getCenter(new T.Vector3());
+    const size = bounds.getSize(new T.Vector3());
+    const scale = width / size.x;
+    building.position.sub(center);
+    building.position.y += center.y - bounds.min.y;
+    const placement = new T.Group();
+    placement.add(building);
+    placement.scale.setScalar(scale);
+    placement.rotation.y = -side * Math.PI / 2 + turn;
+    placement.position.set(side * x, -0.71, z);
+    scene.add(placement);
   }
 
   loop(128, 2.05, 2, () => {
@@ -481,9 +458,14 @@ function buildScenery() {
         oval(meadow, side * (33 + depth * 0.29), -2.0, origin + dz, depth, 1.35, width);
         oval(soil, side * 30.5, -2.14, origin + dz + 1, 3.1, 0.43, width * 0.78);
       }
-      for (const [i, [dz, x, width]] of [[-9, 33.7, 3.3], [-3.2, 35.6, 2.55], [3.0, 32.9, 4.05], [12.5, 35.4, 2.9]].entries()) {
+      for (const [variant, dz, x, width, turn] of [
+        [0, -8.2, 33.5, 4.0, 0.19],
+        [1, -2.9, 37.1, 3.4, -0.32],
+        [2, 2.7, 33.8, 5.2, -0.12],
+        [0, 11.0, 35.2, 3.1, 0.34]
+      ]) {
         const z = origin + dz;
-        chalet(side, side * x, z, width, i % plaster.length);
+        placeBuilding(buildings[variant], side, x, z, width, turn);
         for (let j = 0; j < 3; j++) {
           const glint = oval(glow, side * (26.6 - j * 0.86), -2.14, z + 0.18 * Math.sin(j * 2),
             0.43 + j * 0.14, 0.004, width * (0.14 - j * 0.025));
@@ -552,7 +534,7 @@ function buildMascot() {
   return { mascot, feet };
 }
 
-function start() {
+async function start() {
   const renderer = new T.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.35));
   renderer.toneMapping = T.ACESFilmicToneMapping;
@@ -569,7 +551,12 @@ function start() {
   buildBooths();
   buildBulkhead(-17.33, false);
   buildBulkhead(13.42, true);
-  const scenery = buildScenery();
+  const loader = new GLTFLoader();
+  const buildings = await Promise.all(['cottage', 'longhouse', 'inn'].map(async name => {
+    const url = new URL(`./assets/kaykit-village/${name}.glb`, import.meta.url);
+    return (await loader.loadAsync(url.href)).scene;
+  }));
+  const scenery = buildScenery(buildings);
   batchScenery();
   play(renderer, buildMascot(), scenery);
   status.remove();
@@ -814,9 +801,7 @@ function play(renderer, { mascot, feet }, scenery) {
   });
 }
 
-try {
-  start();
-} catch (error) {
+start().catch(error => {
   status.textContent = 'Không dựng được cảnh 3D. Hãy thử trình duyệt có hỗ trợ WebGL.';
   console.error(error);
-}
+});

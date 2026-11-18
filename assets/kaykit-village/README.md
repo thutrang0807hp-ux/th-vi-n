@@ -1,0 +1,1 @@
+Building models by Kay Lousberg from [KayKit Medieval Hexagon Pack 1.0](https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0), revision `84fa4e91af6a88989be7c99e0891cede11f2ca38`. The red home A, home B, and tavern models were repackaged as self-contained GLB files with their original texture. Licensed under [CC0 1.0](LICENSE.txt).
