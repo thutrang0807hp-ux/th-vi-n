@@ -199,6 +199,7 @@ dialog h2 { margin: 0 0 12px; font-size: 1.1rem; }
           <option value="tulip">Thung lũng Tulip</option>
           <option value="tri-ton">Mùa vàng Tri Tôn</option>
           <option value="ocean">Bờ biển xanh</option>
+          <option value="iceland">Iceland · Hồ băng cực quang</option>
         </select>
         <button id="motion-toggle" type="button">Dừng tàu</button>
         <button id="avatar-toggle" type="button" aria-haspopup="dialog" disabled>Nhân vật</button>
@@ -285,7 +286,7 @@ globalThis.lofiAssets = JSON.parse(document.getElementById("lofi-assets").textCo
     const scene = 'tulip';
     picker.value = scene;
     picker.addEventListener('change', () => {
-      location.assign(picker.value === 'ocean' ? './ocean.html' : picker.value === 'tri-ton' ? './tri-ton.html' : './lofi-lite.html');
+      location.assign(({iceland:'./iceland.html',ocean:'./ocean.html','tri-ton':'./tri-ton.html',tulip:'./lofi-lite.html'})[picker.value]);
     });
     window.addEventListener('pageshow', () => { picker.value = scene; });
 
@@ -299,6 +300,10 @@ globalThis.lofiAssets = JSON.parse(document.getElementById("lofi-assets").textCo
         const { buildOceanCoast } = await import('../ocean-coast.js');
         document.querySelector('.route').textContent = '— Bờ biển xanh';
         await start({ buildExterior: buildOceanCoast });
+      } else if (scene === 'iceland') {
+        const { buildIcelandAurora } = await import('../iceland-aurora.js');
+        document.querySelector('.route').textContent = '— Hồ băng Iceland';
+        await start({ buildExterior: buildIcelandAurora });
       } else {
         await start();
       }
@@ -306,7 +311,10 @@ globalThis.lofiAssets = JSON.parse(document.getElementById("lofi-assets").textCo
       const preview = document.querySelector('#scene-preview');
       document.querySelector('#load-message').textContent =
         'Không mở được chế độ 3D trên trình duyệt này. Đây là ảnh xem trước của toa tàu.';
-      if (scene === 'ocean') {
+      if (scene === 'iceland') {
+        preview.alt = 'Ảnh xem trước hồ băng cực quang qua cửa sổ toa tàu';
+        preview.src = '../assets/iceland-preview.webp';
+      } else if (scene === 'ocean') {
         preview.alt = 'Ảnh xem trước biển xanh qua cửa sổ toa tàu';
         preview.src = '../assets/ocean-coast-preview.webp';
       } else {

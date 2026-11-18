@@ -21,6 +21,7 @@
           <option value="tulip">Thung lũng Tulip</option>
           <option value="tri-ton">Mùa vàng Tri Tôn</option>
           <option value="ocean">Bờ biển xanh</option>
+          <option value="iceland">Iceland · Hồ băng cực quang</option>
         </select>
         <button id="motion-toggle" type="button">Dừng tàu</button>
         <button id="avatar-toggle" type="button" aria-haspopup="dialog" disabled>Nhân vật</button>
@@ -103,7 +104,7 @@
   <script type="module">
     const picker = document.querySelector('#route-picker');
     const route = new URLSearchParams(location.search).get('scene');
-    const scene = ['tri-ton', 'ocean'].includes(route) ? route : 'tulip';
+    const scene = ['tri-ton', 'ocean', 'iceland'].includes(route) ? route : 'tulip';
     picker.value = scene;
     picker.addEventListener('change', () => {
       const next = new URL(location.href);
@@ -123,6 +124,10 @@
         const { buildOceanCoast } = await import('../ocean-coast.js');
         document.querySelector('.route').textContent = '— Bờ biển xanh';
         await start({ buildExterior: buildOceanCoast });
+      } else if (scene === 'iceland') {
+        const { buildIcelandAurora } = await import('../iceland-aurora.js');
+        document.querySelector('.route').textContent = '— Hồ băng Iceland';
+        await start({ buildExterior: buildIcelandAurora });
       } else {
         await start();
       }
@@ -130,7 +135,10 @@
       const preview = document.querySelector('#scene-preview');
       document.querySelector('#load-message').textContent =
         'Không mở được chế độ 3D trên trình duyệt này. Đây là ảnh xem trước của toa tàu.';
-      if (scene === 'ocean') {
+      if (scene === 'iceland') {
+        preview.alt = 'Ảnh xem trước hồ băng cực quang qua cửa sổ toa tàu';
+        preview.src = '../assets/iceland-preview.webp';
+      } else if (scene === 'ocean') {
         preview.alt = 'Ảnh xem trước biển xanh qua cửa sổ toa tàu';
         preview.src = '../assets/ocean-coast-preview.webp';
       } else {
