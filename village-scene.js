@@ -228,6 +228,7 @@ function boothPadding(x, back, direction) {
 }
 
 function buildBooths() {
+  const tableStacks = [];
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 64;
   const ctx = canvas.getContext('2d');
@@ -259,9 +260,11 @@ function buildBooths() {
     cylinder(0.22, 0.23, 0.045, walnut, x, 0.066, z);
     const lampX = x + side * 0.23;
     tableLamp(lampX, z);
+    const books = new T.Group();
     for (let i = 0; i < 2; i++) {
       const book = box(0.28, 0.048, 0.19, bookColors[(i + Math.round(z + 14)) % bookColors.length], x - side * 0.23, 1.05 + i * 0.049, z + 0.18, 0.01);
       book.rotation.y = i * 0.26;
+      books.add(book);
     }
     cylinder(0.068, 0.055, 0.09, pillow, x - side * 0.55, 1.07, z - 0.2);
     cylinder(0.054, 0.054, 0.005, darkWood, x - side * 0.55, 1.117, z - 0.2);
@@ -271,10 +274,13 @@ function buildBooths() {
     if (z > 3 && z < 10) {
       const saucer = cylinder(0.111, 0.099, 0.014, pillow, x - side * 0.55, 1.017, z - 0.2);
       saucer.position.z += 0.01;
-      box(0.38, 0.018, 0.27, bookColors[0], x - side * 0.2, 1.031, z + 0.18, 0.006);
+      books.add(box(0.38, 0.018, 0.27, bookColors[0], x - side * 0.2, 1.031, z + 0.18, 0.006));
     }
+    scene.add(books);
+    if (side > 0) tableStacks.push(books);
     if (z > 3 && z < 10) point('#ffc27d', 8, 2.6, lampX, 1.28, z);
   }
+  return tableStacks;
 }
 
 function buildBulkhead(z, facesFront) {
@@ -890,17 +896,17 @@ function buildFocusProps() {
       box(0.217, 0.0015, 0.0025, print, 0, 0.024, -0.098 + line * 0.031);
     }
   });
-  notebook.position.set(0.145, 0.374, -0.397);
+  notebook.position.set(0.092, 0.374, -0.410);
   notebook.rotation.y = -0.16;
 
   const computer = collect('work', () => {
     box(0.425, 0.025, 0.27, laptop, 0, 0, 0, 0.009);
     for (let row = 0; row < 4; row++) {
       for (let col = 0; col < 9; col++) {
-        box(0.031, 0.004, 0.024, keys, (col - 4) * 0.039, 0.015, -0.068 + row * 0.031, 0.002);
+        box(0.031, 0.004, 0.024, keys, (col - 4) * 0.039, 0.015, -0.026 + row * 0.031, 0.002);
       }
     }
-    box(0.1, 0.002, 0.054, keys, 0, 0.014, 0.09, 0.003);
+    box(0.1, 0.002, 0.054, keys, 0, 0.014, 0.102, 0.003);
     const first = scene.children.length;
     box(0.425, 0.282, 0.024, laptop, 0, 0.141, 0, 0.012);
     box(0.377, 0.231, 0.006, screen, 0, 0.146, 0.013, 0.004);
@@ -910,7 +916,7 @@ function buildFocusProps() {
     lid.rotation.x = -0.19;
     scene.add(lid);
   });
-  computer.position.set(0, 0.378, -0.447);
+  computer.position.set(0, 0.378, -0.414);
 
   const checklist = collect('plan', () => {
     box(0.27, 0.023, 0.32, leather, 0, 0, 0, 0.014);
@@ -925,8 +931,8 @@ function buildFocusProps() {
     box(0.012, 0.004, 0.022, cover, -0.086, 0.029, -0.079, 0.002).rotation.y = 0.52;
     box(0.012, 0.004, 0.035, cover, -0.074, 0.029, -0.089, 0.002).rotation.y = -0.51;
   });
-  checklist.position.set(0.091, 0.425, -0.387);
-  checklist.rotation.set(-0.32, -0.13, 0);
+  checklist.position.set(0.045, 0.395, -0.445);
+  checklist.rotation.set(0.14, -0.13, 0);
 
   const tea = collect('tea', () => {
     const profile = [[0, 0], [0.041, 0], [0.049, 0.01], [0.058, 0.068],
@@ -1273,45 +1279,74 @@ function buildMascot() {
   }
   const animator = createMochiAnimator(mascot, pose, upper, headPivot, arms, feet, showFace);
   const { props, variants, pencil, checklist, tea } = buildFocusProps();
+  // Each target is authored in the prop's own coordinates, so a moving prop carries its grip.
+  const contactPoint = new T.Vector3();
+  const armDirection = new T.Vector3();
+  const armDown = new T.Vector3(0, -1, 0);
+  const armRest = arms.map(({ children: [arm] }) => ({
+    position: arm.position.clone(), rotation: arm.quaternion.clone(), length: arm.scale.y,
+  }));
+
+  function reach(index, target, x, y, z) {
+    const shoulder = arms[index];
+    const arm = shoulder.children[0];
+    contactPoint.set(x, y, z);
+    target.localToWorld(contactPoint);
+    shoulder.worldToLocal(contactPoint);
+    // Keep the shoulder planted and aim the rounded end at the contact point.
+    armDirection.copy(contactPoint).normalize();
+    arm.position.copy(contactPoint).multiplyScalar(0.48);
+    arm.quaternion.setFromUnitVectors(armDown, armDirection);
+    arm.scale.y = contactPoint.length() * 0.54;
+  }
+
   function setActivity(activity) {
     headPivot.rotation.set(0, 0, 0);
-    for (const arm of arms) arm.rotation.z = 0;
+    arms.forEach((shoulder, index) => {
+      const arm = shoulder.children[0];
+      const rest = armRest[index];
+      shoulder.rotation.set(0, 0, 0);
+      arm.position.copy(rest.position);
+      arm.quaternion.copy(rest.rotation);
+      arm.scale.y = rest.length;
+    });
     props.position.copy(mascot.position);
     props.visible = Boolean(variants[activity]);
     for (const [name, item] of Object.entries(variants)) item.visible = name === activity;
   }
+
   function animateActivity(activity, time) {
     const wave = Math.sin(time * 2.2);
     headPivot.rotation.x = activity === 'work' ? -0.08 : -0.18 + wave * 0.018;
     if (activity === 'read') {
-      arms[0].rotation.x = 1.19 + wave * 0.025;
-      arms[1].rotation.x = 1.14 - wave * 0.025;
-      arms[0].rotation.z = 0.14;
-      arms[1].rotation.z = -0.14;
+      reach(0, variants.read, -0.174, 0.029, 0.122 + wave * 0.004);
+      reach(1, variants.read, 0.173, 0.029, 0.119 - wave * 0.004);
     } else if (activity === 'write') {
-      arms[0].rotation.x = 0.95;
-      arms[1].rotation.x = 1.15 + Math.sin(time * 9) * 0.09;
-      pencil.position.set(0.084 + Math.sin(time * 8.5) * 0.021, 0.029, 0.093 + wave * 0.025);
-      pencil.rotation.set(0.28 + wave * 0.04, 0, -0.35);
+      pencil.position.set(0.065 + Math.sin(time * 7.2) * 0.028, 0.045,
+        0.088 + wave * 0.019);
+      pencil.rotation.set(0.33 + wave * 0.07, 0.10, -0.39);
+      reach(0, variants.write, -0.132, 0.026, 0.107);
+      reach(1, pencil, 0.004, 0.043, 0);
     } else if (activity === 'plan') {
-      arms[0].rotation.x = 1.03 + wave * 0.025;
-      arms[1].rotation.x = 1.21 + Math.sin(time * 4.4) * 0.065;
-      checklist.rotation.x = -0.32 + wave * 0.032;
+      reach(0, checklist, -0.123, 0.020, 0.124);
+      reach(1, checklist, 0.083 + wave * 0.016, 0.024, 0.080 + wave * 0.023);
     } else if (activity === 'think') {
       headPivot.rotation.set(0.045 + wave * 0.045, 0.15 + wave * 0.09, -0.075);
-      arms[0].rotation.x = 0.15;
-      arms[1].rotation.x = 2.02 + wave * 0.09;
-      arms[1].rotation.z = -0.45;
+      reach(1, headPivot, 0.188, -0.207 + wave * 0.006, -0.261);
     } else if (activity === 'tea') {
       const lift = T.MathUtils.smoothstep(Math.sin(time * 0.93), 0.08, 0.76);
-      headPivot.rotation.x = -0.09 + lift * 0.09;
-      arms[0].rotation.x = 0.36;
-      arms[1].rotation.x = 1.11 + lift * 0.84;
-      tea.position.set(0.234 - lift * 0.093, 0.379 + lift * 0.142, -0.326 + lift * 0.062);
+      headPivot.rotation.x = -0.09 + lift * 0.10;
+      tea.position.set(0.154 - lift * 0.08, 0.365 + lift * 0.222, -0.317 + lift * 0.059);
       tea.rotation.x = -0.32 * lift;
-    } else {
-      arms[0].rotation.x = 1.16 + Math.sin(time * 9.3) * 0.095;
-      arms[1].rotation.x = 1.16 + Math.sin(time * 10.4 + 1.1) * 0.095;
+      reach(1, tea, 0.084, 0.047, 0.002);
+    } else if (activity === 'work') {
+      const keyboard = variants.work;
+      for (const index of [0, 1]) {
+        const tap = Math.sin(time * (index ? 9.8 : 8.9) + index * 1.7);
+        const lift = Math.max(0, tap) ** 2 * 0.018;
+        reach(index, keyboard, (index ? 1 : -1) * 0.118,
+          0.016 + lift, 0.060 + tap * 0.009);
+      }
     }
   }
   setActivity('idle');
@@ -1399,7 +1434,7 @@ export async function start({ buildExterior } = {}) {
   finishMaterials();
   const firstCabinObject = scene.children.length;
   buildShell();
-  buildBooths();
+  const tableStacks = buildBooths();
   buildBulkhead(-17.33, false);
   buildBulkhead(13.42, true);
   const cabinObjects = scene.children.slice(firstCabinObject);
@@ -1414,12 +1449,12 @@ export async function start({ buildExterior } = {}) {
   }
   const avatar = buildMascot();
   cabin?.add(avatar.mascot, avatar.props);
-  play(renderer, avatar, scenery, cabin);
+  play(renderer, avatar, scenery, cabin, tableStacks);
   status.remove();
 }
 
 function play(renderer, avatar,
-  { layers, animateAmbient, sceneryFrameLimit = 0.08, trainSpeed = 0 }, cabin) {
+  { layers, animateAmbient, sceneryFrameLimit = 0.08, trainSpeed = 0 }, cabin, tableStacks) {
   const { mascot, feet, arms } = avatar;
   const motionButton = document.querySelector('#motion-toggle');
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1444,6 +1479,7 @@ function play(renderer, avatar,
   let deadline = null;
   let firstPerson = false;
   let seated = false;
+  let currentStack;
   let activity = 'idle';
   let activityTime = 0;
   let yaw = 0;
@@ -1469,6 +1505,7 @@ function play(renderer, avatar,
     needsRender = true;
     if (seated) {
       const booth = clamp(Math.round((mascot.position.z + 13.3) / 3.6), 0, 7);
+      currentStack = tableStacks[booth];
       // Center on the bench and leave room for the head in front of the backrest.
       mascot.position.set(boothCenter, 0.665, -13.3 + booth * 3.6 + 0.735);
       mascot.rotation.y = 0;
@@ -1476,6 +1513,8 @@ function play(renderer, avatar,
       mascot.position.set(aisleLimit - 0.18, 0, mascot.position.z);
       mascot.rotation.y = 0;
       activity = 'idle';
+      currentStack.visible = true;
+      currentStack = undefined;
       activityPicker.value = activity;
       avatar.setActivity(activity);
     }
@@ -1522,7 +1561,10 @@ function play(renderer, avatar,
     if (activity !== 'idle' && !seated) toggleSeat();
     activityTime = 0;
     avatar.setActivity(activity);
-    for (const arm of arms) arm.rotation.x = 0.10;
+    if (currentStack) currentStack.visible = !['read', 'write', 'work', 'plan'].includes(activity);
+    if (activity === 'idle') {
+      for (const arm of arms) arm.rotation.x = seated ? 0.10 : 0;
+    }
     needsRender = true;
   });
   document.querySelector('#focus-toggle').addEventListener('click', toggleFocus);
