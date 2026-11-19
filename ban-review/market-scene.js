@@ -1273,8 +1273,54 @@ function banhMiCart(street, m, x) {
   stool(stall, m, 1.83, 1.37, m.plasticGreen, { turn: -0.24 });
 }
 
+function phoStockpot(parent, m, x, y, z) {
+  const pot = groupAt(parent, 'Nồi phở inox xước', x, y, z);
+  const brushed = texture(192, 192, ctx => {
+    const vertical = ctx.createLinearGradient(0, 0, 0, 192);
+    for (const [stop, tone] of [[0, '#a4afb2'], [0.31, '#c3ccd0'], [0.55, '#9da3a1'],
+      [0.78, '#77746b'], [1, '#504a41']]) vertical.addColorStop(stop, tone);
+    ctx.fillStyle = vertical;
+    ctx.fillRect(0, 0, 192, 192);
+    const sweep = ctx.createLinearGradient(0, 0, 192, 0);
+    for (const [stop, tone] of [[0, '#191e2348'], [0.27, '#8aafbd28'], [0.48, '#fff5e668'],
+      [0.56, '#ffffff75'], [0.74, '#4657603b'], [1, '#191e2348']]) sweep.addColorStop(stop, tone);
+    ctx.fillStyle = sweep;
+    ctx.fillRect(0, 0, 192, 192);
+    for (let row = 0; row < 192; row += 2) {
+      ctx.fillStyle = row % 7 ? '#f3eee013' : '#24241d1c';
+      ctx.fillRect(0, row, 192, 1);
+    }
+  });
+  const steel = material('#faf5e9', {
+    map: brushed, metalness: 0.29, roughness: 0.45,
+    emissive: '#aab3b5', emissiveMap: brushed, emissiveIntensity: 0.24,
+  });
+  const inner = material('#5b5852', { metalness: 0.35, roughness: 0.54 });
+  const shape = new T.LatheGeometry([
+    [0, 0], [0.161, 0.008], [0.218, 0.044], [0.239, 0.107], [0.242, 0.41],
+    [0.237, 0.475], [0.247, 0.486], [0.249, 0.503], [0.225, 0.502],
+    [0.219, 0.47], [0.218, 0.091], [0, 0.066],
+  ].map(([r, h]) => new T.Vector2(r, h)), 24);
+  mesh(pot, shape, steel, 0, 0, 0);
+  const rim = mesh(pot, new T.TorusGeometry(0.237, 0.011, 6, 28), m.silver, 0, 0.49, 0);
+  rim.rotation.x = Math.PI / 2;
+  mesh(pot, cylinderGeo, inner, 0, 0.413, 0, 0.217, 0.013, 0.217);
+  for (const side of [-1, 1]) {
+    rod(pot, m.silver, [side * 0.237, 0.345, 0], [side * 0.286, 0.345, 0], 0.027);
+    tube(pot, m.iron, [[side * 0.277, 0.346, 0], [side * 0.319, 0.345, 0],
+      [side * 0.354, 0.359, 0]], 0.027);
+  }
+  const lid = groupAt(pot, 'Nắp inox hé', 0.008, 0.54, -0.095);
+  lid.rotation.x = -0.73;
+  const cover = new T.LatheGeometry([[0.242, -0.010], [0.246, 0.011], [0.220, 0.032],
+    [0.126, 0.051], [0, 0.062]].map(([r, h]) => new T.Vector2(r, h)), 24);
+  mesh(lid, cover, Object.assign(steel.clone(), { side: T.DoubleSide }), 0, 0, 0);
+  tube(lid, m.iron, [[-0.058, 0.064, 0], [-0.039, 0.105, 0],
+    [0.040, 0.105, 0], [0.059, 0.064, 0]], 0.013);
+}
+
 function phoShop(parent, m, x) {
-  const shop = groupAt(parent, 'Phở Nhỏ', x);
+  const shop = groupAt(parent, 'Phở Bếp Mơ', x);
   const entrance = -0.80;
   const jade = material('#46734d', { roughness: 0.6 });
   const shutter = material('#777964', { metalness: 0.38, roughness: 0.62 });
@@ -1287,11 +1333,11 @@ function phoShop(parent, m, x) {
     ctx.fillRect(0, 0, 768, 192);
     ctx.fillStyle = '#b58966';
     for (const x of [146, 302, 458, 614]) ctx.fillRect(x, 0, 2, 192);
-    ctx.font = 'bold 95px Georgia, serif';
+    ctx.font = 'bold 79px Georgia, serif';
     ctx.fillStyle = '#916a51';
-    ctx.fillText('PHỞ NHỎ', 44, 120);
+    ctx.fillText('PHỞ BẾP MƠ', 44, 120, 557);
     ctx.fillStyle = '#fff2d9';
-    ctx.fillText('PHỞ NHỎ', 40, 114);
+    ctx.fillText('PHỞ BẾP MƠ', 40, 114, 557);
     ctx.font = 'bold 23px sans-serif';
     ctx.fillText('PHỞ BÒ · PHỞ GÀ', 47, 158);
     ctx.beginPath();
@@ -1319,6 +1365,66 @@ function phoShop(parent, m, x) {
     new T.MeshBasicMaterial({ map: publicName, toneMapped: false }), 0, 2.66, entrance + 0.789);
   box(shop, jade, 0, 2.31, entrance + 0.12, 3.86, 0.10, 0.32);
   box(shop, inside, 0, 1.25, entrance - 0.63, 3.29, 2.14, 0.08);
+  const interiorImage = texture(768, 480, ctx => {
+    const light = ctx.createRadialGradient(397, 164, 40, 397, 207, 498);
+    light.addColorStop(0, '#8b7956');
+    light.addColorStop(1, '#242921');
+    ctx.fillStyle = light;
+    ctx.fillRect(0, 0, 768, 480);
+    const panel = (points, color) => {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(...points[0]);
+      for (const point of points.slice(1)) ctx.lineTo(...point);
+      ctx.closePath();
+      ctx.fill();
+    };
+    panel([[0, 0], [169, 99], [169, 352], [0, 480]], '#464636');
+    panel([[768, 0], [648, 91], [648, 350], [768, 480]], '#28352b');
+    panel([[0, 400], [169, 350], [648, 350], [768, 400], [768, 480], [0, 480]], '#665c48');
+    for (let y = 121; y < 351; y += 19) {
+      ctx.fillStyle = y % 2 ? '#beb7942a' : '#23271e26';
+      ctx.fillRect(170, y, 477, 1);
+    }
+    ctx.fillStyle = '#3b3527';
+    ctx.fillRect(415, 144, 198, 76);
+    ctx.strokeStyle = '#ac946a';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(419, 148, 190, 68);
+    ctx.fillStyle = '#e5d9b2';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillText('PHỞ BÒ   ·   PHỞ GÀ', 433, 174);
+    ctx.font = '13px sans-serif';
+    ctx.fillText('NƯỚC DÙNG NINH CHẬM', 434, 198);
+    for (const shelf of [254, 319]) {
+      ctx.fillStyle = '#392f24';
+      ctx.fillRect(201, shelf, 390, 10);
+      for (let i = 0; i < 11; i++) {
+        const x = 210 + i * 33, h = 12 + i % 4 * 4;
+        ctx.fillStyle = i % 3 ? '#c5c4a9' : '#8f957e';
+        ctx.beginPath();
+        ctx.ellipse(x + 9, shelf - h / 2, 10, h / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#777d6a';
+        ctx.fillRect(x + 3, shelf - h, 12, 2);
+      }
+    }
+    const glow = ctx.createRadialGradient(383, 115, 4, 383, 115, 73);
+    glow.addColorStop(0, '#ffe4a1a0');
+    glow.addColorStop(1, '#ffe4a100');
+    ctx.fillStyle = glow;
+    ctx.fillRect(310, 42, 146, 146);
+    ctx.fillStyle = '#e3d1a2';
+    ctx.fillRect(326, 110, 112, 5);
+    const noise = Math.PI * 23.197;
+    for (let i = 0; i < 6800; i++) {
+      const x = (i * 197.133) % 768, y = (i * 147.937) % 480;
+      ctx.fillStyle = Math.sin(i * noise) > 0 ? '#e1ca9412' : '#17181318';
+      ctx.fillRect(x, y, 2, 1);
+    }
+  });
+  mesh(shop, new T.PlaneGeometry(3.23, 2.08),
+    new T.MeshBasicMaterial({ map: interiorImage, toneMapped: false }), 0, 1.25, entrance - 0.585);
   for (const side of [-1, 1]) {
     box(shop, fascia, side * 1.71, 1.28, entrance - 0.14, 0.21, 2.12, 0.35);
     box(shop, jade, side * 1.57, 1.26, entrance + 0.037, 0.047, 2.08, 0.047);
@@ -1338,14 +1444,35 @@ function phoShop(parent, m, x) {
     for (let i = 0; i < 5; i++) container(shop, m, -1.44 + i * 0.24, y + 0.023, entrance - 0.43,
       0.092, 0.048, m.enamel, 'bowl');
   }
-  box(shop, m.silver, -0.91, 0.62, entrance + 0.27, 1.54, 0.76, 0.57);
-  box(shop, jade, -0.91, 0.62, entrance + 0.563, 1.39, 0.57, 0.023);
-  box(shop, m.silver, -0.91, 1.02, entrance + 0.28, 1.60, 0.065, 0.62);
-  container(shop, m, -1.29, 1.055, entrance + 0.28, 0.246, 0.30, m.silver, 'pot');
-  container(shop, m, -0.73, 1.055, entrance + 0.25, 0.181, 0.24, m.silver, 'pot');
-  rod(shop, m.silver, [-0.73, 1.26, entrance + 0.22], [-0.57, 1.48, entrance + 0.29], 0.014);
+  const cooker = groupAt(shop, 'Xe bếp inox nấu phở', -0.90, 0.075, entrance + 0.27);
+  const satin = material('#a8a79e', { metalness: 0.40, roughness: 0.51 });
+  const steel = material('#77776f', { metalness: 0.42, roughness: 0.57 });
+  const rubber = material('#282724');
+  const radius = 0.103;
+  box(cooker, satin, 0, 0.52, 0, 1.52, 0.59, 0.68);
+  box(cooker, steel, -0.726, 0.50, 0, 0.093, 0.56, 0.70);
+  box(cooker, m.silver, 0, 0.83, 0, 1.62, 0.05, 0.76);
+  box(cooker, steel, 0, 0.226, 0.343, 1.53, 0.044, 0.025);
+  box(cooker, steel, -0.19, 0.50, 0.347, 0.017, 0.57, 0.017);
+  for (let i = 0; i < 7; i++) {
+    mesh(cooker, cylinderGeo, m.crevice, 0.065 + i * 0.096, 0.752, 0.343, 0.018, 0.013, 0.018)
+      .rotation.x = Math.PI / 2;
+  }
+  for (const side of [-1, 1]) for (const end of [-1, 1]) {
+    const u = side * 0.60, z = end * 0.249;
+    box(cooker, steel, u, 0.193, z, 0.066, 0.104, 0.071);
+    mesh(cooker, cylinderGeo, rubber, u, radius, z, radius, 0.065, radius).rotation.x = Math.PI / 2;
+    mesh(cooker, cylinderGeo, m.red, u, radius, z + 0.037, 0.046, 0.011, 0.046).rotation.x = Math.PI / 2;
+    mesh(cooker, cylinderGeo, m.silver, u, radius, z + 0.044, 0.018, 0.012, 0.018).rotation.x = Math.PI / 2;
+  }
+  rod(cooker, steel, [-0.75, 0.63, 0.22], [-0.91, 0.66, 0.22], 0.017);
+  rod(cooker, steel, [-0.91, 0.66, 0.22], [-0.91, 0.66, -0.22], 0.017);
+  rod(cooker, steel, [-0.91, 0.66, -0.22], [-0.75, 0.63, -0.22], 0.017);
+  phoStockpot(cooker, m, -0.37, 0.855, -0.04);
+  container(cooker, m, 0.20, 0.855, -0.06, 0.181, 0.24, m.silver, 'pot');
+  rod(cooker, m.silver, [0.20, 1.08, -0.07], [0.36, 1.29, 0.02], 0.014);
   for (let i = 0; i < 4; i++) {
-    container(shop, m, -0.35, 1.052 + i * 0.032, entrance + 0.35, 0.091, 0.052, m.enamel, 'bowl');
+    container(cooker, m, 0.55, 0.86 + i * 0.032, 0.07, 0.091, 0.052, m.enamel, 'bowl');
   }
   bulb(shop, m, -1.25, 1.91, entrance + 0.15);
   bulb(shop, m, 1.26, 1.93, entrance + 0.15);
@@ -1358,9 +1485,14 @@ function phoShop(parent, m, x) {
       leg.rotation.z = side * 0.10;
     }
     container(table, m, -0.16, 0.52, 0, 0.093, 0.052, m.enamel, 'bowl');
-    container(table, m, 0.17, 0.52, -0.05, 0.078, 0.122, m.silver, 'bowl');
-    for (let i = 0; i < 3; i++) rod(table, m.timber, [0.145 + i * 0.024, 0.54, -0.04],
-      [0.133 + i * 0.030, 0.69, -0.05], 0.006);
+    container(table, m, 0.17, 0.52, -0.05, 0.076, 0.128, m.basket, 'bowl');
+    for (let i = 0; i < 11; i++) {
+      const angle = i * 2.4;
+      const dx = Math.cos(angle), dz = Math.sin(angle);
+      rod(table, i % 3 ? m.darkWood : m.timber,
+        [0.17 + dx * 0.034, 0.574, -0.05 + dz * 0.034],
+        [0.17 + dx * 0.062, 0.737 + (i % 4) * 0.009, -0.05 + dz * 0.062], 0.0047);
+    }
     stool(shop, m, u, z + 0.49, color, { turn: 0.11 });
     stool(shop, m, u + Math.sign(u) * 0.61, z - 0.03, color === m.red ? m.blue : m.red, { turn: -0.18 });
   }
