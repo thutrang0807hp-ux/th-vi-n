@@ -104,8 +104,7 @@ function buildKit(random) {
     darkWood: material('#563221'), sill: material('#b9a187'), glass: material('#243d3b'),
     teal: [material('#275a55'), material('#487269'), material('#35575b')],
     tiles: ['#a14d32', '#b4613b', '#934027', '#c17a50'].map(hex => material(hex)),
-    canvas: ['#214984', '#315d9e', '#d6b78a', '#a64031', '#59715b'].map(hex =>
-      material(hex, { side: T.DoubleSide, vertexColors: true })),
+    canopyCloth: material('#ffffff', { side: T.DoubleSide, vertexColors: true }),
     wire: material('#372724'), silver: material('#aaa9a1', { roughness: 0.30, metalness: 0.43 }),
     enamel: material('#ddc7a2', { roughness: 0.41 }), basket: material('#b9834e'),
     red: material('#b73a34', { roughness: 0.55 }), blue: material('#254eaa', { roughness: 0.55 }),
@@ -548,50 +547,52 @@ function architecturePrototype(parent, m, x, variant, random, photoStyle) {
   }
 }
 
+const awningStyles = {
+  blue: { colors: ['#4b7994', '#587f96'], strips: 12, drop: t => t },
+  stripe: { colors: ['#60899d', '#dfd5ba'], strips: 16, drop: t => t + 0.15 * Math.sin(Math.PI * t) },
+  green: { colors: ['#56857b', '#d5ceb1'], strips: 14, drop: t => t },
+  sand: { colors: ['#a48b61', '#d8c6a3'], strips: 12, drop: t => 1 - Math.cos(Math.PI * t / 2) },
+};
+
 function awning(parent, m, width, style) {
-  const strips = 14, segments = 9;
+  const { colors, strips, drop } = awningStyles[style];
+  const palette = colors.map(color => new T.Color(color));
+  const positions = [], colorsByVertex = [], indices = [];
+  const segments = 8;
+  const rear = 0.35, front = 2.43, top = 3.64, edge = 2.70;
   for (let strip = 0; strip < strips; strip++) {
-    const positions = [];
-    const profile = (u, t) => [
-      (u - 0.5) * width,
-      3.68 - 1.00 * t - 0.11 * Math.sin(Math.PI * t) + Math.cos(u * Math.PI * strips * 2) * 0.046,
-      0.35 + 2.11 * t,
-    ];
-    for (let j = 0; j < segments; j++) {
-      const a = profile(strip / strips, j / segments), b = profile((strip + 1) / strips, j / segments);
-      const c = profile((strip + 1) / strips, (j + 1) / segments), d = profile(strip / strips, (j + 1) / segments);
-      positions.push(...a, ...b, ...c, ...a, ...c, ...d);
+    const first = positions.length / 3;
+    const { r, g, b } = palette[strip % palette.length];
+    for (let row = 0; row <= segments + 1; row++) {
+      const hem = row > segments;
+      const t = Math.min(1, row / segments);
+      for (let side = 0; side < 2; side++) {
+        const x = ((strip + side) / strips - 0.5) * width;
+        const y = T.MathUtils.lerp(top, edge, drop(t)) - (hem ? 0.16 : 0);
+        const z = T.MathUtils.lerp(rear, front, t) + (hem ? 0.018 : 0);
+        positions.push(x, y, z);
+        const wear = (hem ? 0.81 : 0.95) + 0.035 * Math.sin(5.2 * x + 9.1 * z);
+        colorsByVertex.push(r * wear, g * wear, b * wear);
+      }
+      if (row > 0) {
+        const a = first + (row - 1) * 2;
+        indices.push(a, a + 1, a + 3, a, a + 3, a + 2);
+      }
     }
-    for (let n = 0; n < 4; n++) {
-      const point = (i, lower) => {
-        const u = (strip + i / 4) / strips;
-        const p = profile(u, 1);
-        if (lower) p[1] -= 0.098 + Math.sin(i * Math.PI / 4) * 0.09;
-        return p;
-      };
-      positions.push(...point(n, false), ...point(n + 1, false), ...point(n + 1, true),
-        ...point(n, false), ...point(n + 1, true), ...point(n, true));
-    }
-    const geometry = new T.BufferGeometry().setAttribute('position', new T.Float32BufferAttribute(positions, 3));
-    geometry.computeVertexNormals();
-    const tint = [];
-    for (let vertex = 0; vertex < positions.length; vertex += 3) {
-      const x = positions[vertex], z = positions[vertex + 2];
-      const fold = 0.81 + 0.19 * Math.pow(Math.abs(Math.sin((x / width + 0.5) * Math.PI * strips)), 0.56);
-      const wear = fold * (0.91 + 0.065 * Math.sin(z * 16 + x * 2.9) + 0.035 * Math.cos(z * 77));
-      tint.push(wear, wear, wear);
-    }
-    geometry.setAttribute('color', new T.Float32BufferAttribute(tint, 3));
-    const shade = style === 'green' ? 4 : style === 'rust' ? 3
-      : style === 'stripe' && strip % 2 === 1 ? 2 : strip % 3 === 0 ? 1 : 0;
-    mesh(parent, geometry, m.canvas[shade], 0, 0, 0);
   }
-  rod(parent, m.timber, [-width / 2, 2.67, 2.44], [width / 2, 2.67, 2.44], 0.041);
+  const geometry = new T.BufferGeometry();
+  geometry.setAttribute('position', new T.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new T.Float32BufferAttribute(colorsByVertex, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  mesh(parent, geometry, m.canopyCloth, 0, 0, 0);
+
+  rod(parent, m.iron, [-width / 2, top - 0.022, rear], [width / 2, top - 0.022, rear], 0.023);
+  rod(parent, m.iron, [-width / 2, edge - 0.026, front], [width / 2, edge - 0.026, front], 0.026);
   for (const side of [-1, 1]) {
-    rod(parent, m.darkWood, [side * (width / 2 - 0.075), 0.03, 2.35],
-      [side * (width / 2 - 0.075), 2.82, 2.41], 0.049);
-    rod(parent, m.timber, [side * (width / 2 - 0.075), 2.22, 2.35],
-      [side * (width / 2 - 0.075), 2.67, 1.67], 0.032);
+    const x = side * (width / 2 - 0.075);
+    rod(parent, m.iron, [x, 0.03, front - 0.08], [x, edge - 0.026, front], 0.033);
+    rod(parent, m.iron, [x, 2.20, front - 0.08], [x, edge - 0.026, front - 0.70], 0.021);
   }
 }
 
@@ -883,8 +884,8 @@ function stallFrame(parent, m, x, name, subtitle, emblem, canopy, ink) {
 
 function produceStall(parent, m, x, fruit, random, second = false) {
   const stall = fruit
-    ? stallFrame(parent, m, x, second ? 'Vị Vườn' : 'Quả Quê', 'TRÁI CÂY THEO MÙA', second ? 'V' : 'Q', second ? 'blue' : 'rust', '#843d2b')
-    : stallFrame(parent, m, x, second ? 'Rau Sớm' : 'Vườn Nhà', 'RAU XANH · CỦ QUẢ', second ? 'R' : 'V', second ? 'rust' : 'stripe', '#36563b');
+    ? stallFrame(parent, m, x, second ? 'Vị Vườn' : 'Quả Quê', 'TRÁI CÂY THEO MÙA', second ? 'V' : 'Q', second ? 'blue' : 'sand', '#843d2b')
+    : stallFrame(parent, m, x, second ? 'Rau Sớm' : 'Vườn Nhà', 'RAU XANH · CỦ QUẢ', second ? 'R' : 'V', second ? 'sand' : 'stripe', '#36563b');
   for (const side of [-1, 1]) table(stall, m, side * 0.99, 1.53, 1.83);
   for (let basket = 0; basket < 8; basket++) {
     const u = (basket % 4 - 1.5) * 0.88, z = 1.29 + Math.floor(basket / 4) * 0.47;
@@ -968,7 +969,7 @@ function cups(parent, m, x, y, z) {
 function cafeStall(parent, m, x, tea = false) {
   const stall = tea
     ? stallFrame(parent, m, x, 'Tiệm Trà', 'TRÀ SEN · TRÀ ĐÁ', 'T', 'blue', '#325448')
-    : stallFrame(parent, m, x, 'Ga Nhỏ', 'CÀ PHÊ · BẠC XỈU', 'G', 'rust', '#463930');
+    : stallFrame(parent, m, x, 'Ga Nhỏ', 'CÀ PHÊ · BẠC XỈU', 'G', 'sand', '#463930');
   for (const y of [1.51, 1.88]) {
     box(stall, m.darkWood, 0.63, y, 0.39, 1.8, 0.062, 0.38);
     for (let i = 0; i < 6; i++) {
@@ -1001,7 +1002,7 @@ function cafeStall(parent, m, x, tea = false) {
 function foodStall(parent, m, x, type) {
   const names = [
     ['Nồi Phố', 'PHỞ BÒ · BÚN NÓNG', 'P', 'stripe'],
-    ['Bếp Than', 'THỊT XIÊN · ĐỒ NƯỚNG', 'B', 'rust'],
+    ['Bếp Than', 'THỊT XIÊN · ĐỒ NƯỚNG', 'B', 'sand'],
     ['Lò Bánh', 'BÁNH MÌ NÓNG', 'L', 'blue'],
     ['Chè Nhà', 'CHÈ · SỮA ĐẬU NÀNH', 'C', 'stripe'],
   ];
@@ -1050,7 +1051,7 @@ function foodStall(parent, m, x, type) {
 }
 
 function textilesAnnex(parent, m, x) {
-  const stall = stallFrame(parent, m, x, 'Chỉ Nâu', 'VẢI CUỘN · KIM CHỈ', 'C', 'rust', '#784336');
+  const stall = stallFrame(parent, m, x, 'Chỉ Nâu', 'VẢI CUỘN · KIM CHỈ', 'C', 'sand', '#784336');
   for (const side of [-1, 1]) table(stall, m, side * 0.97, 1.64, 1.73);
   for (let i = 0; i < 22; i++) {
     const u = (i % 11 - 5) * 0.29;
