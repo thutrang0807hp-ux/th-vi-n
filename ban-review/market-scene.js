@@ -1064,7 +1064,7 @@ function textilesAnnex(parent, m, x) {
   }
 }
 
-function overheadLines(parent, m, poleLocations) {
+function overheadLines(parent, m, poleLocations, { connectPoles }) {
   const height = 5.62, setback = 2.51;
   const connectors = [-0.67, -0.27, 0.27, 0.67];
   const poleGeometry = new T.CylinderGeometry(0.067, 0.11, height + 0.34, 8);
@@ -1082,6 +1082,7 @@ function overheadLines(parent, m, poleLocations) {
       mesh(pole, cylinderGeo, m.wire, 0.066, height + 0.148, z, 0.036, 0.027, 0.036);
     }
   }
+  if (!connectPoles) return;
   for (let i = 1; i < poleLocations.length; i++) {
     const start = poleLocations[i - 1] + 0.066, end = poleLocations[i] + 0.066;
     for (const [wire, offset] of connectors.entries()) {
@@ -1376,14 +1377,15 @@ export function buildMarketPreview(scene, marketHouses) {
     section.name = 'Market · ' + name;
     tile.add(section);
   });
-  // The frontage photos already contain wires in front of the shop windows.
-  if (!marketHouses) {
-    const overhead = new T.Group();
-    overhead.position.set(9.5, -0.17, 4.70);
-    overhead.rotation.y = -Math.PI / 2;
-    overheadLines(overhead, m, [-64.4,-59.8,-50.6,-41.4,-32.2,-23,-13.8,-4.6,4.6,9.2]);
-    tile.add(batchStatic(overhead, paintedSurfaces));
-  }
+  const overhead = new T.Group();
+  overhead.position.set(9.5, -0.17, 4.70);
+  overhead.rotation.y = -Math.PI / 2;
+  // Keep the poles with their insulators. Skip the spans over the photo-textured blocks.
+  overheadLines(overhead, m, [-64.4, -59.8, -50.6, -41.4, -32.2, -23, -13.8, -4.6, 4.6, 9.2],
+    { connectPoles: !marketHouses });
+  const poles = batchStatic(overhead, paintedSurfaces);
+  poles.name = 'Market power poles';
+  tile.add(poles);
 
   const strip = new T.Group();
   strip.name = 'Moving Vietnamese market';
