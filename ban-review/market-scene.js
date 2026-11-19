@@ -1189,6 +1189,8 @@ const streetColors = [
   [limewash.paleYellow, limewash.sage, limewash.mustard, limewash.cream],
   [limewash.ochre, limewash.smoke, limewash.paleYellow, limewash.cream],
 ];
+const photographedLimewash = new Set([limewash.ochre, limewash.paleYellow, limewash.mustard]);
+const untintedPlaster = new T.Color('#ffffff');
 const streetFronts = [[0, 3, 4, 2], [4, 0, 1, 3], [2, 4, 0, 1], [3, 1, 2, 4]];
 
 function tintVertices(geometry, { r, g, b }) {
@@ -1244,16 +1246,18 @@ export async function loadMarketHouses(url) {
 function plasterBox(home, material, tint, frontageWidth, frontageHeight, x, y, z, width, height, depth) {
   const geometry = boxGeo.clone().scale(width, height, depth).translate(x, y, z);
   const { position, normal, uv } = geometry.attributes;
+  const useYellowPhoto = photographedLimewash.has(tint);
+  const tileLeft = useYellowPhoto ? 776 : 532;
   for (let i = 0; i < uv.count; i++) {
     const side = Math.abs(normal.getX(i)) > 0.5;
     const top = Math.abs(normal.getY(i)) > 0.5;
     const u = side ? (position.getZ(i) + 3.2) / 3.5 : 0.5 + position.getX(i) / frontageWidth;
     const v = top ? -position.getZ(i) / 3.5 : 1 - position.getY(i) / frontageHeight;
     // Top-right atlas tile. Building-local coordinates keep the bricks aligned across piers and bands.
-    uv.setXY(i, (532 + T.MathUtils.clamp(u, 0, 1) * 472) / 1024,
+    uv.setXY(i, (tileLeft + T.MathUtils.clamp(u, 0, 1) * 228) / 1024,
       (20 + T.MathUtils.clamp(v, 0, 1) * 472) / 1024);
   }
-  tintVertices(geometry, tint);
+  tintVertices(geometry, useYellowPhoto ? untintedPlaster : tint);
   return mesh(home, geometry, material, 0, 0, 0);
 }
 

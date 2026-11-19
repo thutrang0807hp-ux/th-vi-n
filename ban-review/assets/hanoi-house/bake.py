@@ -100,8 +100,14 @@ def box_atlas(frontage):
                                  (CELL - 2 * GUTTER, CELL - 2 * GUTTER))
         if slot == 1:
             grain = ImageOps.grayscale(image)
-            # Keep the cracks and brick relief while leaving the limewash color to the mesh.
-            image = Image.blend(Image.new('L', image.size, 247), grain, 0.38).convert('RGB')
+            neutral = Image.blend(Image.new('L', image.size, 247), grain, 0.38).convert('RGB')
+            half_width = image.width // 2
+            panel_size = (half_width - 8, image.height)
+            with Image.open(textures / 'hang-gai-yellow-plaster.jpg') as photo:
+                yellow = photo.convert('RGB').resize(panel_size, Image.Resampling.LANCZOS)
+            left = np.pad(np.asarray(neutral.resize(panel_size)), ((0, 0), (0, 8), (0, 0)), mode='edge')
+            right = np.pad(np.asarray(yellow), ((0, 0), (8, 0), (0, 0)), mode='edge')
+            image = Image.fromarray(np.concatenate([left, right], axis=1))
         tile = np.pad(np.asarray(image), ((GUTTER, GUTTER), (GUTTER, GUTTER), (0, 0)), mode='edge')
         canvas.paste(Image.fromarray(tile), ((slot % 2) * CELL, (slot // 2) * CELL))
     return encode_atlas(canvas)
@@ -199,7 +205,8 @@ def photo_box(data, binary):
     for indices, normal, slot in faces:
         points = corners[indices]
         origin = np.array([slot % 2, slot // 2]) * CELL + GUTTER
-        uv = (origin + uvs * (CELL - 2 * GUTTER)) / (2 * CELL)
+        span = np.array([228 if slot == 1 else 472, 472])
+        uv = (origin + uvs * span) / (2 * CELL)
         for winding in ([0, 1, 2], [0, 2, 3]):
             triangles.append((points[winding], np.repeat([normal], 3, axis=0), uv[winding]))
     return {'Architecture': triangles}
