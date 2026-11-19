@@ -1424,9 +1424,10 @@ function buildMascot() {
     const segments = 48, positions = [], indices = [];
     const pointAt = ([z, width, height], angle) => {
       const x = Math.cos(angle), y = Math.sin(angle);
+      const brow = T.MathUtils.smoothstep(-z, 0.12, 0.245) * Math.max(0, y) ** 2;
       return new T.Vector3(Math.sign(x) * Math.abs(x) ** 0.63 * width,
-        0.014 + Math.sign(y) * Math.abs(y) ** 0.66 * height,
-        z + Math.max(0, -y) * 0.034 * width / 0.468);
+        0.014 + Math.sign(y) * Math.abs(y) ** 0.66 * height - brow * 0.063,
+        z + Math.max(0, -y) * 0.034 * width / 0.468 - brow * 0.035);
     };
     rings.forEach((ring, row) => {
       for (let i = 0; i <= segments; i++) {
