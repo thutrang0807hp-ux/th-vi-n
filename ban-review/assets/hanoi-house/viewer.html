@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nhà phố Hà Nội · Lofi Train</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px system-ui, sans-serif; background: #ddd6c9; color: #29251e; }
+  canvas { display: block; width: 100vw; height: 100dvh; }
+  header { position: fixed; inset: 14px 14px auto; z-index: 1; display: flex; align-items: start; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+  h1, p { margin: 0; }
+  h1 { font-size: clamp(18px, 4vw, 23px); }
+  p { margin-top: 5px; }
+  section, button { padding: 10px 13px; border-radius: 9px; background: #f7f3ec; border: 1px solid #b7aa99; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+</style>
+<script type="importmap">{"imports":{"three":"../../vendor/three-r164/three.module.min.js"}}</script>
+</head>
+<body>
+<header>
+  <section>
+    <h1>Nhà phố Hà Nội</h1>
+    <p id="status" role="status">Đang tải mô hình…</p>
+  </section>
+  <button type="button" id="reset" disabled>Đặt lại góc nhìn</button>
+</header>
+<main id="stage" aria-label="Mô hình nhà phố Hà Nội"></main>
+<script type="module">
+  import * as T from 'three';
+  import { GLTFLoader } from '../../vendor/three-r164/GLTFLoader.js';
+  import { OrbitControls } from '../../vendor/three-r164/OrbitControls.js';
+
+  const status = document.querySelector('#status');
+  const reset = document.querySelector('#reset');
+  try {
+    const renderer = new T.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+    renderer.toneMapping = T.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.22;
+    document.querySelector('#stage').append(renderer.domElement);
+    const scene = new T.Scene();
+    scene.background = new T.Color('#ded9cf');
+    scene.add(new T.HemisphereLight('#f7f3ea', '#8b8276', 2.2));
+    const sun = new T.DirectionalLight('#fff3dc', 2.35);
+    sun.position.set(-5, 10, 6);
+    scene.add(sun);
+    const camera = new T.PerspectiveCamera(39, 1, 0.05, 200);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    const { scene: house } = await new GLTFLoader().loadAsync('./model.glb');
+    scene.add(house);
+    const bounds = new T.Box3().setFromObject(house);
+    const center = bounds.getCenter(new T.Vector3());
+    const radius = bounds.getBoundingSphere(new T.Sphere()).radius;
+    const direction = new T.Vector3(0.26, 0.12, 1).normalize();
+    function home() {
+      const vertical = T.MathUtils.degToRad(camera.fov / 2);
+      const halfFov = Math.min(vertical, Math.atan(Math.tan(vertical) * camera.aspect));
+      controls.target.copy(center);
+      camera.position.copy(center).addScaledVector(direction, radius * 1.04 / Math.sin(halfFov));
+      controls.update();
+    }
+    function resize() {
+      renderer.setSize(innerWidth, innerHeight);
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+    }
+    addEventListener('resize', resize);
+    resize();
+    home();
+    reset.disabled = false;
+    reset.addEventListener('click', home);
+    status.textContent = 'Kéo để xoay · Cuộn để zoom · Chuột phải để dịch';
+    renderer.setAnimationLoop(() => {
+      controls.update();
+      renderer.render(scene, camera);
+    });
+  } catch (error) {
+    status.textContent = 'Không tải được nhà phố. Kiểm tra WebGL và đường dẫn model.glb.';
+    console.error(error);
+  }
+</script>
+</body>
+</html>

@@ -308,9 +308,13 @@
     try {
       const { start } = await import('../village-scene.js?v=youtube-audio');
       if (marketPreview) {
-        const { buildMarketPreview } = await import('../market-scene.js');
+        const { buildMarketPreview, loadMarketHouses } = await import('../market-scene.js');
         document.querySelector('.route').textContent = '— Chợ phố Việt';
-        await start({ buildExterior: buildMarketPreview });
+        const houses = await loadMarketHouses(new URL('../assets/hanoi-house/model.glb', location.href).href).catch(error => {
+          console.warn('Không thể tải mô hình nhà phố Hà Nội.', error);
+          return null;
+        });
+        await start({ buildExterior: scene => buildMarketPreview(scene, houses) });
       } else if (scene === 'tri-ton') {
         const { buildTriTon } = await import('../tri-ton-scene.js');
         document.querySelector('.route').textContent = '— Mùa vàng Tri Tôn';

@@ -1,4 +1,5 @@
 import * as T from './vendor/three-r164/three.module.min.js';
+import { GLTFLoader } from './vendor/three-r164/GLTFLoader.js';
 import { mergeGeometries } from './vendor/three-r164/BufferGeometryUtils.js';
 
 const material = (color, options = {}) => new T.MeshStandardMaterial({ color, roughness: 0.88, ...options });
@@ -1106,7 +1107,27 @@ function batchStatic(root) {
   return result;
 }
 
-export function buildMarketPreview(scene) {
+export async function loadMarketHouses(url) {
+  const { scene } = await new GLTFLoader().loadAsync(url);
+  return scene;
+}
+
+function placeMarketHouses(parent, source, m, random) {
+  const frontage = groupAt(parent, 'Hanoi Old Town GLB frontage', -2.00, 0.045, -2.16);
+  const model = source.clone();
+  // The baked asset is Y-up already. Keep the exterior market stalls, floor and canopies.
+  model.scale.set(1.10, 1.01, 1);
+  for (const name of ['Storefront_fittings', 'Foundation']) {
+    model.getObjectByName(name)?.removeFromParent();
+  }
+  frontage.add(model);
+  for (const [x, length] of [[-5.05, 0.92], [-0.62, 0.78], [4.28, 0.67]]) {
+    box(parent, m.tiles[2], x - 2, 3.20, 0.48, 0.39, 0.19, 0.21);
+    vine(parent, m, x - 2, 3.43, 0.55, length, true, random);
+  }
+}
+
+export function buildMarketPreview(scene, marketHouses) {
   let seed = 98133;
   const random = () => {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
@@ -1166,7 +1187,8 @@ export function buildMarketPreview(scene) {
       // Preserve the scene seed for the other market blocks while swapping only this review frontage.
       buildings.remove(...buildings.children.slice(0, 3));
       const seedAfterFacades = seed;
-      for (let j = 0; j < 3; j++) architecturePrototype(buildings, m, pitches[j], j, random);
+      if (marketHouses) placeMarketHouses(buildings, marketHouses, m, random);
+      else for (let j = 0; j < 3; j++) architecturePrototype(buildings, m, pitches[j], j, random);
       seed = seedAfterFacades;
     }
     stalls(street);
