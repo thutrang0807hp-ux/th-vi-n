@@ -1166,13 +1166,97 @@ function cafeStall(parent, m, x, tea = false) {
   }
 }
 
+function banhMiCart(street, m, x) {
+  const stall = groupAt(street, 'Xe đẩy bánh mì', x);
+  const cart = groupAt(stall, 'Xe bánh mì inox', -0.16, 0.085, 1.18);
+  cart.rotation.y = -0.08;
+  const metal = material('#a9aba7', { roughness: 0.34, metalness: 0.42 });
+  const yellow = material('#dcaa30', { side: T.DoubleSide });
+  const cream = material('#eddeaa', { side: T.DoubleSide });
+  const rubber = material('#33312b');
+  const glass = new T.MeshBasicMaterial({ color: '#b6d6cd', transparent: true, opacity: 0.11,
+    depthWrite: false, side: T.DoubleSide });
+  box(cart, metal, 0, 0.21, 0, 2.04, 0.10, 0.83);
+  box(cart, yellow, 0, 0.56, 0, 1.98, 0.66, 0.78);
+  box(cart, metal, 0, 0.91, 0, 2.10, 0.062, 0.86);
+  box(cart, metal, 0, 1.83, 0, 2.09, 0.064, 0.86);
+  for (const side of [-1, 1]) {
+    for (const end of [-1, 1]) {
+      box(cart, metal, side * 0.985, 1.36, end * 0.395, 0.049, 0.89, 0.049);
+      box(cart, metal, side * 0.79, 0.126, end * 0.31, 0.07, 0.12, 0.062);
+      mesh(cart, cylinderGeo, rubber, side * 0.79, 0.093, end * 0.31, 0.093, 0.058, 0.093)
+        .rotation.x = Math.PI / 2;
+      mesh(cart, cylinderGeo, metal, side * 0.79, 0.093, end * 0.31 + 0.033, 0.042, 0.012, 0.042)
+        .rotation.x = Math.PI / 2;
+    }
+    const pane = mesh(cart, new T.PlaneGeometry(0.76, 0.83), glass, side * 0.978, 1.37, 0);
+    pane.rotation.y = side * Math.PI / 2;
+  }
+  mesh(cart, new T.PlaneGeometry(1.91, 0.83), glass, 0, 1.36, 0.40);
+  box(cart, metal, 0, 1.27, 0.397, 1.92, 0.026, 0.02);
+  box(cart, metal, 1.22, 0.88, 0.065, 0.42, 0.046, 0.52);
+  rod(cart, metal, [1.12, 0.77, 0.29], [1.36, 0.86, 0.29], 0.014);
+  rod(cart, metal, [1.12, 0.77, -0.16], [1.36, 0.86, -0.16], 0.014);
+  rod(cart, metal, [-1.02, 0.83, 0.20], [-1.23, 0.87, 0.20], 0.022);
+  rod(cart, metal, [-1.23, 0.87, 0.20], [-1.23, 0.87, -0.24], 0.022);
+  rod(cart, metal, [-1.23, 0.87, -0.24], [-1.02, 0.83, -0.24], 0.022);
+
+  for (const [shelf, y] of [0.95, 1.28].entries()) {
+    box(cart, m.silver, -0.10, y, 0.04, 1.66, 0.034, 0.58);
+    for (let i = 0; i < (shelf ? 5 : 7); i++) {
+      const u = (i - (shelf ? 2 : 3)) * 0.226;
+      const loaf = mesh(cart, bodyGeo, m.bread, u - 0.12, y + 0.073, 0.13,
+        0.097, 0.059, 0.164 + (i % 3) * 0.012);
+      loaf.rotation.y = 0.15 - (i % 3) * 0.17;
+    }
+  }
+  container(cart, m, 0.78, 0.96, 0.02, 0.10, 0.23, m.enamel, 'pot');
+
+  const sign = texture(512, 144, ctx => {
+    ctx.fillStyle = '#e5b737';
+    ctx.fillRect(0, 0, 512, 144);
+    ctx.strokeStyle = '#ac3825';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(8, 8, 496, 128);
+    ctx.fillStyle = '#a92e20';
+    ctx.textAlign = 'center';
+    ctx.font = '900 69px sans-serif';
+    ctx.fillText('BÁNH MÌ', 256, 89, 474);
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillText('BÁNH NÓNG · PA TÊ', 256, 122, 450);
+  });
+  const lettering = new T.MeshBasicMaterial({ map: sign, toneMapped: false });
+  mesh(cart, new T.PlaneGeometry(1.93, 0.59), lettering, 0, 0.56, 0.396);
+  mesh(cart, new T.PlaneGeometry(1.94, 0.24), lettering, 0, 1.99, 0.426);
+  box(cart, yellow, 0, 1.99, 0.37, 2.04, 0.26, 0.09);
+
+  const stripeCount = 12;
+  for (let i = 0; i < stripeCount; i++) {
+    const cloth = new T.PlaneGeometry(2.18 / stripeCount, 0.98, 1, 8);
+    const positions = cloth.attributes.position;
+    for (let v = 0; v < positions.count; v++) {
+      const z = positions.getY(v);
+      positions.setXYZ(v, positions.getX(v), Math.cos(z / 0.49 * Math.PI / 2) * 0.15, z);
+    }
+    cloth.computeVertexNormals();
+    mesh(cart, cloth, i % 2 ? cream : yellow, (i + 0.5 - stripeCount / 2) * 2.18 / stripeCount, 2.13, 0);
+  }
+  rod(cart, metal, [-1.10, 2.13, 0.48], [1.10, 2.13, 0.48], 0.017);
+  stool(stall, m, -1.58, 1.92, m.red, { turn: -0.13 });
+  stool(stall, m, 1.41, 1.98, m.blue, { turn: 0.22 });
+  stool(stall, m, 1.83, 1.37, m.plasticGreen, { turn: -0.24 });
+}
+
 function foodStall(parent, m, x, type) {
-  const names = [
-    ['Nồi Phố', 'PHỞ BÒ · BÚN NÓNG', 'P', 'stripe'],
-    ['Bếp Than', 'THỊT XIÊN · ĐỒ NƯỚNG', 'B', 'sand'],
-    ['Lò Bánh', 'BÁNH MÌ NÓNG', 'L', 'blue'],
-    ['Chè Nhà', 'CHÈ · SỮA ĐẬU NÀNH', 'C', 'stripe'],
-  ];
+  if (type === 2) {
+    banhMiCart(parent, m, x);
+    return;
+  }
+  const names = {
+    0: ['Nồi Phố', 'PHỞ BÒ · BÚN NÓNG', 'P', 'stripe'],
+    1: ['Bếp Than', 'THỊT XIÊN · ĐỒ NƯỚNG', 'B', 'sand'],
+    3: ['Chè Nhà', 'CHÈ · SỮA ĐẬU NÀNH', 'C', 'stripe'],
+  };
   const [name, subtitle, logo, style] = names[type];
   const stall = stallFrame(parent, m, x, name, subtitle, logo, style, '#723c30');
   table(stall, m, 0, 1.34, 3.44);
@@ -1192,19 +1276,6 @@ function foodStall(parent, m, x, type) {
       for (let j = 0; j < 4; j++) mesh(stall, leafGeo, m.produce[(i + j) % 3], u, 1.091,
         1.19 + j * 0.084, 0.048, 0.038, 0.051);
     }
-  } else if (type === 2) {
-    for (const y of [0.86, 1.16, 1.46]) {
-      box(stall, m.sill, 0.06, y, 1.32, 2.66, 0.044, 0.53);
-      for (let i = 0; i < 9; i++) {
-        const loaf = mesh(stall, bodyGeo, m.bread, (i - 4) * 0.29, y + 0.103, 1.34, 0.11, 0.071, 0.22);
-        loaf.rotation.y = 0.19 - (i % 3) * 0.16;
-        box(stall, m.enamel, loaf.position.x, y + 0.164, 1.34, 0.029, 0.008, 0.16).rotation.y = loaf.rotation.y;
-      }
-    }
-    for (const side of [-1, 1]) for (const z of [1.08, 1.58]) {
-      rod(stall, m.silver, [side * 1.26, 0.78, z], [side * 1.26, 1.71, z], 0.024);
-    }
-    box(stall, m.silver, 0.06, 1.70, 1.33, 2.69, 0.039, 0.53);
   } else {
     for (let i = 0; i < 7; i++) {
       const u = (i - 3) * 0.42;
@@ -1584,7 +1655,7 @@ function balconyShadow(home, m, width, top, front) {
   mesh(home, new T.PlaneGeometry(width, height), m.balconyShade, 0, top - height / 2, front);
 }
 
-function streetShadowMaterial(pitches, withTree) {
+function streetShadowMaterial(pitches, { withTree = false, withCart = false } = {}) {
   const map = texture(768, 192, ctx => {
     const width = 18.4, depth = 4.2;
     ctx.scale(ctx.canvas.width / width, ctx.canvas.height / depth);
@@ -1603,6 +1674,11 @@ function streetShadowMaterial(pitches, withTree) {
       ctx.restore();
     }
     pitches.forEach((x, index) => {
+      if (withCart && index === 2) {
+        softShadow(x - 0.32, 1.10, 1.34, 0.57, 0.49);
+        softShadow(x + 1.1, 1.83, 0.78, 0.32, 0.26);
+        return;
+      }
       softShadow(x - 0.32, 0.84, 2.38, 1.04, 0.41, -0.11);
       if (!withTree || index !== pitches.length - 1) {
         softShadow(x, 1.58, 1.72, 0.65, 0.43, -0.055);
@@ -1788,8 +1864,9 @@ export function buildMarketPreview(scene, marketHouses) {
   const curb = material('#4b4b47');
   const width = 18.4;
   const pitches = [-6.9, -2.3, 2.3, 6.9];
-  const pavementShade = streetShadowMaterial(pitches, false);
-  const treePavementShade = streetShadowMaterial(pitches, true);
+  const pavementShade = streetShadowMaterial(pitches);
+  const treePavementShade = streetShadowMaterial(pitches, { withTree: true });
+  const cartPavementShade = streetShadowMaterial(pitches, { withCart: true });
   const sections = [
     { name: 'Vải và đồ gia dụng', facades: [2, 0, 1, 3], stalls(street) {
       textilesAnnex(street, m, pitches[0]);
@@ -1863,7 +1940,7 @@ export function buildMarketPreview(scene, marketHouses) {
       }
     }
     stalls(street);
-    layStreetShadows(street, i === 0 ? treePavementShade : pavementShade, width);
+    layStreetShadows(street, i === 0 ? treePavementShade : i === 1 ? cartPavementShade : pavementShade, width);
     const section = batchStatic(street, paintedSurfaces);
     section.name = 'Market · ' + name;
     tile.add(section);
