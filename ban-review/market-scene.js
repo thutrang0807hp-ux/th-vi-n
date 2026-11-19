@@ -1085,7 +1085,7 @@ function overheadLines(parent, m, poleLocations) {
   }
 }
 
-function batchStatic(root) {
+function batchStatic(root, paintedSurfaces) {
   root.updateMatrixWorld(true);
   const groups = new Map();
   root.traverse(mesh => {
@@ -1095,8 +1095,21 @@ function batchStatic(root) {
       geometry.setAttribute('uv', new T.BufferAttribute(new Float32Array(geometry.attributes.position.count * 2), 2));
     }
     geometry.applyMatrix4(mesh.matrixWorld);
-    if (!groups.has(mesh.material)) groups.set(mesh.material, []);
-    groups.get(mesh.material).push(geometry);
+    let surface = mesh.material;
+    if (surface.isMeshStandardMaterial && !surface.map && !surface.bumpMap
+      && !surface.transparent && !surface.vertexColors && surface.emissive.getHex() === 0) {
+      const { r, g, b } = surface.color;
+      const colors = new Float32Array(geometry.attributes.position.count * 3);
+      for (let i = 0; i < colors.length; i += 3) {
+        colors[i] = r;
+        colors[i + 1] = g;
+        colors[i + 2] = b;
+      }
+      geometry.setAttribute('color', new T.BufferAttribute(colors, 3));
+      surface = paintedSurfaces[surface.side];
+    }
+    if (!groups.has(surface)) groups.set(surface, []);
+    groups.get(surface).push(geometry);
   });
   const result = new T.Group();
   for (const [surface, geometries] of groups) {
@@ -1109,22 +1122,37 @@ function batchStatic(root) {
 
 export async function loadMarketHouses(url) {
   const { scene } = await new GLTFLoader().loadAsync(url);
-  return scene;
+  const house = scene.getObjectByName('Architecture');
+  if (!house?.isMesh || house.geometry.attributes.position.count !== 36) {
+    throw new Error('Expected the photo house box in Architecture');
+  }
+  house.geometry.computeBoundingBox();
+  // The front starts in the first atlas quadrant. Move only its UVs for the other photos.
+  const geometries = [[0, 0], [0, 0.5], [0.5, 0.5]].map(([du, dv]) => {
+    const geometry = house.geometry.clone();
+    const { normal, uv } = geometry.attributes;
+    for (let i = 0; i < uv.count; i++) {
+      if (normal.getZ(i) > 0.99) uv.setXY(i, uv.getX(i) + du, uv.getY(i) + dv);
+    }
+    return geometry;
+  });
+  return { geometries, material: house.material, bounds: house.geometry.boundingBox };
 }
 
-function placeMarketHouses(parent, source, m, random) {
-  const frontage = groupAt(parent, 'Hanoi Old Town GLB frontage', -2.00, 0.045, -2.16);
-  const model = source.clone();
-  // The baked asset is Y-up already. Keep the exterior market stalls, floor and canopies.
-  model.scale.set(1.10, 1.01, 1);
-  for (const name of ['Storefront_fittings', 'Foundation']) {
-    model.getObjectByName(name)?.removeFromParent();
-  }
-  frontage.add(model);
-  for (const [x, length] of [[-5.05, 0.92], [-0.62, 0.78], [4.28, 0.67]]) {
-    box(parent, m.tiles[2], x - 2, 3.20, 0.48, 0.39, 0.19, 0.21);
-    vine(parent, m, x - 2, 3.43, 0.55, length, true, random);
-  }
+function placeMarketHouses(parent, { geometries, material, bounds }, pitches, variants, sectionIndex) {
+  const size = bounds.getSize(new T.Vector3());
+  const center = bounds.getCenter(new T.Vector3());
+  const widths = [4.55, 4.48, 4.57, 4.51];
+  const heights = [6.05, 7.10, 5.65, 6.65];
+  pitches.forEach((x, i) => {
+    const variant = variants[i];
+    const photo = (sectionIndex + i) % geometries.length;
+    const house = new T.Mesh(geometries[photo], material);
+    house.scale.set(widths[variant] / size.x, heights[variant] / size.y, 3.1 / size.z);
+    house.position.set(x - center.x * house.scale.x, 0.075 - bounds.min.y * house.scale.y,
+      0.72 - bounds.max.z * house.scale.z);
+    parent.add(house);
+  });
 }
 
 export function buildMarketPreview(scene, marketHouses) {
@@ -1134,6 +1162,8 @@ export function buildMarketPreview(scene, marketHouses) {
     return seed / 4294967296;
   };
   const m = buildKit(random);
+  const paintedSurfaces = [T.FrontSide, T.BackSide, T.DoubleSide].map(side =>
+    new T.MeshLambertMaterial({ side, vertexColors: true }));
   scene.background = new T.Color('#e8caa2');
   scene.fog = new T.FogExp2('#e7c39a', 0.008);
   const road = material('#655445');
@@ -1179,20 +1209,22 @@ export function buildMarketPreview(scene, marketHouses) {
       box(street, stone[(col * 7 + row) % 4], x, 0.056, 0.45 + row * 0.47,
         0.451, 0.05 + random() * 0.013, 0.455);
     }
-    const buildings = groupAt(street, 'Existing facades');
-    facades.forEach((variant, j) => townhouse(buildings, m, {
-      x: pitches[j], width: 4.57, height: [5.34, 5.50, 5.15, 5.91][variant], variant,
-    }, random));
-    if (i === 0) {
-      // Preserve the scene seed for the other market blocks while swapping only this review frontage.
-      buildings.remove(...buildings.children.slice(0, 3));
-      const seedAfterFacades = seed;
-      if (marketHouses) placeMarketHouses(buildings, marketHouses, m, random);
-      else for (let j = 0; j < 3; j++) architecturePrototype(buildings, m, pitches[j], j, random);
-      seed = seedAfterFacades;
+    const buildings = groupAt(street, 'Market facades');
+    if (marketHouses) {
+      placeMarketHouses(buildings, marketHouses, pitches, facades, i);
+    } else {
+      facades.forEach((variant, j) => townhouse(buildings, m, {
+        x: pitches[j], width: 4.57, height: [5.34, 5.50, 5.15, 5.91][variant], variant,
+      }, random));
+      if (i === 0) {
+        buildings.remove(...buildings.children.slice(0, 3));
+        const seedAfterFacades = seed;
+        for (let j = 0; j < 3; j++) architecturePrototype(buildings, m, pitches[j], j, random);
+        seed = seedAfterFacades;
+      }
     }
     stalls(street);
-    const section = batchStatic(street);
+    const section = batchStatic(street, paintedSurfaces);
     section.name = 'Market · ' + name;
     tile.add(section);
   });
@@ -1200,7 +1232,7 @@ export function buildMarketPreview(scene, marketHouses) {
   overhead.position.set(9.5, -0.17, 4.70);
   overhead.rotation.y = -Math.PI / 2;
   overheadLines(overhead, m, [-64.4,-59.8,-50.6,-41.4,-32.2,-23,-13.8,-4.6,4.6,9.2]);
-  tile.add(batchStatic(overhead));
+  tile.add(batchStatic(overhead, paintedSurfaces));
 
   const strip = new T.Group();
   strip.name = 'Moving Vietnamese market';
@@ -1212,5 +1244,5 @@ export function buildMarketPreview(scene, marketHouses) {
   }
   scene.add(strip);
   // Merchants and facades move together as one street. Their different depths supply perspective parallax.
-  return { layers: [{ strip, length, speed: 0.98 }] };
+  return { layers: [{ strip, length, speed: 0.98 }], adaptResolution: true };
 }

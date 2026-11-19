@@ -1843,7 +1843,8 @@ export async function start({ buildExterior } = {}) {
 }
 
 function play(renderer, avatar,
-  { layers, animateAmbient, sceneryFrameLimit = 0.08, trainSpeed = 0 }, cabin, seats, { tableLight, tableLamps, cabinLights, cabinMaterials }) {
+  { layers, animateAmbient, sceneryFrameLimit = 0.08, trainSpeed = 0, adaptResolution = false },
+  cabin, seats, { tableLight, tableLamps, cabinLights, cabinMaterials }) {
   const { mascot, feet, arms } = avatar;
   const motionButton = document.querySelector('#motion-toggle');
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1853,6 +1854,7 @@ function play(renderer, avatar,
   }
   motionButton.addEventListener('click', () => {
     trainMoving = !trainMoving;
+    needsRender = true;
     updateMotionButton();
     focusSound.setTrainMoving(trainMoving);
   });
@@ -2192,6 +2194,11 @@ function play(renderer, avatar,
   let lastFrame = performance.now();
   let lastSceneryRender = 0;
   let ambientTime = 0;
+  const normalPixelRatio = renderer.getPixelRatio();
+  const resolutionScales = [1, 0.85, 0.70, 0.55];
+  let resolutionLevel = 0;
+  let slowFrames = 0;
+  let fastFrames = 0;
 
   renderer.setAnimationLoop(now => {
     const elapsed = (now - lastFrame) / 1000;
@@ -2254,7 +2261,20 @@ function play(renderer, avatar,
         strip.position.z = (strip.position.z + sceneryDt * speed) % length;
       }
     }
-    if (!needsRender && !cameraMoving && (!animateAmbient || now - lastSceneryRender < 1000 / 30)) return;
+    if (!needsRender && !cameraMoving && !trainMoving
+      && (!animateAmbient || now - lastSceneryRender < 1000 / 30)) return;
+    if (adaptResolution && trainMoving && lastSceneryRender && !document.hidden) {
+      const frameTime = now - lastSceneryRender;
+      slowFrames = frameTime > 42 ? slowFrames + 1 : 0;
+      fastFrames = frameTime < 21 ? fastFrames + 1 : 0;
+      const next = clamp(resolutionLevel + (slowFrames >= 8 ? 1 : fastFrames >= 180 ? -1 : 0),
+        0, resolutionScales.length - 1);
+      if (next !== resolutionLevel) {
+        resolutionLevel = next;
+        slowFrames = fastFrames = 0;
+        renderer.setPixelRatio(normalPixelRatio * resolutionScales[resolutionLevel]);
+      }
+    }
     lastSceneryRender = now;
     const trainZ = cabin?.position.z ?? 0;
     animateAmbient?.(ambientTime, trainZ);

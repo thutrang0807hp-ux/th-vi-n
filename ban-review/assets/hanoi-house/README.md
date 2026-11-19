@@ -1,10 +1,13 @@
 # Nhà phố Hà Nội trong cảnh chợ
 
-`model.glb` là khối hộp 3D theo kích thước của mẫu cũ `../hanoi_old_town_house.glb`. Mặt hướng về toa (+Z) dùng một vùng ảnh mặt tiền quán ở góc phố Tạ Hiện – Lương Ngọc Quyến. Vùng ảnh được cắt, nắn phối cảnh và trải trực tiếp lên mặt hộp. Cửa chớp, phào và biển quán nằm trong ảnh. Các mặt còn lại dùng ảnh vật liệu tường hoặc ngói.
+`model.glb` là khối hộp 3D theo kích thước của mẫu cũ `../hanoi_old_town_house.glb`. Mặt hướng về toa (+Z) phủ ảnh mặt tiền đã nắn phối cảnh. Các mặt còn lại dùng ảnh vật liệu tường. Cảnh chợ thay đổi chiều rộng và chiều cao của 16 căn trên bốn đoạn phố, dùng ba ảnh mặt tiền trong cùng một atlas. Mỗi đoạn phố gộp bốn căn thành một mesh dùng chung vật liệu.
 
-Ảnh mặt tiền của Pasztilla (Attila Terbócs), [Hanoi, Vietnam 2019-09 01](https://commons.wikimedia.org/wiki/File:Hanoi,_Vietnam_2019-09_01.jpg), giấy phép [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Bản crop và phần ảnh biến đổi trong atlas nhúng dùng cùng giấy phép. Tường và ngói lấy từ [Damaged Plaster](https://polyhaven.com/a/damaged_plaster) và [Clay Roof Tiles 02](https://polyhaven.com/a/clay_roof_tiles_02) của Poly Haven (CC0).
+- `ta-hien-frontage.jpg` lấy từ ảnh [Hanoi, Vietnam 2019-09 01](https://commons.wikimedia.org/wiki/File:Hanoi,_Vietnam_2019-09_01.jpg) của Pasztilla (Attila Terbócs), [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Bản crop và bản biến đổi trong atlas nhúng dùng cùng giấy phép.
+- `ma-may-shop.jpg` lấy từ ảnh [Hanoi (9654796243)](https://commons.wikimedia.org/wiki/File:Hanoi_(9654796243).jpg) của Jorge Cancela, [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/).
+- `ma-may-old-shop.jpg` lấy từ ảnh [Ma May](https://commons.wikimedia.org/wiki/File:Ma_May.jpg) của piotrr, [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/).
+- Tường dùng [Damaged Plaster](https://polyhaven.com/a/damaged_plaster) của Poly Haven (CC0).
 
-GLB có 12 tam giác, một mesh, một vật liệu và atlas JPEG 1024 × 1024. Dung lượng file khoảng 345 KiB.
+GLB có 12 tam giác, một mesh, một vật liệu và atlas JPEG 1024 × 1024. Dung lượng file khoảng 471 KiB.
 
 Mở `viewer.html` qua HTTP để xoay và zoom. Trong cảnh chợ, mở `ban-review/market-preview.html` và ngồi ở góc POV hướng qua cửa sổ.
 

@@ -92,8 +92,9 @@ def photo_atlas():
 
 def box_atlas(frontage):
     canvas = Image.new('RGB', (2 * CELL, 2 * CELL))
-    for slot, path in enumerate((frontage, ROOT / 'textures' / (PLASTER + '.jpg'),
-                                 ROOT / 'textures' / (TILES + '.jpg'))):
+    textures = ROOT / 'textures'
+    for slot, path in enumerate((frontage, textures / (PLASTER + '.jpg'),
+                                 textures / 'ma-may-shop.jpg', textures / 'ma-may-old-shop.jpg')):
         with Image.open(path) as photo:
             image = ImageOps.fit(ImageOps.exif_transpose(photo).convert('RGB'),
                                  (CELL - 2 * GUTTER, CELL - 2 * GUTTER))
@@ -186,7 +187,7 @@ def photo_box(data, binary):
         ([1, 5, 6, 2], [1, 0, 0], 1),
         ([5, 4, 7, 6], [0, 0, -1], 1),
         ([4, 0, 3, 7], [-1, 0, 0], 1),
-        ([3, 2, 6, 7], [0, 1, 0], 2),
+        ([3, 2, 6, 7], [0, 1, 0], 1),
         ([4, 5, 1, 0], [0, -1, 0], 1),
     ]
     uvs = np.array([[0, 1], [1, 1], [1, 0], [0, 0]])
