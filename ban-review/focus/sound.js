@@ -308,7 +308,7 @@ export function parseYouTubeLink(value) {
   return { embed:embed.href, direct:direct.href };
 }
 
-function enableDockMovement(dock, handle, signal) {
+function enableDockMovement(dock, bar, handle, signal) {
   const margin = 8;
   let drag;
 
@@ -324,16 +324,17 @@ function enableDockMovement(dock, handle, signal) {
     place(left, top);
   }
 
-  handle.addEventListener('pointerdown', event => {
-    if (!event.isPrimary || event.button !== 0) return;
+  bar.addEventListener('pointerdown', event => {
+    const control = event.target.closest('button, a');
+    if (!event.isPrimary || event.button !== 0 || (control && control !== handle)) return;
     const { left, top } = dock.getBoundingClientRect();
     drag = { id: event.pointerId, x: event.clientX - left, y: event.clientY - top };
-    handle.setPointerCapture(event.pointerId);
+    bar.setPointerCapture(event.pointerId);
   });
-  handle.addEventListener('pointermove', event => {
+  bar.addEventListener('pointermove', event => {
     if (drag?.id === event.pointerId) place(event.clientX - drag.x, event.clientY - drag.y);
   });
-  handle.addEventListener('lostpointercapture', () => { drag = undefined; });
+  bar.addEventListener('lostpointercapture', () => { drag = undefined; });
   handle.addEventListener('keydown', event => {
     const offset = { ArrowLeft: [-16, 0], ArrowRight: [16, 0], ArrowUp: [0, -16], ArrowDown: [0, 16] }[event.key];
     if (!offset) return;
@@ -351,6 +352,40 @@ export function showFocusPanel(panel) {
   else panel.showModal();
 }
 
+let youtubeAPI;
+
+function loadYouTubeAPI() {
+  if (globalThis.YT?.Player) return Promise.resolve(globalThis.YT);
+  youtubeAPI ??= new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://www.youtube.com/iframe_api';
+    const timeout = setTimeout(() => script.dispatchEvent(new Event('error')), 12000);
+    script.addEventListener('error', () => {
+      clearTimeout(timeout);
+      script.remove();
+      reject(new Error('YouTube API unavailable'));
+    }, { once: true });
+    globalThis.onYouTubeIframeAPIReady = () => {
+      clearTimeout(timeout);
+      resolve(globalThis.YT);
+    };
+    document.head.append(script);
+  }).catch(error => {
+    youtubeAPI = undefined;
+    throw error;
+  });
+  return youtubeAPI;
+}
+
+function youtubeButton(symbol, label) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = symbol;
+  button.title = label;
+  button.setAttribute('aria-label', label);
+  return button;
+}
+
 function mountYouTube(view) {
   const form = view.querySelector('#focus-youtube-form');
   const input = view.querySelector('#focus-youtube-url');
@@ -358,8 +393,11 @@ function mountYouTube(view) {
   const panel = view.closest('dialog');
   let dock;
   let movement;
+  let player;
   function removeDock() {
     movement?.abort();
+    player?.destroy();
+    player = undefined;
     dock?.remove();
     dock = undefined;
   }
@@ -377,24 +415,36 @@ function mountYouTube(view) {
     status.textContent = '';
     removeDock();
     movement = new AbortController();
-    dock = document.createElement('section');
-    dock.className = 'youtube-dock';
-    dock.setAttribute('aria-label','Trình phát YouTube');
-    const controls = document.createElement('div');
-    const handle = document.createElement('button');
-    handle.type = 'button';
+    const current = document.createElement('section');
+    dock = current;
+    current.className = 'youtube-dock';
+    current.setAttribute('aria-label', 'Trình phát YouTube');
+
+    const bar = document.createElement('div');
+    bar.className = 'youtube-bar';
+    const handle = youtubeButton('', 'Di chuyển trình phát YouTube');
     handle.className = 'youtube-drag';
+    handle.title = 'Kéo cả thanh hoặc dùng phím mũi tên';
     const record = document.createElement('span');
     record.className = 'youtube-vinyl';
-    record.setAttribute('aria-hidden', 'true');
-    const grip = document.createElement('span');
-    grip.className = 'youtube-grip';
-    grip.textContent = '⠿';
-    grip.setAttribute('aria-hidden', 'true');
-    handle.append(record, grip);
-    handle.setAttribute('aria-label', 'Di chuyển trình phát YouTube');
-    handle.title = 'Kéo hoặc dùng phím mũi tên';
-    const fit = enableDockMovement(dock, handle, movement.signal);
+    handle.append(record);
+    const fit = enableDockMovement(current, bar, handle, movement.signal);
+
+    const heading = document.createElement('div');
+    heading.className = 'youtube-mini-heading';
+    const name = document.createElement('strong');
+    name.textContent = 'YouTube';
+    const playback = document.createElement('small');
+    playback.textContent = 'Đang tải…';
+    heading.append(name, playback);
+
+    const previous = youtubeButton('⏮', 'Bài trước');
+    const play = youtubeButton('▶', 'Phát');
+    play.className = 'youtube-play';
+    const next = youtubeButton('⏭', 'Bài tiếp');
+    const video = youtubeButton('▣', 'Ẩn video');
+    video.setAttribute('aria-expanded', 'true');
+    const close = youtubeButton('×', 'Đóng');
     const open = document.createElement('a');
     open.href = link.direct;
     open.target = '_blank';
@@ -402,50 +452,118 @@ function mountYouTube(view) {
     open.textContent = '↗';
     open.title = 'Mở trên YouTube';
     open.setAttribute('aria-label', open.title);
-    const collapse = document.createElement('button');
-    collapse.type = 'button';
-    collapse.textContent = 'Thu gọn';
-    collapse.setAttribute('aria-expanded', 'true');
-    collapse.title = 'Thu gọn và dừng video trong toa';
-    const close = document.createElement('button');
-    close.type = 'button';
-    close.textContent = '×';
-    close.title = 'Đóng';
-    close.setAttribute('aria-label', close.title);
-    close.addEventListener('click',() => {
+
+    const frame = document.createElement('iframe');
+    const embed = new URL(link.embed);
+    embed.searchParams.set('enablejsapi', '1');
+    embed.searchParams.set('origin', location.origin);
+    frame.src = embed.href;
+    frame.title = 'Trình phát YouTube';
+    frame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+    frame.allowFullscreen = true;
+    frame.referrerPolicy = 'strict-origin-when-cross-origin';
+
+    let ready = false;
+    let playing = false;
+    function update(state, label) {
+      playing = state === 1;
+      current.classList.toggle('youtube-dock--playing', playing);
+      play.textContent = playing ? 'Ⅱ' : '▶';
+      play.title = playing ? 'Tạm dừng' : 'Phát';
+      play.setAttribute('aria-label', play.title);
+      play.disabled = !ready;
+      const count = ready ? player.getPlaylist()?.length ?? 0 : 0;
+      const index = count > 1 ? player.getPlaylistIndex() : -1;
+      previous.disabled = index <= 0;
+      next.disabled = index < 0 || index >= count - 1;
+      const title = ready && player.getVideoData?.()?.title;
+      if (title) name.textContent = name.title = title;
+      playback.textContent = label ?? ({ 0: 'Đã hết bài', 1: 'Đang phát', 2: 'Tạm dừng', 3: 'Đang tải…' }[state] ?? 'Sẵn sàng');
+    }
+
+    function showVideo(visible) {
+      frame.hidden = !visible;
+      video.title = visible ? 'Ẩn video' : 'Hiện video';
+      video.setAttribute('aria-label', video.title);
+      video.setAttribute('aria-expanded', String(visible));
+      fit();
+    }
+
+    update(-1, 'Đang tải…');
+    previous.addEventListener('click', () => {
+      showVideo(true);
+      player.previousVideo();
+    });
+    next.addEventListener('click', () => {
+      showVideo(true);
+      player.nextVideo();
+    });
+    play.addEventListener('click', () => {
+      if (playing) player.pauseVideo();
+      else {
+        showVideo(true);
+        player.playVideo();
+      }
+    });
+    video.addEventListener('click', () => {
+      if (frame.hidden) {
+        showVideo(true);
+        if (!frame.hasAttribute('src')) {
+          frame.src = embed.href;
+          connectPlayer();
+        }
+      }
+      else if (ready) {
+        player.pauseVideo();
+        showVideo(false);
+        update(2);
+      } else {
+        player?.destroy();
+        player = undefined;
+        frame.removeAttribute('src');
+        if (!frame.isConnected) current.append(frame);
+        showVideo(false);
+        update(-1, 'Tạm dừng');
+      }
+    });
+    close.addEventListener('click', () => {
       removeDock();
       (panel.open ? input : document.querySelector('#focus-toggle'))?.focus();
     });
-    const frame = document.createElement('iframe');
-    frame.src = link.embed;
-    frame.title = 'Trình phát YouTube';
-    frame.allow = 'encrypted-media; picture-in-picture; fullscreen';
-    frame.allowFullscreen = true;
-    frame.referrerPolicy = 'strict-origin-when-cross-origin';
-    collapse.addEventListener('click', () => {
-      const expanded = frame.isConnected;
-      if (expanded) frame.remove();
-      else dock.append(frame);
-      dock.classList.toggle('youtube-dock--compact', expanded);
-      heading.hidden = !expanded;
-      collapse.textContent = expanded ? 'Hiện video' : 'Thu gọn';
-      collapse.setAttribute('aria-expanded', String(!expanded));
-      fit();
-    });
-    const heading = document.createElement('div');
-    heading.className = 'youtube-mini-heading';
-    heading.hidden = true;
-    const name = document.createElement('strong');
-    name.textContent = 'YouTube';
-    const playbackStatus = document.createElement('small');
-    playbackStatus.textContent = 'Video đã dừng';
-    heading.append(name, playbackStatus);
-    controls.append(handle,heading,collapse,open,close);
-    dock.append(controls,frame);
-    document.querySelector('main').append(dock);
-    if (dock.getBoundingClientRect().top < 8) fit();
+
+    bar.append(handle, heading, previous, play, next, video, open, close);
+    current.append(bar, frame);
+    document.querySelector('main').append(current);
+    if (current.getBoundingClientRect().top < 8) fit();
     panel.close();
     close.focus();
+
+    function connectPlayer() {
+      loadYouTubeAPI().then(api => {
+        if (dock !== current || frame.hidden || player) return;
+        player = new api.Player(frame, {
+          events: {
+            onReady(event) {
+              if (dock !== current) return;
+              player = event.target;
+              ready = true;
+              update(player.getPlayerState());
+            },
+            onStateChange(event) {
+              if (dock !== current || !ready) return;
+              if (frame.hidden && event.data === 1) player.pauseVideo();
+              else update(event.data);
+            },
+            onError() {
+              if (dock === current) update(-1, 'Thử mở trên YouTube');
+            },
+          },
+        });
+      }).catch(() => {
+        if (dock === current && !frame.hidden) update(-1, 'Dùng nút phát trong video');
+      });
+    }
+    connectPlayer();
   });
   window.addEventListener('pagehide', removeDock);
 }
