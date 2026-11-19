@@ -145,6 +145,8 @@ dialog h2 { margin: 0 0 12px; font-size: 1.1rem; }
   border: 1px solid #dfab6880;
   border-radius: 8px;
 }
+#avatar-hood-hint { display: block; margin: 0 0 12px; color: #d6b294; font-size: .78rem; }
+.avatar-options select:disabled { opacity: .55; }
 #avatar-toggle:disabled { opacity: 0.55; cursor: default; }
 
 #activity-picker { max-width: min(39vw, 190px); }

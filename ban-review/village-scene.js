@@ -744,7 +744,7 @@ const outfitPresets = {
   conductor: ['conductor', 'uniform', 'none', 'none'],
 };
 const mascotDefaults = { color: 'peach', outfit: 'plain', expression: 'gentle',
-  hat: 'none', clothes: 'none', bag: 'none', scarf: 'none' };
+  hat: 'none', clothes: 'none', bag: 'none', scarf: 'none', hood: 'down' };
 const mascotStorageKey = 'lofi-train-avatar-v1';
 
 // Superellipsoid with a broader lower face and a slightly tilted crown.
@@ -1415,10 +1415,45 @@ function buildMascot() {
     const tunic = mesh(body.geometry, surface, body.position.x, body.position.y + 0.002, body.position.z);
     tunic.scale.set(1.045, 1.05, 1.09);
   }
+  const hood = group(() => {
+    const rings = [
+      [-0.245, 0.416, 0.325], [-0.186, 0.445, 0.354], [-0.081, 0.467, 0.374],
+      [0.055, 0.468, 0.375], [0.182, 0.421, 0.339], [0.274, 0.314, 0.252],
+      [0.333, 0.179, 0.158], [0.348, 0.004, 0.004],
+    ];
+    const segments = 48, positions = [], indices = [];
+    const pointAt = ([z, width, height], angle) => {
+      const x = Math.cos(angle), y = Math.sin(angle);
+      return new T.Vector3(Math.sign(x) * Math.abs(x) ** 0.63 * width,
+        0.014 + Math.sign(y) * Math.abs(y) ** 0.66 * height,
+        z + Math.max(0, -y) * 0.034 * width / 0.468);
+    };
+    rings.forEach((ring, row) => {
+      for (let i = 0; i <= segments; i++) {
+        const point = pointAt(ring, i * Math.PI * 2 / segments);
+        positions.push(point.x, point.y, point.z);
+        if (row && i) {
+          const current = row * (segments + 1) + i;
+          const previous = current - segments - 1;
+          indices.push(previous - 1, previous, current, previous - 1, current, current - 1);
+        }
+      }
+    });
+    const geometry = new T.BufferGeometry().setIndex(indices);
+    geometry.setAttribute('position', new T.Float32BufferAttribute(positions, 3));
+    geometry.computeVertexNormals();
+    const outer = hoodieFleece.clone();
+    outer.side = T.DoubleSide;
+    mesh(geometry, outer, 0, 0, 0);
+    const rim = new T.CatmullRomCurve3(Array.from({ length: segments }, (_, i) =>
+      pointAt(rings[0], i * Math.PI * 2 / segments)), true);
+    mesh(new T.TubeGeometry(rim, 64, 0.014, 8, true), hoodieRib, 0, 0, 0);
+
+  });
   accessories.hoodie = group(() => {
     uniformShell(hoodieFleece);
     oval(hoodieRib, 0, 0.162, 0.012, 0.197, 0.025, 0.127);
-    oval(hoodieRib, 0, 0.427, 0.078, 0.199, 0.078, 0.138);
+
     oval(hoodieFleece, 0, 0.428, -0.025, 0.174, 0.040, 0.122);
     box(0.177, 0.074, 0.028, hoodieRib, 0, 0.232, -0.145, 0.019);
     for (const side of [-1, 1]) {
@@ -1440,6 +1475,8 @@ function buildMascot() {
     for (const y of [0.314, 0.260, 0.206]) oval(brass, 0, y, -0.157, 0.013, 0.013, 0.007);
   });
   const limbs = arms.map(shoulder => shoulder.children[0]);
+  const loweredHood = oval(hoodieRib, 0, 0.427, 0.078, 0.199, 0.078, 0.138);
+  accessories.hoodie.add(loweredHood);
   const bareArms = limbs.map(limb => limb.children[0]);
   const sleeves = {};
   for (const [name, fabric, cuff] of [['hoodie', hoodieFleece, hoodieRib], ['uniform', midnight, softGold]]) {
@@ -1474,6 +1511,7 @@ function buildMascot() {
     hat.scale.multiplyScalar(1.2);
     hat.position.y = anchor + (hat.position.y - anchor) * 1.2 - 0.012;
   }
+  headPivot.add(hood);
   const pose = new T.Group();
   const upper = new T.Group();
   upper.add(body, headPivot, scarf, accessories.satchel, accessories.backpack,
@@ -1499,12 +1537,15 @@ function buildMascot() {
     for (const face of Object.values(expressions)) face.material.color.setScalar(0.23 + amount * 0.77);
   }
 
-  function applyStyle({ color, hat, clothes, bag, scarf: scarfChoice, expression }) {
+  function applyStyle({ color, hat, clothes, bag, scarf: scarfChoice, hood: hoodChoice, expression }) {
     skinBase.set(mascotColors[color][0]);
     blushBase.set(mascotColors[color][1]);
     setLighting(illumination, true);
+    const raisedHood = clothes === 'hoodie' && hoodChoice === 'up';
+    hood.visible = raisedHood;
+    loweredHood.visible = !raisedHood;
     for (const [name, part] of Object.entries(accessories)) {
-      part.visible = [hat, clothes, bag].includes(name === 'pilot' ? 'cap' : name);
+      part.visible = [raisedHood ? 'none' : hat, clothes, bag].includes(name === 'pilot' ? 'cap' : name);
     }
     for (const [name, parts] of Object.entries(sleeves)) {
       for (const part of parts) part.visible = clothes === name;
@@ -1701,6 +1742,7 @@ function setupMascotCustomizer(avatar, renderer, onChange, onOpen) {
   }
   function apply(save = false) {
     const style = Object.fromEntries(controls.map(control => [control.name, control.value]));
+    byName.hood.disabled = style.clothes !== 'hoodie';
     avatar.applyStyle(style);
     onChange();
     if (save) {
