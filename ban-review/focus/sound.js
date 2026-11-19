@@ -442,8 +442,8 @@ function mountYouTube(view) {
     const play = youtubeButton('▶', 'Phát');
     play.className = 'youtube-play';
     const next = youtubeButton('⏭', 'Bài tiếp');
-    const video = youtubeButton('▣', 'Ẩn video');
-    video.setAttribute('aria-expanded', 'true');
+    const video = youtubeButton('▣', 'Hiện video');
+    video.setAttribute('aria-expanded', 'false');
     const close = youtubeButton('×', 'Đóng');
     const open = document.createElement('a');
     open.href = link.direct;
@@ -459,6 +459,7 @@ function mountYouTube(view) {
     embed.searchParams.set('origin', location.origin);
     frame.src = embed.href;
     frame.title = 'Trình phát YouTube';
+    frame.hidden = true;
     frame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
     frame.allowFullscreen = true;
     frame.referrerPolicy = 'strict-origin-when-cross-origin';
@@ -490,42 +491,13 @@ function mountYouTube(view) {
     }
 
     update(-1, 'Đang tải…');
-    previous.addEventListener('click', () => {
-      showVideo(true);
-      player.previousVideo();
-    });
-    next.addEventListener('click', () => {
-      showVideo(true);
-      player.nextVideo();
-    });
+    previous.addEventListener('click', () => player.previousVideo());
+    next.addEventListener('click', () => player.nextVideo());
     play.addEventListener('click', () => {
       if (playing) player.pauseVideo();
-      else {
-        showVideo(true);
-        player.playVideo();
-      }
+      else player.playVideo();
     });
-    video.addEventListener('click', () => {
-      if (frame.hidden) {
-        showVideo(true);
-        if (!frame.hasAttribute('src')) {
-          frame.src = embed.href;
-          connectPlayer();
-        }
-      }
-      else if (ready) {
-        player.pauseVideo();
-        showVideo(false);
-        update(2);
-      } else {
-        player?.destroy();
-        player = undefined;
-        frame.removeAttribute('src');
-        if (!frame.isConnected) current.append(frame);
-        showVideo(false);
-        update(-1, 'Tạm dừng');
-      }
-    });
+    video.addEventListener('click', () => showVideo(frame.hidden));
     close.addEventListener('click', () => {
       removeDock();
       (panel.open ? input : document.querySelector('#focus-toggle'))?.focus();
@@ -540,7 +512,7 @@ function mountYouTube(view) {
 
     function connectPlayer() {
       loadYouTubeAPI().then(api => {
-        if (dock !== current || frame.hidden || player) return;
+        if (dock !== current || player) return;
         player = new api.Player(frame, {
           events: {
             onReady(event) {
@@ -551,8 +523,7 @@ function mountYouTube(view) {
             },
             onStateChange(event) {
               if (dock !== current || !ready) return;
-              if (frame.hidden && event.data === 1) player.pauseVideo();
-              else update(event.data);
+              update(event.data);
             },
             onError() {
               if (dock === current) update(-1, 'Thử mở trên YouTube');
@@ -560,7 +531,7 @@ function mountYouTube(view) {
           },
         });
       }).catch(() => {
-        if (dock === current && !frame.hidden) update(-1, 'Dùng nút phát trong video');
+        if (dock === current) update(-1, 'Mở video để phát');
       });
     }
     connectPlayer();
