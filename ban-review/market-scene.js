@@ -454,7 +454,7 @@ function bougainvilleaCrown(random) {
   const positions = [], colors = [];
   const pose = new T.Object3D(), vertex = new T.Vector3();
   const leaves = ['#394d25', '#61723a', '#829447'].map(color => new T.Color(color));
-  const flowers = ['#962953', '#c22868', '#e74b8f', '#ee6aa7', '#f593ba'].map(color => new T.Color(color));
+  const flowers = ['#84123d', '#a7134b', '#bf1a57', '#ce215f', '#de2c6a'].map(color => new T.Color(color));
   const petal = [
     -0.039, -0.032, 0, 0.019, -0.038, 0, 0.041, 0.028, 0,
     -0.039, -0.032, 0, 0.041, 0.028, 0, -0.030, 0.045, -0.009,
