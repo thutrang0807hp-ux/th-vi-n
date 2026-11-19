@@ -104,7 +104,8 @@ function buildKit(random) {
     darkWood: material('#563221'), sill: material('#b9a187'), glass: material('#243d3b'),
     teal: [material('#275a55'), material('#487269'), material('#35575b')],
     tiles: ['#a14d32', '#b4613b', '#934027', '#c17a50'].map(hex => material(hex)),
-    canvas: ['#214984', '#315d9e', '#d6b78a', '#a64031'].map(hex => material(hex, { side: T.DoubleSide, vertexColors: true })),
+    canvas: ['#214984', '#315d9e', '#d6b78a', '#a64031', '#59715b'].map(hex =>
+      material(hex, { side: T.DoubleSide, vertexColors: true })),
     wire: material('#372724'), silver: material('#aaa9a1', { roughness: 0.30, metalness: 0.43 }),
     enamel: material('#ddc7a2', { roughness: 0.41 }), basket: material('#b9834e'),
     red: material('#b73a34', { roughness: 0.55 }), blue: material('#254eaa', { roughness: 0.55 }),
@@ -495,7 +496,7 @@ function architecturePrototype(parent, m, x, variant, random, photoStyle) {
   const { width, height, floors } = config;
   const surface = photoStyle?.material ?? wallFinish(config, variant);
   const panel = photoStyle
-    ? (...dimensions) => plasterBox(home, surface, plasterTints[variant], width, height, ...dimensions)
+    ? (...dimensions) => plasterBox(home, surface, photoStyle.tint, width, height, ...dimensions)
     : (...dimensions) => plasterPanel(home, surface, config, ...dimensions);
   panel(0, height / 2, -1.03, width, height, 0.24);
   for (const side of [-1, 1]) {
@@ -581,7 +582,8 @@ function awning(parent, m, width, style) {
       tint.push(wear, wear, wear);
     }
     geometry.setAttribute('color', new T.Float32BufferAttribute(tint, 3));
-    const shade = style === 'stripe' && strip % 2 === 1 ? 2 : style === 'rust' ? 3 : strip % 3 === 0 ? 1 : 0;
+    const shade = style === 'green' ? 4 : style === 'rust' ? 3
+      : style === 'stripe' && strip % 2 === 1 ? 2 : strip % 3 === 0 ? 1 : 0;
     mesh(parent, geometry, m.canvas[shade], 0, 0, 0);
   }
   rod(parent, m.timber, [-width / 2, 2.67, 2.44], [width / 2, 2.67, 2.44], 0.041);
@@ -938,7 +940,7 @@ function bouquet(stall, m, x, y, z, size, kind, random) {
 
 function flowerStall(parent, m, x, random, second = false) {
   const stall = second
-    ? stallFrame(parent, m, x, 'Hương Mùa', 'HOA CẮM BÌNH', 'M', 'blue', '#4b6044')
+    ? stallFrame(parent, m, x, 'Hương Mùa', 'HOA CẮM BÌNH', 'M', 'green', '#4b6044')
     : stallFrame(parent, m, x, 'Nhành Hoa', 'HOA TƯƠI · BÓ THEO MÙA', 'H', 'stripe', '#635061');
   table(stall, m, 0, 1.02, 3.53);
   for (const x of [-1.27, 1.34]) {
@@ -1152,7 +1154,21 @@ const photoFrontages = [
     sign: [122, 221, 220, 239], shop: [108, 298, 309, 372],
   },
 ];
-const plasterTints = ['#ffe8c4', '#ffd6a2', '#fff3df', '#e7f4f1'].map(color => new T.Color(color));
+const limewash = {
+  ochre: new T.Color('#ecc066'),
+  paleYellow: new T.Color('#f9de95'),
+  mustard: new T.Color('#dbaa59'),
+  cream: new T.Color('#f3ead1'),
+  sage: new T.Color('#b2c3a8'),
+  rose: new T.Color('#d9aba4'),
+  blueGray: new T.Color('#a7bdc6'),
+};
+const streetColors = [
+  [limewash.ochre, limewash.cream, limewash.paleYellow, limewash.sage],
+  [limewash.mustard, limewash.rose, limewash.ochre, limewash.blueGray],
+  [limewash.paleYellow, limewash.sage, limewash.mustard, limewash.cream],
+  [limewash.ochre, limewash.blueGray, limewash.paleYellow, limewash.rose],
+];
 
 function tintVertices(geometry, { r, g, b }) {
   const colors = new Float32Array(geometry.attributes.position.count * 3);
@@ -1223,16 +1239,17 @@ function plasterBox(home, material, tint, frontageWidth, frontageHeight, x, y, z
 function placeMarketHouses(parent, { fronts, material }, m, pitches, variants, sectionIndex, random) {
   const widths = [4.48, 4.40, 4.54, 4.46];
   pitches.forEach((x, i) => {
+    const tint = streetColors[sectionIndex][i];
     if (sectionIndex < 3 && i === sectionIndex) {
       const front = fronts[(sectionIndex + 2) % fronts.length];
-      architecturePrototype(parent, m, x, sectionIndex, random, { front, material });
+      architecturePrototype(parent, m, x, sectionIndex, random, { front, material, tint });
       return;
     }
     const variant = variants[i];
     const { floors, sign, shop, roof, height, shopWidth: shopRatio } = fronts[(sectionIndex + i) % fronts.length];
     const home = groupAt(parent, 'Photo-textured shophouse', x, 0.075, -0.85);
     const width = widths[variant];
-    const wall = (...dimensions) => plasterBox(home, material, plasterTints[variant], width, height, ...dimensions);
+    const wall = (...dimensions) => plasterBox(home, material, tint, width, height, ...dimensions);
     // This rear volume leaves room for the window reveals in the street-facing wall.
     wall(0, height / 2, -1.91, width, height, 2.46);
     const band = (lower, upper, setback) =>

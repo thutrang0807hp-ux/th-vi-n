@@ -98,6 +98,10 @@ def box_atlas(frontage):
         with Image.open(path) as photo:
             image = ImageOps.fit(ImageOps.exif_transpose(photo).convert('RGB'),
                                  (CELL - 2 * GUTTER, CELL - 2 * GUTTER))
+        if slot == 1:
+            grain = ImageOps.grayscale(image)
+            # Keep the cracks and brick relief while leaving the limewash color to the mesh.
+            image = Image.blend(Image.new('L', image.size, 247), grain, 0.38).convert('RGB')
         tile = np.pad(np.asarray(image), ((GUTTER, GUTTER), (GUTTER, GUTTER), (0, 0)), mode='edge')
         canvas.paste(Image.fromarray(tile), ((slot % 2) * CELL, (slot // 2) * CELL))
     return encode_atlas(canvas)

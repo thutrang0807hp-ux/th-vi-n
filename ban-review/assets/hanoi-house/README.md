@@ -10,7 +10,7 @@ Các ảnh mặt tiền được cắt, nắn phối cảnh và đóng gói vào
 
 - Tường dùng [Damaged Plaster](https://polyhaven.com/a/damaged_plaster) của Poly Haven (CC0).
 
-GLB có 12 tam giác, một mesh, một vật liệu và atlas JPEG 1024 × 1024. Dung lượng file khoảng 449 KiB.
+GLB nguồn có 12 tam giác, một mesh, một vật liệu và atlas JPEG 1024 × 1024. Dung lượng file khoảng 400 KiB. Ô vữa trong atlas giữ vân bề mặt với màu trung tính để cảnh chợ phối màu vôi riêng cho từng căn.
 
 Mở `viewer.html` qua HTTP để xem khối nguồn. Để xem các mặt tiền đã ghép vào nhà 3D, mở `ban-review/market-preview.html` và ngồi ở góc POV hướng qua cửa sổ.
 
