@@ -8,6 +8,7 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 PAGES = ('iceland.html', 'ocean.html', 'tri-ton.html', 'lofi-lite.html', 'market-preview.html')
+AVATAR_BLOCK = re.compile(r'    <dialog id="avatar-panel"[\s\S]*?    </dialog>\n')
 FOCUS_BLOCK = re.compile(r'    <aside id="focus-widget"[\s\S]*?    </dialog>\n')
 IMPORT_MAP = re.compile(r'(<script type="importmap">)(.*?)(</script>)', re.S)
 STYLE = re.compile(r'<style>.*?</style>', re.S)
@@ -33,6 +34,9 @@ def replace_required(pattern, replacement, source, path):
 
 def synchronize(check):
     template = (ROOT / 'toa-tau/lang-3d.html').read_text(encoding='utf-8')
+    avatar = AVATAR_BLOCK.search(template)
+    if avatar is None:
+        raise ValueError("Missing avatar controls in toa-tau/lang-3d.html")
     match = FOCUS_BLOCK.search(template)
     if match is None:
         raise ValueError('Missing Focus controls in toa-tau/lang-3d.html')
@@ -54,7 +58,8 @@ def synchronize(check):
     for name in PAGES:
         path = ROOT / name
         original = path.read_text(encoding='utf-8')
-        updated = replace_required(FOCUS_BLOCK, lambda _: controls, original, path)
+        updated = replace_required(AVATAR_BLOCK, lambda _: avatar[0], original, path)
+        updated = replace_required(FOCUS_BLOCK, lambda _: controls, updated, path)
         updated = replace_required(STYLE, lambda _: '<style>' + css + '</style>', updated, path)
         updated = replace_required(IMPORT_MAP, lambda match: update_map(match, path), updated, path)
         if updated == original:

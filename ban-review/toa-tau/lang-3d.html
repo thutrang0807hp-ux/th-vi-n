@@ -73,6 +73,9 @@
     <dialog id="avatar-panel" aria-labelledby="avatar-title">
       <h2 id="avatar-title">Tùy chỉnh nhân vật</h2>
       <div class="avatar-preview" aria-hidden="true"></div>
+      <label class="avatar-orbit">Xoay nhân vật
+        <input id="avatar-orbit" type="range" min="0" max="360" value="0">
+      </label>
       <div class="avatar-options">
         <label>Màu nhân vật
           <select name="color">
@@ -83,14 +86,46 @@
             <option value="mint">Xanh bạc hà</option>
           </select>
         </label>
-        <label>Phụ kiện
-          <select name="accessory">
-            <option value="pilot">Bộ phi công</option>
-            <option value="cap">Mũ phi công</option>
-            <option value="scarf">Khăn đỏ</option>
-            <option value="satchel">Túi da</option>
-            <option value="headphones">Tai nghe</option>
+        <label>Bộ trang phục
+          <select name="outfit">
             <option value="plain">Cơ bản</option>
+            <option value="scarf">Khăn choàng</option>
+            <option value="straw">Mũ rộng vành</option>
+            <option value="pilot">Phiêu lưu</option>
+            <option value="headphones">Tai nghe và hoodie</option>
+            <option value="artist">Nghệ sĩ</option>
+            <option value="conductor">Nhân viên tàu</option>
+            <option value="custom">Tự phối</option>
+          </select>
+        </label>
+        <label>Mũ và tai nghe
+          <select name="hat">
+            <option value="none">Không</option>
+            <option value="cap">Mũ phi công</option>
+            <option value="straw">Mũ rộng vành</option>
+            <option value="headphones">Tai nghe</option>
+            <option value="beret">Mũ beret</option>
+            <option value="conductor">Mũ nhân viên tàu</option>
+          </select>
+        </label>
+        <label>Áo
+          <select name="clothes">
+            <option value="none">Không</option>
+            <option value="hoodie">Hoodie tím xám</option>
+            <option value="uniform">Đồng phục xanh đêm</option>
+          </select>
+        </label>
+        <label>Túi
+          <select name="bag">
+            <option value="none">Không</option>
+            <option value="backpack">Ba lô da</option>
+            <option value="satchel">Túi đeo chéo</option>
+          </select>
+        </label>
+        <label>Khăn
+          <select name="scarf">
+            <option value="none">Không</option>
+            <option value="scarf">Khăn đỏ đất</option>
           </select>
         </label>
         <label>Biểu cảm

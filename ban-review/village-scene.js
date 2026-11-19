@@ -733,7 +733,18 @@ const mascotColors = {
   sky: ['#9bcbef', '#689dc5'],
   mint: ['#a7d8b6', '#6dac90'],
 };
-const mascotDefaults = { color: 'peach', accessory: 'plain', expression: 'gentle' };
+const outfitSlots = ['hat', 'clothes', 'bag', 'scarf'];
+const outfitPresets = {
+  plain: ['none', 'none', 'none', 'none'],
+  scarf: ['none', 'none', 'none', 'scarf'],
+  straw: ['straw', 'none', 'none', 'none'],
+  pilot: ['cap', 'none', 'backpack', 'scarf'],
+  headphones: ['headphones', 'hoodie', 'none', 'none'],
+  artist: ['beret', 'none', 'satchel', 'none'],
+  conductor: ['conductor', 'uniform', 'none', 'none'],
+};
+const mascotDefaults = { color: 'peach', outfit: 'plain', expression: 'gentle',
+  hat: 'none', clothes: 'none', bag: 'none', scarf: 'none' };
 const mascotStorageKey = 'lofi-train-avatar-v1';
 
 // Superellipsoid with a broader lower face and a slightly tilted crown.
@@ -1322,12 +1333,124 @@ function buildMascot() {
       const arc = mesh(new T.TorusGeometry(0.485, 0.037, 10, 32, Math.PI), capLeather, 0, 1.12, 0);
       arc.scale.y = 1.02;
       for (const side of [-1, 1]) {
-        oval(ink, side * 0.478, 1.115, 0, 0.064, 0.169, 0.14);
+        oval(ink, side * 0.478, 1.115, 0, 0.087, 0.169, 0.14);
         oval(brass, side * 0.53, 1.115, 0, 0.061, 0.151, 0.128);
         oval(trim, side * 0.585, 1.115, 0, 0.016, 0.092, 0.082);
       }
     }),
   };
+  const oatmeal = material('#c99655', 0.87);
+  const strawEdge = material('#e3b978', 0.93);
+  const ribbon = material('#943a42', 0.85);
+  const beretWool = material('#963947', 0.94);
+  const midnight = material('#34394f', 0.91);
+  const navyTrim = material('#4a526e', 0.87);
+  const hoodieFleece = material('#77758f', 0.96);
+  const hoodieRib = material('#5f5d76', 0.97);
+  const cream = material('#eadbc5', 0.88);
+  const packLeather = material('#a06439', 0.87);
+  const softGold = material('#d7a25f', 0.69);
+  function cord(surface, points, radius) {
+    const track = new T.CatmullRomCurve3(points.map(point => new T.Vector3(...point)));
+    mesh(new T.TubeGeometry(track, 16, radius, 6), surface, 0, 0, 0);
+  }
+  function hatProfile(surface, rings, x, y, z, depthScale) {
+    const geometry = new T.LatheGeometry(rings.map(([r, h]) => new T.Vector2(r, h)), 48);
+    return mesh(geometry, surface, x, y, z).scale.set(1, 1, depthScale);
+  }
+  accessories.straw = group(() => {
+    hatProfile(oatmeal, [[0, -0.015], [0.50, -0.022], [0.53, -0.002], [0.51, 0.017],
+      [0.35, 0.060], [0.32, 0.17], [0.24, 0.243], [0.13, 0.268], [0, 0.274]],
+    0, 0.91, 0, 0.84);
+    hatProfile(ribbon, [[0.368, 0.005], [0.354, 0.025], [0.349, 0.074], [0.342, 0.082]],
+      0, 0.957, 0, 0.84);
+    for (const r of [0.42, 0.455, 0.487, 0.517]) {
+      const ring = mesh(new T.TorusGeometry(r, 0.0042, 6, 52), strawEdge, 0, 1.035 - r * 0.218, 0);
+      ring.rotation.x = Math.PI / 2;
+      ring.scale.y = 0.84;
+    }
+    const bow = group(() => {
+      oval(ribbon, -0.043, 0, 0, 0.058, 0.026, 0.016).rotation.z = -0.30;
+      oval(ribbon, 0.043, 0, 0, 0.058, 0.026, 0.016).rotation.z = 0.30;
+      oval(beretWool, 0, 0, -0.012, 0.022, 0.029, 0.019);
+    });
+    bow.position.set(0.303, 1.015, -0.157);
+    bow.rotation.y = -0.93;
+    scene.add(bow);
+  });
+  accessories.beret = group(() => {
+    const crown = oval(beretWool, 0.041, 1.035, 0.023, 0.408, 0.112, 0.321);
+    crown.rotation.z = -0.17;
+    oval(ribbon, 0.024, 0.980, 0.025, 0.357, 0.061, 0.281).rotation.z = -0.12;
+    oval(beretWool, 0.101, 1.145, 0.041, 0.017, 0.021, 0.015).rotation.z = -0.36;
+  });
+  accessories.conductor = group(() => {
+    hatProfile(midnight, [[0, 0], [0.369, 0], [0.379, 0.022], [0.390, 0.066],
+      [0.375, 0.126], [0.319, 0.175], [0.201, 0.202], [0, 0.211]],
+    0, 0.919, 0.010, 0.83);
+    oval(ink, 0, 0.941, -0.265, 0.296, 0.033, 0.174).rotation.x = -0.13;
+    cord(brass, [[-0.279, 0.953, -0.209], [-0.152, 0.963, -0.292],
+      [0, 0.967, -0.323], [0.152, 0.963, -0.292], [0.279, 0.953, -0.209]], 0.010);
+    box(0.080, 0.067, 0.018, brass, 0, 1.031, -0.329, 0.014);
+    box(0.046, 0.029, 0.021, navyTrim, 0, 1.036, -0.343, 0.006);
+    for (const x of [-0.014, 0.014]) oval(brass, x, 1.013, -0.348, 0.007, 0.007, 0.005);
+  });
+  accessories.backpack = group(() => {
+    box(0.307, 0.294, 0.133, packLeather, 0, 0.293, 0.191, 0.054);
+    box(0.270, 0.111, 0.044, capLeather, 0, 0.356, 0.257, 0.026);
+    box(0.184, 0.095, 0.035, trim, 0, 0.247, 0.260, 0.019);
+    const bedroll = mesh(new T.CylinderGeometry(0.055, 0.055, 0.326, 24), oatmeal, 0, 0.447, 0.199);
+    bedroll.rotation.z = Math.PI / 2;
+    for (const side of [-1, 1]) {
+      const belt = mesh(new T.TorusGeometry(0.055, 0.009, 7, 24), capLeather, side * 0.107, 0.447, 0.199);
+      belt.rotation.y = Math.PI / 2;
+      oval(strawEdge, side * 0.165, 0.447, 0.199, 0.004, 0.040, 0.040);
+      cord(capLeather, [[side * 0.122, 0.399, 0.182], [side * 0.159, 0.445, 0.002],
+        [side * 0.155, 0.337, -0.128], [side * 0.129, 0.219, -0.086]], 0.018);
+    }
+  });
+  function uniformShell(surface) {
+    const tunic = mesh(body.geometry, surface, body.position.x, body.position.y + 0.002, body.position.z);
+    tunic.scale.set(1.045, 1.05, 1.09);
+  }
+  accessories.hoodie = group(() => {
+    uniformShell(hoodieFleece);
+    oval(hoodieRib, 0, 0.162, 0.012, 0.197, 0.025, 0.127);
+    oval(hoodieRib, 0, 0.427, 0.078, 0.199, 0.078, 0.138);
+    oval(hoodieFleece, 0, 0.428, -0.025, 0.174, 0.040, 0.122);
+    box(0.177, 0.074, 0.028, hoodieRib, 0, 0.232, -0.145, 0.019);
+    for (const side of [-1, 1]) {
+      cord(cream, [[side * 0.048, 0.409, -0.130], [side * 0.060, 0.351, -0.148],
+        [side * 0.049, 0.309, -0.156]], 0.008);
+      oval(softGold, side * 0.049, 0.307, -0.156, 0.010, 0.014, 0.009);
+    }
+  });
+  accessories.uniform = group(() => {
+    uniformShell(midnight);
+    box(0.038, 0.124, 0.017, cream, 0, 0.369, -0.132, 0.011);
+    box(0.019, 0.079, 0.019, ribbon, 0, 0.371, -0.145, 0.006);
+    for (const side of [-1, 1]) {
+      const lapel = box(0.053, 0.111, 0.024, navyTrim, side * 0.044, 0.369, -0.139, 0.014);
+      lapel.rotation.z = side * 0.37;
+      box(0.072, 0.046, 0.022, navyTrim, side * 0.111, 0.239, -0.139, 0.010);
+      box(0.069, 0.013, 0.020, softGold, side * 0.111, 0.257, -0.151, 0.006);
+    }
+    for (const y of [0.314, 0.260, 0.206]) oval(brass, 0, y, -0.157, 0.013, 0.013, 0.007);
+  });
+  const bareArms = arms.map(arm => arm.children[0]);
+  const sleeves = {};
+  for (const [name, fabric, cuff] of [['hoodie', hoodieFleece, hoodieRib], ['uniform', midnight, softGold]]) {
+    sleeves[name] = arms.map((arm, i) => {
+      const side = i === 0 ? -1 : 1;
+      const sleeve = group(() => {
+        oval(fabric, side * 0.057, -0.076, -0.006, 0.082, 0.101, 0.087).rotation.z = side * 0.28;
+        oval(cuff, side * 0.082, -0.146, -0.006, 0.080, 0.021, 0.083).rotation.z = side * 0.28;
+        oval(skin, side * 0.087, -0.165, -0.006, 0.067, 0.062, 0.073).rotation.z = side * 0.28;
+      });
+      arm.add(sleeve);
+      return sleeve;
+    });
+  }
   for (const headwear of [accessories.pilot, accessories.headphones]) {
     headwear.scale.copy(head.scale);
     headwear.position.y = mochiHeadY - 1.077 * mochiHeadHeightScale;
@@ -1339,13 +1462,20 @@ function buildMascot() {
   mascot.add(...scene.children.slice(start));
   const headPivot = new T.Group();
   headPivot.position.y = mochiHeadY;
-  for (const part of [head, cheekDecal, ...Object.values(expressions), accessories.pilot, accessories.headphones]) {
+  for (const part of [head, cheekDecal, ...Object.values(expressions), accessories.pilot, accessories.headphones,
+    accessories.straw, accessories.beret, accessories.conductor]) {
     part.position.y -= mochiHeadY;
     headPivot.add(part);
   }
+  for (const hat of [accessories.pilot, accessories.straw, accessories.beret, accessories.conductor, accessories.headphones]) {
+    const anchor = hat === accessories.headphones ? 0.07 : 0.26;
+    hat.scale.multiplyScalar(1.2);
+    hat.position.y = anchor + (hat.position.y - anchor) * 1.2 - 0.012;
+  }
   const pose = new T.Group();
   const upper = new T.Group();
-  upper.add(body, headPivot, scarf, accessories.satchel, ...arms);
+  upper.add(body, headPivot, scarf, accessories.satchel, accessories.backpack,
+    accessories.hoodie, accessories.uniform, ...arms);
   pose.add(upper, ...feet);
   mascot.add(shadow, pose);
   mascot.position.z = 5.95;
@@ -1367,16 +1497,21 @@ function buildMascot() {
     for (const face of Object.values(expressions)) face.material.color.setScalar(0.23 + amount * 0.77);
   }
 
-  function applyStyle({ color, accessory, expression }) {
+  function applyStyle({ color, hat, clothes, bag, scarf: scarfChoice, expression }) {
     skinBase.set(mascotColors[color][0]);
     blushBase.set(mascotColors[color][1]);
     setLighting(illumination, true);
-    accessories.pilot.visible = accessory === 'pilot' || accessory === 'cap';
-    accessories.satchel.visible = accessory === 'pilot' || accessory === 'satchel';
-    accessories.headphones.visible = accessory === 'headphones';
+    for (const [name, part] of Object.entries(accessories)) {
+      part.visible = [hat, clothes, bag].includes(name === 'pilot' ? 'cap' : name);
+    }
+    for (const [name, parts] of Object.entries(sleeves)) {
+      for (const part of parts) part.visible = clothes === name;
+    }
+    body.visible = clothes === 'none';
+    for (const arm of bareArms) arm.visible = body.visible;
+    scarf.visible = scarfChoice === 'scarf';
     selectedExpression = expression;
     showFace(null, 0);
-    scarf.visible = accessory === 'pilot' || accessory === 'scarf';
   }
   let visibleExpression;
   function showFace(override, time) {
@@ -1509,8 +1644,23 @@ function setupMascotCustomizer(avatar, renderer, onChange, onOpen) {
   const button = document.querySelector('#avatar-toggle');
   const panel = document.querySelector('#avatar-panel');
   const controls = Array.from(panel.querySelectorAll('select'));
+  const byName = Object.fromEntries(controls.map(control => [control.name, control]));
+  const orbit = panel.querySelector('#avatar-orbit');
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(mascotStorageKey)) ?? {}; } catch {}
+  if (saved.accessory && !saved.outfit) {
+    const legacy = {
+      pilot: ['cap', 'none', 'satchel', 'scarf'],
+      cap: ['cap', 'none', 'none', 'none'],
+      satchel: ['none', 'none', 'satchel', 'none'],
+      headphones: ['headphones', 'none', 'none', 'none'],
+    };
+    const slots = legacy[saved.accessory] ?? outfitPresets[saved.accessory];
+    if (slots) {
+      saved.outfit = saved.accessory === 'plain' || saved.accessory === 'scarf' ? saved.accessory : 'custom';
+      outfitSlots.forEach((slot, i) => { saved[slot] = slots[i]; });
+    }
+  }
   for (const control of controls) {
     const value = saved[control.name];
     control.value = Array.from(control.options).some(option => option.value === value)
@@ -1531,7 +1681,7 @@ function setupMascotCustomizer(avatar, renderer, onChange, onOpen) {
       const key = new T.DirectionalLight('#ffe9d3', 2.0);
       key.position.set(-3, 4, -4);
       studio.add(key);
-      const camera = new T.PerspectiveCamera(36, 252 / 208, 0.05, 15);
+      const camera = new T.PerspectiveCamera(39, 252 / 208, 0.05, 15);
       camera.position.set(0, 0.87, -2.32);
       camera.lookAt(0, 0.55, 0);
       const turntable = new T.Group();
@@ -1541,7 +1691,7 @@ function setupMascotCustomizer(avatar, renderer, onChange, onOpen) {
     const { display, studio, camera, turntable } = preview;
     const model = avatar.mascot.clone();
     model.position.set(0, 0, 0);
-    model.rotation.set(0, -0.22, 0);
+    model.rotation.set(0, T.MathUtils.degToRad(Number(orbit.value)) - 0.22, 0);
     model.visible = true;
     turntable.clear();
     turntable.add(model);
@@ -1558,7 +1708,19 @@ function setupMascotCustomizer(avatar, renderer, onChange, onOpen) {
       try { drawPreview(); } catch { panel.querySelector('.avatar-preview').hidden = true; }
     }
   }
-  panel.addEventListener('change', () => apply(true));
+  orbit.addEventListener('input', () => {
+    if (preview) drawPreview();
+  });
+  panel.addEventListener('change', event => {
+    if (event.target === orbit) return;
+    if (event.target === byName.outfit) {
+      const slots = outfitPresets[byName.outfit.value];
+      if (slots) outfitSlots.forEach((slot, i) => { byName[slot].value = slots[i]; });
+    } else if (outfitSlots.includes(event.target.name)) {
+      byName.outfit.value = 'custom';
+    }
+    apply(true);
+  });
   button.addEventListener('click', () => {
     onOpen();
     panel.showModal();
