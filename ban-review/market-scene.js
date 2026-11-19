@@ -1311,12 +1311,12 @@ function phoShop(parent, m, x) {
       ctx.stroke();
     }
   });
-  box(shop, fascia, 0, 2.66, entrance + 0.48, 3.73, 0.68, 0.13);
+  box(shop, fascia, 0, 2.66, entrance + 0.72, 3.73, 0.68, 0.13);
   for (const side of [-1, 1]) {
-    box(shop, m.iron, side * 1.75, 2.51, entrance + 0.20, 0.045, 0.05, 0.49);
+    box(shop, m.iron, side * 1.75, 2.51, entrance + 0.33, 0.045, 0.05, 0.72);
   }
   mesh(shop, new T.PlaneGeometry(3.69, 0.65),
-    new T.MeshBasicMaterial({ map: publicName, toneMapped: false }), 0, 2.66, entrance + 0.549);
+    new T.MeshBasicMaterial({ map: publicName, toneMapped: false }), 0, 2.66, entrance + 0.789);
   box(shop, jade, 0, 2.31, entrance + 0.12, 3.86, 0.10, 0.32);
   box(shop, inside, 0, 1.25, entrance - 0.63, 3.29, 2.14, 0.08);
   for (const side of [-1, 1]) {
