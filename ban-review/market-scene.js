@@ -176,8 +176,8 @@ function foldedBlade(width, height, fold) {
 const vineLeafGeo = foldedBlade(0.11, 0.17, 0.018);
 const bractGeo = foldedBlade(0.082, 0.108, 0.018);
 
-function vine(parent, m, x, y, z, length, bloom, random) {
-  const branches = bloom ? 10 : 7;
+function vine(parent, m, x, y, z, length, bloom, random, samples = 12) {
+  const branches = Math.min(bloom ? 10 : 7, samples);
   for (let branch = 0; branch < branches; branch++) {
     const spread = (branch / (branches - 1) - 0.5) * (0.93 + length * 0.23);
     const trailing = length * (0.45 + random() * 0.65);
@@ -188,8 +188,8 @@ function vine(parent, m, x, y, z, length, bloom, random) {
       z + Math.sin(t * Math.PI * 0.77) * 0.34 + t * 0.12,
     ];
     tube(parent, m.darkWood, [path(0), path(0.34), path(0.71), path(1)], 0.0055);
-    for (let i = 0; i < 12; i++) {
-      const t = (i + random() * 0.6) / 12;
+    for (let i = 0; i < samples; i++) {
+      const t = (i + random() * 0.6) / samples;
       const [px, py, pz] = path(t);
       const sign = i % 2 ? -1 : 1;
       const leaf = mesh(parent, vineLeafGeo, m.green[(branch + i) % 3],
@@ -450,6 +450,29 @@ function marketBalcony(home, m, width, y, depth, bowed) {
   }
 }
 
+function balconyPlant(home, m, x, deck, front, bloom, random) {
+  const plant = groupAt(home, bloom ? 'Balcony bougainvillea' : 'Balcony potted plant', x, deck, front);
+  const clay = m.tiles[bloom ? 1 : 2];
+  box(plant, clay, 0, 0.13, -0.11, 0.43, 0.26, 0.32);
+  box(plant, clay, 0, 0.25, -0.11, 0.47, 0.064, 0.36);
+  box(plant, m.crevice, 0, 0.282, -0.11, 0.38, 0.012, 0.27);
+  if (bloom) {
+    for (const side of [-1, 1]) {
+      rod(plant, m.darkWood, [0, 0.28, -0.11], [side * 0.20, 0.52, 0.04], 0.009);
+    }
+    vine(plant, m, 0, 0.49, 0.06, 0.66 + random() * 0.29, true, random, 7);
+    return;
+  }
+  for (let i = 0; i < 8; i++) {
+    const angle = i * 2.4;
+    const dx = Math.cos(angle), dz = Math.sin(angle);
+    const tip = [dx * 0.17, 0.53 + random() * 0.29, -0.11 + dz * 0.15];
+    rod(plant, m.green[0], [0, 0.28, -0.11], tip, 0.006);
+    const leaf = mesh(plant, vineLeafGeo, m.green[i % 3], ...tip, 1.45, 1.70, 1);
+    leaf.rotation.set(0.73, angle, -0.58);
+  }
+}
+
 function marketRoof(home, m, x, width, height, metal) {
   const color = metal ? m.teal[0] : m.tiles[2];
   const length = metal ? 1.06 : 1.60;
@@ -528,8 +551,13 @@ function architecturePrototype(parent, m, x, variant, random, photoStyle) {
     marketBalcony(home, m, variant === 2 ? width * 0.68 : width * 0.84,
       balconyY, variant === 1 ? 0.77 : 0.63, variant === 1);
     const plantX = variant === 0 ? 0.68 : -0.64;
-    box(home, m.tiles[2], plantX, balconyY + 0.27, 0.44, 0.39, 0.20, 0.24);
-    vine(home, m, plantX, balconyY + 0.45, 0.59, floor ? 0.49 : 0.94, variant !== 1 || floor === 0, random);
+    if (photoStyle) {
+      balconyPlant(home, m, plantX, balconyY + 0.095, variant === 1 ? 0.77 : 0.63,
+        variant !== 1 || floor === 0, random);
+    } else {
+      box(home, m.tiles[2], plantX, balconyY + 0.27, 0.44, 0.39, 0.20, 0.24);
+      vine(home, m, plantX, balconyY + 0.45, 0.59, floor ? 0.49 : 0.94, variant !== 1 || floor === 0, random);
+    }
     if (variant === 1 || variant === 2) marketWallUnit(home, m, width / 2 - 0.39, lintel - 0.36);
   }
   if (variant === 2) {
@@ -1407,6 +1435,12 @@ function placeMarketHouses(parent, { fronts, material }, m, pitches, variants, s
           const railX = (j / 9 - 0.5) * (span - 0.12);
           if (roof === 'veranda') mesh(home, balusterGeo, rail, railX, bottom + 0.20, face + 0.52, 0.047, 0.45, 0.047);
           else box(home, rail, railX, bottom + 0.20, face + 0.52, 0.045, 0.51, 0.045);
+        }
+        const planterSide = (sectionIndex + i + Number(bottom > 4)) % 2 ? 1 : -1;
+        const bloom = (sectionIndex + i + Number(bottom > 4)) % 3 !== 1;
+        balconyPlant(home, m, planterSide * span * 0.33, bottom + 0.035, face + 0.48, bloom, random);
+        if (span > 3.5 && !bloom) {
+          balconyPlant(home, m, -planterSide * span * 0.33, bottom + 0.035, face + 0.44, false, random);
         }
       }
       previousTop = top;
