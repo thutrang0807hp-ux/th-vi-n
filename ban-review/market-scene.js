@@ -1066,35 +1066,39 @@ function textilesAnnex(parent, m, x) {
   }
 }
 
-function overheadLines(parent, m, poleLocations, { connectPoles }) {
+function overheadLines(parent, m, poleLocations) {
   const height = 5.62, setback = 2.51;
   const connectors = [-0.67, -0.27, 0.27, 0.67];
-  const poleGeometry = new T.CylinderGeometry(0.067, 0.11, height + 0.34, 8);
+  const concrete = material('#7b786c');
+  const footing = material('#55554a');
+  const insulator = material('#d9ca9e');
   for (const x of poleLocations.slice(1)) {
     const pole = groupAt(parent, 'Wooden power pole with porcelain insulators', x, 0, setback);
-    mesh(pole, poleGeometry, m.timber, 0, (height + 0.34) / 2, 0);
-    box(pole, m.darkWood, 0.073, height, 0, 0.145, 0.11, 1.64);
+    box(pole, m.darkWood, 0, (height + 0.31) / 2, 0, 0.15, height + 0.31, 0.16);
+    box(pole, concrete, 0.04, 0.80, 0, 0.24, 1.60, 0.27);
+    box(pole, footing, 0.04, 0.19, 0, 0.244, 0.38, 0.274);
+    for (const y of [0.89, 1.35, 1.44]) box(pole, m.iron, 0.035, y, 0, 0.27, 0.045, 0.30);
+    box(pole, m.darkWood, 0.073, height, 0, 0.145, 0.125, 1.64);
     for (const side of [-1, 1]) {
-      rod(pole, m.darkWood, [0.073, height - 0.45, 0], [0.073, height - 0.056, side * 0.61], 0.033);
-      rod(pole, m.wire, [-0.041, 1.12, side * 0.074], [-0.029, height - 0.61, side * 0.061], 0.008);
+      const brace = box(pole, m.timber, 0.073, height - 0.42, side * 0.31, 0.075, 0.94, 0.065);
+      brace.rotation.x = side * 0.72;
     }
     for (const z of connectors) {
-      const insulator = mesh(pole, cylinderGeo, m.enamel, 0.071, height + 0.10, z, 0.042, 0.088, 0.042);
-      insulator.rotation.z = 0.12;
-      mesh(pole, cylinderGeo, m.wire, 0.066, height + 0.148, z, 0.036, 0.027, 0.036);
+      mesh(pole, cylinderGeo, insulator, 0.071, height + 0.11, z, 0.037, 0.11, 0.037);
+      mesh(pole, cylinderGeo, insulator, 0.071, height + 0.14, z, 0.067, 0.034, 0.067);
+      mesh(pole, cylinderGeo, m.iron, 0.071, height + 0.183, z, 0.015, 0.056, 0.015);
     }
   }
-  if (!connectPoles) return;
   for (let i = 1; i < poleLocations.length; i++) {
     const start = poleLocations[i - 1] + 0.066, end = poleLocations[i] + 0.066;
     for (const [wire, offset] of connectors.entries()) {
       const z = setback + offset;
       const path = [0, 0.25, 0.5, 0.75, 1].map(t => [
         T.MathUtils.lerp(start, end, t),
-        height + 0.157 - (0.33 + (end - start) * 0.024 + wire * 0.022) * 4 * t * (1 - t),
+        height + 0.18 - (0.32 + (end - start) * 0.032 + wire * 0.022) * 4 * t * (1 - t),
         z + Math.sin(t * Math.PI) * (wire - 1.5) * 0.025,
       ]);
-      tube(parent, m.wire, path, 0.008);
+      tube(parent, m.wire, path, 0.009);
     }
   }
 }
@@ -1153,22 +1157,38 @@ const photoFrontages = [
     ],
     sign: [122, 221, 220, 239], shop: [108, 298, 309, 372],
   },
+  {
+    origin: [0, 0], height: 6.55, shopWidth: 0.79, roof: 'greenShop',
+    floors: [
+      { bottom: 2.94, top: 4.18, windows: [[65, 213, 166, 247], [253, 191, 293, 237]] },
+      { bottom: 4.65, top: 6.13, windows: [[24, 75, 67, 113], [149, 65, 196, 117]], balcony: true },
+    ],
+    sign: [54, 330, 170, 351], shop: [53, 365, 122, 395],
+  },
+  {
+    origin: [0, 512], height: 6.23, shopWidth: 0.74, roof: 'veranda',
+    floors: [
+      { bottom: 2.94, top: 4.22, windows: [[130, 193, 225, 247], [244, 195, 332, 248]], balcony: true },
+      { bottom: 4.70, top: 5.82, windows: [[119, 83, 217, 115], [241, 88, 326, 116]], balcony: true, setback: 0.25 },
+    ],
+    sign: [154, 323, 385, 341], shop: [152, 354, 354, 397],
+  },
 ];
 const limewash = {
-  ochre: new T.Color('#ecc066'),
-  paleYellow: new T.Color('#f9de95'),
-  mustard: new T.Color('#dbaa59'),
-  cream: new T.Color('#f3ead1'),
-  sage: new T.Color('#b2c3a8'),
-  rose: new T.Color('#d9aba4'),
-  blueGray: new T.Color('#a7bdc6'),
+  ochre: new T.Color('#e7aa45'),
+  paleYellow: new T.Color('#f2ce83'),
+  mustard: new T.Color('#cd923a'),
+  cream: new T.Color('#f5e9ce'),
+  sage: new T.Color('#a7a98c'),
+  smoke: new T.Color('#bcb39d'),
 };
 const streetColors = [
   [limewash.ochre, limewash.cream, limewash.paleYellow, limewash.sage],
-  [limewash.mustard, limewash.rose, limewash.ochre, limewash.blueGray],
+  [limewash.mustard, limewash.smoke, limewash.ochre, limewash.cream],
   [limewash.paleYellow, limewash.sage, limewash.mustard, limewash.cream],
-  [limewash.ochre, limewash.blueGray, limewash.paleYellow, limewash.rose],
+  [limewash.ochre, limewash.smoke, limewash.paleYellow, limewash.cream],
 ];
+const streetFronts = [[0, 3, 4, 2], [4, 0, 1, 3], [2, 4, 0, 1], [3, 1, 2, 4]];
 
 function tintVertices(geometry, { r, g, b }) {
   const colors = new Float32Array(geometry.attributes.position.count * 3);
@@ -1236,19 +1256,40 @@ function plasterBox(home, material, tint, frontageWidth, frontageHeight, x, y, z
   return mesh(home, geometry, material, 0, 0, 0);
 }
 
+function louverShutters(home, m, x, y, face, opening, height, open) {
+  const leafWidth = opening * 0.48;
+  for (const side of [-1, 1]) {
+    const leaf = groupAt(home, 'Dark green louver shutter', x + side * opening / 2, y, face + 0.085);
+    leaf.rotation.y = open ? side * Math.PI * 0.60 : 0;
+    const center = -side * leafWidth / 2;
+    const stile = 0.055;
+    for (const edge of [-1, 1]) {
+      box(leaf, m.teal[0], center + edge * (leafWidth - stile) / 2, 0, 0, stile, height, 0.073);
+      box(leaf, m.teal[0], center, edge * (height - stile) / 2, 0, leafWidth, stile, 0.073);
+    }
+    const slats = Math.round(height / 0.08);
+    for (let j = 0; j < slats; j++) {
+      const slat = box(leaf, j % 4 === 1 ? m.teal[1] : m.teal[2], center,
+        ((j + 0.5) / slats - 0.5) * (height - 0.13), 0, leafWidth - 2 * stile, 0.062, 0.041);
+      slat.rotation.x = 0.25;
+    }
+  }
+}
+
 function placeMarketHouses(parent, { fronts, material }, m, pitches, variants, sectionIndex, random) {
   const widths = [4.48, 4.40, 4.54, 4.46];
   pitches.forEach((x, i) => {
-    const tint = streetColors[sectionIndex][i];
+    const design = streetFronts[sectionIndex][i];
+    const tint = design === 3 ? limewash.mustard : design === 4 ? limewash.cream : streetColors[sectionIndex][i];
     if (sectionIndex < 3 && i === sectionIndex) {
-      const front = fronts[(sectionIndex + 2) % fronts.length];
-      architecturePrototype(parent, m, x, sectionIndex, random, { front, material, tint });
+      const front = fronts[(sectionIndex + 2) % 3];
+      architecturePrototype(parent, m, x, sectionIndex, random, { front, material, tint: streetColors[sectionIndex][i] });
       return;
     }
     const variant = variants[i];
-    const { floors, sign, shop, roof, height, shopWidth: shopRatio } = fronts[(sectionIndex + i) % fronts.length];
+    const { floors, sign, shop, roof, height, shopWidth: shopRatio } = fronts[design];
     const home = groupAt(parent, 'Photo-textured shophouse', x, 0.075, -0.85);
-    const width = widths[variant];
+    const width = roof === 'veranda' ? 3.58 : roof === 'greenShop' ? 3.91 : widths[variant];
     const wall = (...dimensions) => plasterBox(home, material, tint, width, height, ...dimensions);
     // This rear volume leaves room for the window reveals in the street-facing wall.
     wall(0, height / 2, -1.91, width, height, 2.46);
@@ -1275,16 +1316,24 @@ function placeMarketHouses(parent, { fronts, material }, m, pitches, variants, s
         for (const side of [-1, 1]) {
           box(home, m.trim, u + side * opening / 2, windowY, face, 0.10, windowHeight, 0.13);
         }
+        if (roof === 'greenShop') {
+          box(home, m.teal[0], u, windowY, face - 0.20, 0.06, windowHeight, 0.048);
+          louverShutters(home, m, u, windowY, face, opening, windowHeight - 0.045,
+            (index + sectionIndex + Number(bottom > 4)) % 3 !== 0);
+        }
         box(home, m.sill, u, bottom + 0.015, face + 0.05, opening + 0.22, 0.12, 0.22);
       });
       wall((previous + width / 2) / 2, windowY, face - pierDepth / 2,
         width / 2 - previous, windowHeight, pierDepth);
       if (balcony) {
         const span = roof === 'pediment' ? width * 0.57 : width - 0.52;
-        box(home, m.sill, 0, bottom - 0.04, face + 0.24, span, 0.15, 0.65);
-        box(home, m.iron, 0, bottom + 0.45, face + 0.52, span - 0.05, 0.06, 0.06);
+        const rail = roof === 'greenShop' ? m.teal[0] : roof === 'veranda' ? m.trim : m.iron;
+        box(home, roof === 'greenShop' ? rail : m.sill, 0, bottom - 0.04, face + 0.24, span, 0.15, 0.65);
+        box(home, rail, 0, bottom + 0.45, face + 0.52, span - 0.05, 0.06, 0.06);
         for (let j = 0; j < 10; j++) {
-          box(home, m.iron, (j / 9 - 0.5) * (span - 0.12), bottom + 0.20, face + 0.52, 0.045, 0.51, 0.045);
+          const railX = (j / 9 - 0.5) * (span - 0.12);
+          if (roof === 'veranda') mesh(home, balusterGeo, rail, railX, bottom + 0.20, face + 0.52, 0.047, 0.45, 0.047);
+          else box(home, rail, railX, bottom + 0.20, face + 0.52, 0.045, 0.51, 0.045);
         }
       }
       previousTop = top;
@@ -1295,6 +1344,13 @@ function placeMarketHouses(parent, { fronts, material }, m, pitches, variants, s
     const roofSurface = roof === 'metal' ? m.iron : m.tiles[variant];
     const cap = box(home, roofSurface, 0, height, -1.48, width + 0.12, 0.11, 3.28);
     if (roof === 'metal') cap.rotation.x = -0.09;
+    if (roof === 'greenShop' || roof === 'veranda') {
+      const shade = box(home, m.teal[2], 0, height + 0.16, -0.10, width + 0.25, 0.10, 1.14);
+      shade.rotation.x = 0.10;
+      for (const side of [-1, 1]) {
+        box(home, m.teal[0], side * (width / 2 - 0.18), height - 0.23, 0.36, 0.056, 0.76, 0.056);
+      }
+    }
     if (roof === 'terrace') {
       wall(0, height + 0.12, 0.01, width, 0.24, 0.22);
       box(home, m.sill, 0, height + 0.25, 0.01, width + 0.08, 0.07, 0.26);
@@ -1397,9 +1453,7 @@ export function buildMarketPreview(scene, marketHouses) {
   const overhead = new T.Group();
   overhead.position.set(9.5, -0.17, 4.70);
   overhead.rotation.y = -Math.PI / 2;
-  // Keep the poles with their insulators. Skip the spans over the photo-textured blocks.
-  overheadLines(overhead, m, [-64.4, -59.8, -50.6, -41.4, -32.2, -23, -13.8, -4.6, 4.6, 9.2],
-    { connectPoles: !marketHouses });
+  overheadLines(overhead, m, [-64.4, -59.8, -50.6, -41.4, -32.2, -23, -13.8, -4.6, 4.6, 9.2]);
   const poles = batchStatic(overhead, paintedSurfaces);
   poles.name = 'Market power poles';
   tile.add(poles);
