@@ -1,17 +1,17 @@
-# Nhà phố Hà Nội
+# Nhà phố Hà Nội trong cảnh chợ
 
-`model.glb` dùng hình khối từ file `../hanoi_old_town_house.glb` do người dùng gửi. Mặt tiền mở về +Z, trục đứng +Y. Tường, ban công, hốc cửa, nan mái và cột vẫn là mesh. Mặt cửa sổ gồm hai tam giác đặt trong hốc, dùng texture ghép từ ảnh vân gỗ và các lớp màu cho nan chớp, khung và kính. Mô hình giữ các mặt bên và phía sau của GLB nguồn.
+`model.glb` là khối hộp 3D theo kích thước của mẫu cũ `../hanoi_old_town_house.glb`. Mặt hướng về toa (+Z) dùng một vùng ảnh mặt tiền quán ở góc phố Tạ Hiện – Lương Ngọc Quyến. Vùng ảnh được cắt, nắn phối cảnh và trải trực tiếp lên mặt hộp. Cửa chớp, phào và biển quán nằm trong ảnh. Các mặt còn lại dùng ảnh vật liệu tường hoặc ngói.
 
-Atlas màu 2048 × 2048 dùng ảnh bề mặt CC0 của Poly Haven, đã cân lại màu theo các ảnh nhà phố trong chat. Các ảnh tham chiếu trong chat dùng để đối chiếu, vì workspace không có file ảnh gốc để nắn phối cảnh. Texture mặt bên và sau dùng cùng bảng vật liệu, mang tính suy luận.
+Ảnh mặt tiền của Pasztilla (Attila Terbócs), [Hanoi, Vietnam 2019-09 01](https://commons.wikimedia.org/wiki/File:Hanoi,_Vietnam_2019-09_01.jpg), giấy phép [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Bản crop và phần ảnh biến đổi trong atlas nhúng dùng cùng giấy phép. Tường và ngói lấy từ [Damaged Plaster](https://polyhaven.com/a/damaged_plaster) và [Clay Roof Tiles 02](https://polyhaven.com/a/clay_roof_tiles_02) của Poly Haven (CC0).
 
-- [Damaged Plaster](https://polyhaven.com/a/damaged_plaster)
-- [Wood Planks Grey](https://polyhaven.com/a/wood_planks_grey)
-- [Clay Roof Tiles 02](https://polyhaven.com/a/clay_roof_tiles_02)
-- [Worn Corrugated Iron](https://polyhaven.com/a/worn_corrugated_iron)
-- [Giấy phép tài nguyên Poly Haven](https://polyhaven.com/license)
+GLB có 12 tam giác, một mesh, một vật liệu và atlas JPEG 1024 × 1024. Dung lượng file khoảng 345 KiB.
 
-GLB có 3.576 tam giác, một vật liệu và ba nhóm mesh. File khoảng 1,60 MiB. Chuyển các chi tiết cửa sổ từ mesh sang texture giảm từ 5.292 xuống 3.576 tam giác. Atlas JPEG được nhúng trong GLB, dự kiến dùng khoảng 21,3 MiB trên GPU khi giải mã thành RGBA8 có mipmaps. Trong cảnh chợ chỉ giữ nhóm `Architecture` để ghép với bạt, quầy và nền phố hiện có.
+Mở `viewer.html` qua HTTP để xoay và zoom. Trong cảnh chợ, mở `ban-review/market-preview.html` và ngồi ở góc POV hướng qua cửa sổ.
 
-Mở `viewer.html` qua HTTP để xoay, dịch, zoom hoặc đặt lại camera. Trang dùng Three.js và OrbitControls r164.1 theo [giấy phép MIT](../../vendor/three-r164/LICENSE). Trong Lofi Train, mở `ban-review/market-preview.html` hoặc `toa-tau/lang-3d.html?scene=market-preview`, rồi nhìn qua cửa sổ phía quầy vải và đồ gia dụng.
+Để bake lại, chạy trong thư mục này với NumPy và Pillow:
 
-Để bake lại, chạy `python3 bake.py ../hanoi_old_town_house.glb` trong thư mục này với NumPy và Pillow. Các ảnh nguồn nằm trong `textures/`.
+```sh
+python3 bake.py ../hanoi_old_town_house.glb --frontage textures/ta-hien-frontage.jpg
+```
+
+Chế độ bake model chi tiết cũ vẫn có thể chạy bằng cách bỏ `--frontage` và chỉ định `--output` đến một file khác.

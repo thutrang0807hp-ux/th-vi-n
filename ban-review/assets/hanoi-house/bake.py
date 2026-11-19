@@ -87,6 +87,22 @@ def photo_atlas():
         canvas.paste(Image.fromarray(tile.astype(np.uint8)), ((index % 4) * CELL, (index // 4) * CELL))
     for index, tint in enumerate([(104, 145, 119), (157, 97, 68)]):
         canvas.paste(window_tile(sources[WOOD], tint), (CELL * 3 + index * CELL // 2, CELL * 3))
+    return encode_atlas(canvas)
+
+
+def box_atlas(frontage):
+    canvas = Image.new('RGB', (2 * CELL, 2 * CELL))
+    for slot, path in enumerate((frontage, ROOT / 'textures' / (PLASTER + '.jpg'),
+                                 ROOT / 'textures' / (TILES + '.jpg'))):
+        with Image.open(path) as photo:
+            image = ImageOps.fit(ImageOps.exif_transpose(photo).convert('RGB'),
+                                 (CELL - 2 * GUTTER, CELL - 2 * GUTTER))
+        tile = np.pad(np.asarray(image), ((GUTTER, GUTTER), (GUTTER, GUTTER), (0, 0)), mode='edge')
+        canvas.paste(Image.fromarray(tile), ((slot % 2) * CELL, (slot // 2) * CELL))
+    return encode_atlas(canvas)
+
+
+def encode_atlas(canvas):
     out = io.BytesIO()
     canvas.save(out, 'JPEG', quality=91, subsampling=0, optimize=True)
     return out.getvalue()
@@ -157,7 +173,34 @@ def collect(data, binary):
     return groups
 
 
-def pack(groups, atlas, output):
+def photo_box(data, binary):
+    original = collect(data, binary)['Architecture']
+    positions = np.concatenate([points for points, _, _ in original])
+    (left, bottom, back), (right, top, front) = positions.min(axis=0), positions.max(axis=0)
+    corners = np.array([
+        [left, bottom, front], [right, bottom, front], [right, top, front], [left, top, front],
+        [left, bottom, back], [right, bottom, back], [right, top, back], [left, top, back],
+    ])
+    faces = [
+        ([0, 1, 2, 3], [0, 0, 1], 0),
+        ([1, 5, 6, 2], [1, 0, 0], 1),
+        ([5, 4, 7, 6], [0, 0, -1], 1),
+        ([4, 0, 3, 7], [-1, 0, 0], 1),
+        ([3, 2, 6, 7], [0, 1, 0], 2),
+        ([4, 5, 1, 0], [0, -1, 0], 1),
+    ]
+    uvs = np.array([[0, 1], [1, 1], [1, 0], [0, 0]])
+    triangles = []
+    for indices, normal, slot in faces:
+        points = corners[indices]
+        origin = np.array([slot % 2, slot // 2]) * CELL + GUTTER
+        uv = (origin + uvs * (CELL - 2 * GUTTER)) / (2 * CELL)
+        for winding in ([0, 1, 2], [0, 2, 3]):
+            triangles.append((points[winding], np.repeat([normal], 3, axis=0), uv[winding]))
+    return {'Architecture': triangles}
+
+
+def pack(groups, atlas, output, atlas_dim=ATLAS_DIM):
     blob = bytearray()
     views, accessors, meshes, nodes = [], [], [], []
 
@@ -196,11 +239,17 @@ def pack(groups, atlas, output):
     out = struct.pack('<4sIIII', b'glTF', 2, 28 + len(baked_json) + len(blob), len(baked_json), 0x4E4F534A)
     output.write_bytes(out + baked_json + struct.pack('<II', len(blob), 0x004E4942) + blob)
     print(f'{output.name}: {sum(len(faces) for faces in groups.values())} triangles, '
-          f'{len(meshes)} draw groups, 1 material, {ATLAS_DIM} px atlas, {output.stat().st_size:,} bytes')
+          f'{len(meshes)} draw groups, 1 material, {atlas_dim} px atlas, {output.stat().st_size:,} bytes')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('source', type=Path)
+    parser.add_argument('--frontage', type=Path, help='Use a rectified photo on a simple box')
+    parser.add_argument('--output', type=Path, default=ROOT / 'model.glb')
     args = parser.parse_args()
-    pack(collect(*read_glb(args.source)), photo_atlas(), ROOT / 'model.glb')
+    data, binary = read_glb(args.source)
+    if args.frontage:
+        pack(photo_box(data, binary), box_atlas(args.frontage), args.output, 2 * CELL)
+    else:
+        pack(collect(data, binary), photo_atlas(), args.output)
