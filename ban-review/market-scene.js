@@ -450,6 +450,61 @@ function marketBalcony(home, m, width, y, depth, bowed) {
   }
 }
 
+function bougainvilleaCrown(random) {
+  const positions = [], colors = [];
+  const pose = new T.Object3D(), vertex = new T.Vector3();
+  const leaves = ['#394d25', '#61723a', '#829447'].map(color => new T.Color(color));
+  const flowers = ['#962953', '#c22868', '#e74b8f', '#ee6aa7', '#f593ba'].map(color => new T.Color(color));
+  const petal = [
+    -0.039, -0.032, 0, 0.019, -0.038, 0, 0.041, 0.028, 0,
+    -0.039, -0.032, 0, 0.041, 0.028, 0, -0.030, 0.045, -0.009,
+  ];
+  const blade = vineLeafGeo.attributes.position.array;
+  function append(shape, color, x, y, z, scale, angle) {
+    pose.position.set(x, y, z);
+    pose.rotation.set((random() - 0.5) * 1.55, (random() - 0.5) * 1.9, angle);
+    pose.scale.setScalar(scale);
+    pose.updateMatrix();
+    for (let i = 0; i < shape.length; i += 3) {
+      vertex.fromArray(shape, i).applyMatrix4(pose.matrix);
+      positions.push(vertex.x, vertex.y, vertex.z);
+      colors.push(color.r, color.g, color.b);
+    }
+  }
+  const mounds = [
+    [-0.64, 0.50, 0.10, 0.39, 0.34, 0.30],
+    [-0.24, 0.66, 0.06, 0.43, 0.36, 0.30],
+    [0.26, 0.58, 0.12, 0.43, 0.37, 0.31],
+    [0.68, 0.47, 0.10, 0.34, 0.31, 0.27],
+    [-0.42, 0.28, 0.30, 0.35, 0.36, 0.25],
+    [0.47, 0.25, 0.30, 0.30, 0.47, 0.26],
+  ];
+  for (const [index, [x, y, z, width, height, depth]] of mounds.entries()) {
+    const count = index < 4 ? 35 : 23;
+    for (let i = 0; i < count; i++) {
+      const vertical = 1 - 2 * (i + 0.5) / count;
+      const radius = Math.sqrt(1 - vertical * vertical);
+      const spin = i * 2.40 + index;
+      const px = x + width * radius * Math.cos(spin) + (random() - 0.5) * 0.08;
+      const py = y + height * vertical + (random() - 0.5) * 0.08;
+      const pz = z + depth * radius * Math.sin(spin);
+      append(blade, leaves[(i + index) % leaves.length], px, py, pz, 0.80 + random() * 0.53, spin);
+      if ((i + index) % 6 === 1) continue;
+      for (let bract = 0; bract < 3; bract++) {
+        const angle = spin + bract * Math.PI * 2 / 3;
+        append(petal, flowers[(i * 3 + bract + index) % flowers.length],
+          px + 0.042 * Math.cos(angle), py + 0.042 * Math.sin(angle), pz + 0.045,
+          0.73 + random() * 0.60, angle);
+      }
+    }
+  }
+  const geometry = new T.BufferGeometry();
+  geometry.setAttribute('position', new T.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new T.Float32BufferAttribute(colors, 3));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 function balconyPlant(home, m, x, deck, front, bloom, random) {
   const plant = groupAt(home, bloom ? 'Balcony bougainvillea' : 'Balcony potted plant', x, deck, front);
   const clay = m.tiles[bloom ? 1 : 2];
@@ -459,22 +514,9 @@ function balconyPlant(home, m, x, deck, front, bloom, random) {
   box(plant, m.crevice, 0, 0.282, -0.11, potWidth - 0.05, 0.012, 0.27);
   if (bloom) {
     for (const side of [-1, 1]) {
-      rod(plant, m.darkWood, [side * 0.28, 0.28, -0.11], [side * 0.38, 0.56, 0.04], 0.010);
-      vine(plant, m, side * 0.37, 0.53, 0.07, 0.65 + random() * 0.28, true, random, 6);
+      rod(plant, m.darkWood, [side * 0.25, 0.28, -0.11], [side * 0.54, 0.55, 0.08], 0.011);
     }
-    for (let i = 0; i < 32; i++) {
-      const along = i / 31 - 0.5;
-      const x = along * 1.58, y = 0.47 + random() * 0.34, z = -0.09 + random() * 0.33;
-      const leaf = mesh(plant, vineLeafGeo, m.green[i % 3], x, y - 0.055, z, 1.54, 1.36, 1);
-      leaf.rotation.set(0.36 + random() * 0.69, i * 0.71, i * 1.77);
-      if (i % 5 === 0) continue;
-      for (let petal = 0; petal < 3; petal++) {
-        const turn = petal * Math.PI * 2 / 3 + i * 0.5;
-        const flower = mesh(plant, bractGeo, m.petals[(i + petal) % 3],
-          x + Math.sin(turn) * 0.040, y + Math.cos(turn) * 0.047, z + 0.08, 1.12, 1.15, 1);
-        flower.rotation.set(0.34 + random() * 0.71, random() * 0.77, turn);
-      }
-    }
+    mesh(plant, bougainvilleaCrown(random), m.bougainvillea, 0, 0, 0);
     return;
   }
   for (let i = 0; i < 8; i++) {
@@ -612,7 +654,7 @@ function awning(parent, m, width, style) {
   const palette = colors.map(color => new T.Color(color));
   const positions = [], colorsByVertex = [], indices = [];
   const segments = 8;
-  const rear = 0.35, front = 2.18, top = 3.22, edge = 2.56;
+  const rear = 0.35, front = 2.18, top = 3.03, edge = 2.39;
   for (let strip = 0; strip < strips; strip++) {
     const first = positions.length / 3;
     const { r, g, b } = palette[strip % palette.length];
@@ -645,7 +687,7 @@ function awning(parent, m, width, style) {
   for (const side of [-1, 1]) {
     const x = side * (width / 2 - 0.075);
     rod(parent, m.iron, [x, 0.03, front - 0.08], [x, edge - 0.026, front], 0.033);
-    rod(parent, m.iron, [x, 2.20, front - 0.08], [x, edge - 0.026, front - 0.70], 0.021);
+    rod(parent, m.iron, [x, 2.03, front - 0.08], [x, edge - 0.026, front - 0.70], 0.021);
   }
 }
 
@@ -720,8 +762,8 @@ function hangVietnamFlag(home, m, x, y, angle) {
   mesh(mount, m.flag.geometry, m.flag.surface, 0, 0, 0.012);
 }
 
-function hangFlagBunting(home, m, width) {
-  const cord = groupAt(home, 'Vietnam flag bunting', 0, 3.77, 0.61);
+function hangFlagBunting(home, m, width, railHeight, railFront) {
+  const cord = groupAt(home, 'Vietnam flag bunting', 0, railHeight, railFront);
   const sag = t => -0.22 * 4 * t * (1 - t);
   tube(cord, m.iron, [0, 0.25, 0.5, 0.75, 1].map(t => [(t - 0.5) * width, sag(t), 0]), 0.008);
   const flag = new T.PlaneGeometry(0.21, 0.14);
@@ -749,7 +791,8 @@ function rollingShutter(parent, m, width) {
   box(parent, m.iron, 0, 0.18, depth + 0.081, 0.16, 0.045, 0.04);
 }
 
-function bulb(parent, m, x, y, z) {
+function bulb(parent, m, x, previousY, z) {
+  const y = previousY - 0.16;
   rod(parent, m.wire, [x, y + 0.09, z], [x, y + 0.46, z - 0.23], 0.012);
   box(parent, m.darkWood, x, y + 0.065, z, 0.085, 0.09, 0.082);
   mesh(parent, bodyGeo, m.bulb, x, y - 0.015, z, 0.057, 0.085, 0.057);
@@ -1436,9 +1479,6 @@ function placeMarketHouses(parent, { fronts, material }, m, pitches, variants, s
     if ((i + sectionIndex) % 2 === 0) {
       hangVietnamFlag(home, m, -width * 0.32, Math.max(3.82, upperY(3.93)), -0.49 - i * 0.09);
     }
-    if ((sectionIndex === 0 && i === 1) || (sectionIndex === 3 && i === 3)) {
-      hangFlagBunting(home, m, width * 0.78);
-    }
     const wall = (...dimensions) => plasterBox(home, material, tint, width, height, ...dimensions);
     // This rear volume leaves room for the window reveals in the street-facing wall.
     wall(0, height / 2, -1.91, width, height, 2.46);
@@ -1485,6 +1525,9 @@ function placeMarketHouses(parent, { fronts, material }, m, pitches, variants, s
           if (roof === 'veranda') mesh(home, balusterGeo, rail, railX, bottom + 0.20, face + 0.52, 0.047, 0.45, 0.047);
           else box(home, rail, railX, bottom + 0.20, face + 0.52, 0.045, 0.51, 0.045);
         }
+        const showBunting = (sectionIndex === 0 && i === 1 && roof === 'greenShop')
+          || (sectionIndex === 3 && i === 3 && bottom < 4);
+        if (showBunting) hangFlagBunting(home, m, span - 0.11, bottom + 0.45, face + 0.575);
         const planterSide = (sectionIndex + i + Number(bottom > 4)) % 2 ? 1 : -1;
         const bloom = (sectionIndex + i + Number(bottom > 4)) % 3 !== 1;
         balconyPlant(home, m, planterSide * span * (bloom ? 0.21 : 0.33), bottom + 0.035, face + 0.48, bloom, random);
@@ -1532,6 +1575,19 @@ function placeMarketHouses(parent, { fronts, material }, m, pitches, variants, s
     box(home, m.darkWood, 0, 2.40, 0.09, shopWidth, 0.43, 0.17);
     mesh(home, sign, material, 0, 2.40, 0.180, shopWidth - 0.31, 0.31);
   });
+}
+
+function closePartyWalls(parent, m, pitches, sectionIndex) {
+  const heights = streetRoofHeights[sectionIndex];
+  const next = streetRoofHeights[(sectionIndex + 1) % streetRoofHeights.length];
+  const neighbors = [[pitches[0] - 2.3, Math.min(heights[0], next.at(-1))]];
+  for (let i = 1; i < pitches.length; i++) {
+    neighbors.push([(pitches[i - 1] + pitches[i]) / 2, Math.min(heights[i - 1], heights[i])]);
+  }
+  for (const [x, roof] of neighbors) {
+    const height = roof - 0.23;
+    box(parent, m.walls[2], x, height / 2, -2.09, 1.39, height, 1.51);
+  }
 }
 
 function oldStreetTree(street, m, x, z) {
@@ -1630,11 +1686,12 @@ export function buildMarketPreview(scene, marketHouses) {
   m.flag = vietnamFlag();
   const paintedSurfaces = [T.FrontSide, T.BackSide, T.DoubleSide].map(side =>
     new T.MeshLambertMaterial({ side, vertexColors: true }));
+  m.bougainvillea = paintedSurfaces[T.DoubleSide];
   scene.background = new T.Color('#bdcfe0');
   scene.fog = new T.FogExp2('#c8d1db', 0.008);
   const road = material('#565654');
-  const stone = ['#777674', '#8e8a82', '#807c73', '#9a958a'].map(hex => material(hex));
-  const curb = material('#6b6963');
+  const stone = ['#494a47', '#575653', '#5e5b55', '#4e504b'].map(hex => material(hex));
+  const curb = material('#4b4b47');
   const width = 18.4;
   const pitches = [-6.9, -2.3, 2.3, 6.9];
   const sections = [
@@ -1696,6 +1753,7 @@ export function buildMarketPreview(scene, marketHouses) {
     if (marketHouses) {
       const seedBeforeHouses = seed;
       placeMarketHouses(buildings, marketHouses, m, pitches, facades, i, random);
+      closePartyWalls(buildings, m, pitches, i);
       seed = seedBeforeHouses;
     } else {
       facades.forEach((variant, j) => townhouse(buildings, m, {
