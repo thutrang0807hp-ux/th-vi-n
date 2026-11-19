@@ -103,7 +103,7 @@ def box_atlas(frontage):
             neutral = Image.blend(Image.new('L', image.size, 247), grain, 0.38).convert('RGB')
             half_width = image.width // 2
             panel_size = (half_width - 8, image.height)
-            with Image.open(textures / 'hang-gai-yellow-plaster.jpg') as photo:
+            with Image.open(textures / 'hanoi-weathered-yellow-plaster.jpg') as photo:
                 yellow = photo.convert('RGB').resize(panel_size, Image.Resampling.LANCZOS)
             left = np.pad(np.asarray(neutral.resize(panel_size)), ((0, 0), (0, 8), (0, 0)), mode='edge')
             right = np.pad(np.asarray(yellow), ((0, 0), (8, 0), (0, 0)), mode='edge')

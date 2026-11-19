@@ -480,6 +480,16 @@ function marketWallUnit(home, m, x, y) {
     [x + 0.32, y - 0.54, 0.14]], 0.013);
 }
 
+function rooftopAntenna(home, m, x, roofHeight, z, angle) {
+  const antenna = groupAt(home, 'Rooftop TV antenna', x, roofHeight, z);
+  antenna.rotation.y = angle;
+  rod(antenna, m.iron, [0, 0, 0], [0, 0.89, 0], 0.018);
+  rod(antenna, m.iron, [-0.43, 0.78, 0], [0.61, 0.78, 0], 0.012);
+  for (const [offset, span] of [[-0.35, 0.52], [-0.15, 0.41], [0.05, 0.36], [0.25, 0.29], [0.45, 0.24]]) {
+    rod(antenna, m.iron, [offset, 0.78, -span / 2], [offset, 0.78, span / 2], 0.010);
+  }
+}
+
 function architecturePrototype(parent, m, x, variant, random, photoStyle) {
   const config = [
     { name: 'Nhà phố hai tầng mái ngói', width: 4.48, height: 5.48, shop: 3.25,
@@ -531,6 +541,7 @@ function architecturePrototype(parent, m, x, variant, random, photoStyle) {
     marketRoof(home, m, 0, width + 0.22, height + 0.22, variant === 1);
   }
   if (variant === 1) {
+    if (photoStyle) rooftopAntenna(home, m, 0.62, height + 0.30, -0.22, -0.48);
     const z = 0.63;
     tube(home, m.wire, [[-1.11, 6.41, z], [0, 6.31, z], [1.18, 6.42, z]], 0.009);
     for (const [i, surface] of [m.enamel, m.fabrics[1], m.fabrics[3]].entries()) {
@@ -596,34 +607,90 @@ function awning(parent, m, width, style) {
   }
 }
 
+const signStyles = [
+  { background: '#244d77', lettering: '#f7e8bc', line: '#adbbbe' },
+  { background: '#dcad54', lettering: '#552d20', line: '#9c542d' },
+  { background: '#59382e', lettering: '#f3d895', line: '#b77c50' },
+  { background: '#33594d', lettering: '#efe1b9', line: '#93a286' },
+];
+
 function fascia(parent, m, name, subtitle, emblem, ink = '#234558') {
-  const width = 3.64, height = 0.52, y = 2.65, z = 0.48;
-  const face = texture(768, 128, ctx => {
-    ctx.fillStyle = '#ded5b7';
-    ctx.fillRect(0, 0, 768, 128);
-    ctx.strokeStyle = ink;
+  const width = 3.64, height = 0.42, y = 2.65, z = 0.48;
+  const styleIndex = name === 'Bếp Than' ? 1 : emblem.charCodeAt(0) % signStyles.length;
+  const { background, lettering, line } = signStyles[styleIndex];
+  const face = texture(768, 104, ctx => {
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, 768, 104);
+    ctx.strokeStyle = line;
     ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(29, 97);
-    ctx.lineTo(740, 97);
-    ctx.stroke();
-    ctx.fillStyle = ink;
-    ctx.fillRect(26, 22, 64, 64);
-    ctx.fillStyle = '#f2e2bb';
-    ctx.font = 'bold 39px Georgia, serif';
+    ctx.strokeRect(7, 7, 754, 90);
     ctx.textAlign = 'center';
-    ctx.fillText(emblem, 58, 66, 55);
+    ctx.font = styleIndex === 2 ? 'bold 52px Georgia, serif' : '900 54px "Arial Narrow", sans-serif';
     ctx.fillStyle = ink;
-    ctx.font = 'bold 62px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(name, 113, 77, 610);
+    ctx.fillText(name.toLocaleUpperCase('vi-VN'), 386, 58, 698);
+    ctx.fillStyle = lettering;
+    ctx.fillText(name.toLocaleUpperCase('vi-VN'), 384, 56, 698);
     ctx.font = 'bold 19px sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(subtitle, 739, 119, 650);
+    ctx.fillText(subtitle, 384, 87, 680);
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = '#e7d7ac';
+    for (let i = 0; i < 110; i++) {
+      ctx.fillRect((i * 193 + 19) % 768, (i * 67 + 11) % 104, 1 + i % 4, 1);
+    }
   });
-  box(parent, m.timber, 0, y, z - 0.043, width + 0.06, height + 0.045, 0.085);
+  box(parent, m.darkWood, 0, y, z - 0.038, width + 0.06, height + 0.045, 0.075);
   mesh(parent, new T.PlaneGeometry(width, height), new T.MeshBasicMaterial({ map: face, toneMapped: false }),
     0, y, z + 0.013);
+}
+
+function vietnamFlag() {
+  const map = texture(192, 128, ctx => {
+    ctx.fillStyle = '#c32a23';
+    ctx.fillRect(0, 0, 192, 128);
+    ctx.fillStyle = '#f4cd4a';
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const angle = i * Math.PI / 5 - Math.PI / 2;
+      const radius = i % 2 === 0 ? 32 : 12.2;
+      const x = 96 + radius * Math.cos(angle), y = 64 + radius * Math.sin(angle);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  });
+  const geometry = new T.PlaneGeometry(1, 1, 10, 4);
+  const { position, uv } = geometry.attributes;
+  for (let i = 0; i < uv.count; i++) {
+    const along = uv.getX(i), hanging = 1 - uv.getY(i);
+    position.setXYZ(i, 0.12 + along * 0.72, 0.08 + along * 0.31 - hanging * 0.48,
+      Math.sin((along * 1.4 + hanging * 0.45) * Math.PI * 2) * 0.055 * Math.sin(Math.PI * along));
+  }
+  geometry.computeVertexNormals();
+  return { geometry, surface: material('#ffffff', { map, side: T.DoubleSide }) };
+}
+
+function hangVietnamFlag(home, m, x, y, angle) {
+  const mount = groupAt(home, 'Vietnam flag', x, y, 0.13);
+  mount.rotation.y = angle;
+  rod(mount, m.iron, [-0.12, -0.025, 0], [0.92, 0.425, 0], 0.015);
+  mesh(mount, m.flag.geometry, m.flag.surface, 0, 0, 0.012);
+}
+
+function rollingShutter(parent, m, width) {
+  const steel = material('#756f61');
+  const ridge = material('#918673');
+  const height = 2.22, depth = 0.37;
+  box(parent, steel, 0, 0.12 + height / 2, depth, width, height, 0.075);
+  for (let i = 0; i < 25; i++) {
+    const y = 0.16 + i * 0.087;
+    box(parent, ridge, 0, y, depth + 0.051, width - 0.10, 0.040, 0.027);
+  }
+  for (const side of [-1, 1]) {
+    box(parent, m.iron, side * width / 2, 1.25, depth + 0.043, 0.095, 2.29, 0.13);
+  }
+  box(parent, m.iron, 0, 2.41, depth + 0.018, width + 0.12, 0.19, 0.23);
+  box(parent, m.iron, 0, 0.18, depth + 0.081, 0.16, 0.045, 0.04);
 }
 
 function bulb(parent, m, x, y, z) {
@@ -1295,6 +1362,7 @@ function placeMarketHouses(parent, { fronts, material }, m, pitches, variants, s
     const { floors, sign, shop, roof, height, shopWidth: shopRatio } = fronts[design];
     const home = groupAt(parent, 'Photo-textured shophouse', x, 0.075, -0.85);
     const width = roof === 'veranda' ? 3.58 : roof === 'greenShop' ? 3.91 : widths[variant];
+    if ((i + sectionIndex) % 2 === 0) hangVietnamFlag(home, m, -width * 0.32, 3.93, -0.49 - i * 0.09);
     const wall = (...dimensions) => plasterBox(home, material, tint, width, height, ...dimensions);
     // This rear volume leaves room for the window reveals in the street-facing wall.
     wall(0, height / 2, -1.91, width, height, 2.46);
@@ -1360,6 +1428,9 @@ function placeMarketHouses(parent, { fronts, material }, m, pitches, variants, s
       wall(0, height + 0.12, 0.01, width, 0.24, 0.22);
       box(home, m.sill, 0, height + 0.25, 0.01, width + 0.08, 0.07, 0.26);
     }
+    if (roof === 'terrace' || (roof === 'veranda' && (sectionIndex + i) % 2 === 0)) {
+      rooftopAntenna(home, m, width * 0.29, height + 0.06, -0.98, 0.38);
+    }
     if (roof === 'pediment') {
       wall(0, height + 0.13, -0.10, width * 0.76, 0.28, 0.34);
       wall(0, height + 0.32, -0.10, width * 0.48, 0.22, 0.34);
@@ -1387,6 +1458,7 @@ export function buildMarketPreview(scene, marketHouses) {
     return seed / 4294967296;
   };
   const m = buildKit(random);
+  m.flag = vietnamFlag();
   const paintedSurfaces = [T.FrontSide, T.BackSide, T.DoubleSide].map(side =>
     new T.MeshLambertMaterial({ side, vertexColors: true }));
   scene.background = new T.Color('#e8caa2');
@@ -1402,8 +1474,7 @@ export function buildMarketPreview(scene, marketHouses) {
       householdStall(street, m, pitches[2]);
       const shutter = groupAt(street, 'Closed side entry', pitches[3]);
       awning(shutter, m, 4.3, 'blue');
-      box(shutter, m.teal[0], 0, 1.24, 0.34, 3.77, 2.44, 0.13);
-      foldingGate(shutter, m, 0, 3.62);
+      rollingShutter(shutter, m, 3.69);
     } },
     { name: 'Ẩm thực', facades: [1, 3, 0, 2], stalls(street) {
       pitches.forEach((x, index) => foodStall(street, m, x, index));
