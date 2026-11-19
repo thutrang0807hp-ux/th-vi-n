@@ -2265,7 +2265,7 @@ function play(renderer, avatar,
     }
     const settling = rideAmount > 0;
     const rideTarget = trainMoving && !reduceMotion ? 1 : 0;
-    rideAmount = T.MathUtils.damp(rideAmount, rideTarget, trainMoving ? 3.5 : 7, dt);
+    rideAmount = T.MathUtils.damp(rideAmount, rideTarget, trainMoving ? 3.5 : 7, clamp(elapsed, 0, 0.25));
     if (rideTarget === 0 && rideAmount < 0.001) rideAmount = 0;
     if (rideAmount > 0) rideTime += dt;
     if (!needsRender && !cameraMoving && !trainMoving && !settling
