@@ -444,6 +444,87 @@ function outdoorShadows(root, placements) {
   for (const geometry of footprints) geometry.dispose();
 }
 
+function buildFieldKite(root) {
+  const group = new T.Group();
+  group.name = 'Tri Ton kite';
+  group.visible = false;
+  root.add(group);
+
+  const sail = new Facets();
+  const top = [0, 1.1, -0.31], left = [0, 0.16, -1.04];
+  const right = [0, 0.41, 1.02], tip = [0, -0.91, 0.20];
+  const join = [0.14, 0.23, 0.02];
+  const edge = (a, b, t) => a.map((value, i) => T.MathUtils.lerp(value, b[i], t));
+  const palette = ['#c94542', '#dd9348', '#ebca65', '#62a769', '#5488b7', '#86599c'].map(color);
+  for (const [shoulder, shade] of [[left, 1], [right, 0.88]]) {
+    const fold = edge(top, join, 0.64);
+    const panelPoint = (t, inner) => t < 0.35
+      ? edge(top, inner ? fold : shoulder, t / 0.35)
+      : edge(inner ? fold : shoulder, tip, (t - 0.35) / 0.65);
+    const cuts = [0, 0.22, 0.35, 0.49, 0.64, 0.81, 1];
+    palette.forEach((tint, i) => {
+      sail.quad(panelPoint(cuts[i], false), panelPoint(cuts[i + 1], false),
+        panelPoint(cuts[i + 1], true), panelPoint(cuts[i], true), tint.clone().multiplyScalar(shade));
+    });
+  }
+  const kite = new T.Mesh(sail.geometry(), new T.MeshBasicMaterial({
+    vertexColors: true, side: T.DoubleSide,
+  }));
+  group.add(kite);
+
+  function dynamicLine(count, hex, parent) {
+    const points = new T.BufferAttribute(new Float32Array(count * 3), 3).setUsage(T.DynamicDrawUsage);
+    const geometry = new T.BufferGeometry().setAttribute('position', points);
+    const line = new T.Line(geometry, new T.LineBasicMaterial({ color: hex }));
+    line.frustumCulled = false;
+    parent.add(line);
+    return points;
+  }
+  const string = dynamicLine(20, '#594936', group);
+  const tails = ['#b9423d', '#8462a6', '#ca9d4a'].map(hex => dynamicLine(22, hex, kite));
+  const hitch = new T.Vector3();
+  const bridle = new T.Line(new T.BufferGeometry(), new T.LineBasicMaterial({ color: '#66513b' }));
+  kite.add(bridle);
+
+  return (time, fieldOffset) => {
+    const cycle = Math.floor(time / 62);
+    const elapsed = time % 62;
+    group.visible = elapsed >= 5 && elapsed < 25;
+    if (!group.visible) return;
+    const side = cycle % 2 === 0 ? 1 : -1;
+    const z = side * -6;
+    const x = side * 27;
+    const landZ = T.MathUtils.euclideanModulo(z - fieldOffset + fieldHalf, fieldLength) - fieldHalf;
+    const ground = groundAt(x, landZ) + 0.64;
+    const rise = T.MathUtils.smoothstep(elapsed, 5, 9) * (1 - T.MathUtils.smoothstep(elapsed, 21, 25));
+    kite.position.set(x + side * rise * 5, ground + rise * (8.2 + Math.sin(time * 1.3) * 0.55),
+      z + rise * (4 + Math.sin(time * 0.63) * 3));
+    kite.rotation.set(0.24 + Math.sin(time * 1.4) * 0.19, Math.sin(time * 0.9) * 0.29, -side * 0.21);
+    kite.updateMatrix();
+    hitch.set(-side * 0.20, 0.13, 0.04);
+    if (!bridle.geometry.attributes.position || bridle.userData.side !== side) {
+      bridle.geometry.setFromPoints([new T.Vector3(...left), hitch, new T.Vector3(...right)]);
+      bridle.userData.side = side;
+    }
+    hitch.applyMatrix4(kite.matrix);
+    for (let i = 0; i < string.count; i++) {
+      const t = i / (string.count - 1);
+      string.setXYZ(i, T.MathUtils.lerp(x, hitch.x, t) - side * Math.sin(Math.PI * t) * 0.65,
+        T.MathUtils.lerp(ground, hitch.y, t), T.MathUtils.lerp(z, hitch.z, t) + Math.sin(Math.PI * t) * 0.70);
+    }
+    string.needsUpdate = true;
+    tails.forEach((tail, index) => {
+      for (let i = 0; i < tail.count; i++) {
+        const t = i / (tail.count - 1);
+        tail.setXYZ(i, t * Math.sin(time * 2.4 - 7 * t + index) * 0.35,
+          tip[1] + t * (-1.3 + index * 0.2 + Math.sin(time * 3.1 - 8 * t + index) * 0.23),
+          tip[2] + t * (2.4 + index * 0.27));
+      }
+      tail.needsUpdate = true;
+    });
+  };
+}
+
 export function buildTriTon(scene) {
   let seed = 22871;
   const random = () => {
@@ -670,28 +751,67 @@ export function buildTriTon(scene) {
   distantLeaves.computeBoundingSphere();
   middle.add(smallTrunks, distantLeaves);
 
-  const cloudPositions = [[87, 19.5, -29, 3.4], [90, 25.1, -14, 4.1], [97, 19.9, 7, 2.1],
-    [110, 24.4, 29, 3.6], [108, 20.1, 46, 3.24], [93, 22.6, -56, 2.8]];
-  const clouds = new T.InstancedMesh(new T.IcosahedronGeometry(1, 2),
-    matte('#fff5e8', 0.45), cloudPositions.length * 12);
-  const cloudTints = ['#fffaf2', '#f2dce0', '#ffeddd', '#fbe5df'].map(color);
-  let ci = 0;
-  for (const side of [-1, 1]) {
-    cloudPositions.forEach(([x, y, z, r], i) => {
-      for (let blob = 0; blob < 6; blob++) {
-        const u = (blob - 2.5) / 2.5;
-        const size = r * (0.46 + (1 - Math.abs(u)) * 0.46);
-        pose.position.set(x * side + random() * 2, y + (1 - u * u) * r * 0.69, z + u * r * 2.5);
-        pose.rotation.set(blob * 0.06, i * 0.42, 0);
-        pose.scale.set(size * 0.88, size * (i % 2 ? 0.88 : 0.62), size * 1.19);
-        pose.updateMatrix();
-        clouds.setMatrixAt(ci, pose.matrix);
-        clouds.setColorAt(ci, cloudTints[(blob + i) % cloudTints.length]);
-        ci++;
+  // Blend the radial silhouettes of overlapping lobes into one faceted mesh per shape.
+  function cloudGeometry(lobes) {
+    const geometry = new T.IcosahedronGeometry(1, 5);
+    const vertices = geometry.attributes.position;
+    const tint = [];
+    const base = color('#bcc6d8');
+    const highlight = color('#fff4e2');
+    for (let i = 0; i < vertices.count; i++) {
+      const x = vertices.getX(i), y = vertices.getY(i), z = vertices.getZ(i);
+      let radius = 0;
+      for (const [cy, cz, sx, sy, sz] of lobes) {
+        const a = (x / sx) ** 2 + (y / sy) ** 2 + (z / sz) ** 2;
+        const b = y * cy / sy ** 2 + z * cz / sz ** 2;
+        const c = (cy / sy) ** 2 + (cz / sz) ** 2 - 1;
+        const root = b * b - a * c;
+        if (root < 0) continue;
+        const edge = (b + Math.sqrt(root)) / a;
+        const blend = Math.max(0, 0.21 - Math.abs(edge - radius));
+        radius = Math.max(radius, edge) + blend * blend / 0.84;
       }
-    });
+      const height = y * radius;
+      vertices.setXYZ(i, x * radius, Math.max(height, -0.52 + z * 0.05), z * radius);
+      const light = T.MathUtils.smoothstep(height + x * 0.20, -0.58, 0.85);
+      const shade = base.clone().lerp(highlight, 0.16 + light * 0.84);
+      tint.push(shade.r, shade.g, shade.b);
+    }
+    geometry.setAttribute('color', new T.Float32BufferAttribute(tint, 3));
+    geometry.computeVertexNormals();
+    return geometry;
   }
-  backdrop.add(clouds);
+  const cloudShapes = [
+    [[0, 0, 0.84, 0.76, 1.73], [0.38, -0.64, 0.77, 0.92, 1.0],
+      [0.43, 0.46, 0.69, 0.99, 0.88], [-0.17, 1.47, 0.53, 0.44, 0.98]],
+    [[0, 0, 0.73, 0.60, 1.83], [0.46, 0.38, 0.75, 0.87, 0.95],
+      [0.10, -0.89, 0.66, 0.55, 1.21], [-0.14, 1.56, 0.49, 0.37, 0.78]],
+    [[0, 0, 0.70, 0.50, 1.73], [0.20, -0.59, 0.68, 0.56, 1.34],
+      [0.09, 0.80, 0.64, 0.58, 1.25]],
+  ];
+  const cloudBands = [
+    [[87, 23, -37, 4.4], [94, 28, 35, 5.1], [-88, 25, 19, 4.9], [-94, 26, -45, 3.9]],
+    [[109, 27, -7, 3.9], [115, 32, 65, 4.5], [-109, 26, -12, 3.6], [-115, 34, 46, 4.8]],
+    [[130, 24, -61, 3.8], [127, 24, 17, 3.1], [-130, 24, 66, 3.6], [-127, 22, -31, 3.4]],
+  ];
+  const cloudMaterial = new T.MeshStandardMaterial({
+    vertexColors: true, roughness: 1, flatShading: true,
+    emissive: '#c6b9bd', emissiveIntensity: 0.32,
+  });
+  const cloudMeshes = cloudBands.map((band, layer) => {
+    const batch = new T.InstancedMesh(cloudGeometry(cloudShapes[layer]), cloudMaterial, band.length);
+    batch.name = 'Tri Ton cloud band ' + (layer + 1);
+    band.forEach(([x, y, z, size], i) => {
+      pose.position.set(x, y, z);
+      pose.rotation.set(0, ((i % 3) - 1) * 0.22, 0);
+      pose.scale.setScalar(size);
+      pose.updateMatrix();
+      batch.setMatrixAt(i, pose.matrix);
+    });
+    batch.computeBoundingSphere();
+    backdrop.add(batch);
+    return batch;
+  });
 
   const wings = new Facets(), white = color('#fff1da');
   for (const side of [-1, 1]) {
@@ -716,11 +836,17 @@ export function buildTriTon(scene) {
   }
 
   const layers = [repeat(near, 6.9), repeat(middle, 3.0)];
+  const flyKite = buildFieldKite(backdrop);
   return {
     layers,
     animateAmbient(time) {
       daylight.value = time;
-      clouds.position.z = Math.sin(time * 0.023) * 14;
+      flyKite(time, layers[1].strip.position.z);
+      cloudMeshes.forEach((clouds, layer) => {
+        const phase = layer * 0.72;
+        clouds.position.z = (Math.sin(time * (0.026 - layer * 0.005) + phase) - Math.sin(phase)) * 18;
+        clouds.position.x = Math.sin(time * 0.018 + phase) * (2.1 - layer * 0.45);
+      });
       ranges.position.z = Math.sin(time * 0.018) * 3.5;
     },
   };

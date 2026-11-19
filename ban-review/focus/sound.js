@@ -6,15 +6,17 @@ const tracks = {
   rain: ['Mưa', 42],
   waves: ['Sóng biển', 38],
   birds: ['Chim rừng', 22],
+  cicadas: ['Ve sầu', 34],
   stream: ['Suối chảy', 27],
   cafe: ['Quán cà phê', 20],
   fire: ['Lò sưởi', 26],
   night: ['Đêm yên', 26],
 };
 const presets = {
-  train: { rail: 33, wind: 23 },
-  rain: { rain: 40, rail: 19, cafe: 12 },
-  coast: { waves: 37, wind: 20, rail: 21 },
+  train: { wind: 23 },
+  rain: { rain: 40, cafe: 12 },
+  coast: { waves: 37, wind: 20 },
+  fields: { cicadas: 47, wind: 17 },
 };
 const storageKey = 'lofi:focus-mixer:v1';
 let sharedContext;
@@ -33,13 +35,13 @@ function settings() {
   let stored = {};
   try { stored = JSON.parse(localStorage.getItem(storageKey)) ?? {}; } catch {}
   const channels = Object.fromEntries(Object.entries(tracks).map(([id, [, fallback]]) => [
-    id, { on: stored.channels?.[id]?.on === true, level: clampVolume(stored.channels?.[id]?.level, fallback) },
+    id, { on: id !== 'rail' && stored.channels?.[id]?.on === true, level: clampVolume(stored.channels?.[id]?.level, fallback) },
   ]));
   const custom = {};
   for (const id of Object.keys(presets)) {
     if (!stored.presets?.[id] || typeof stored.presets[id] !== 'object') continue;
     custom[id] = Object.fromEntries(Object.entries(stored.presets[id])
-      .filter(([name, level]) => Object.hasOwn(tracks,name) && Number.isFinite(level))
+      .filter(([name, level]) => name !== 'rail' && Object.hasOwn(tracks,name) && Number.isFinite(level))
       .map(([name, level]) => [name,clampVolume(level,0)]));
   }
   return { master:clampVolume(stored.master,68), channels, presets:custom,
@@ -114,7 +116,7 @@ export function mountFocusSound(panel, { moving, route }) {
     if (!channel.element) return;
     clearInterval(channel.volumeTick);
     const element = channel.element;
-    const target = level * state.master / 100;
+    const target = channel.id === 'rail' ? level : level * state.master / 100;
     const from = element.volume;
     if (target > 0) element.muted = false;
     const started = performance.now();
@@ -132,7 +134,7 @@ export function mountFocusSound(panel, { moving, route }) {
     const pref = state.channels[channel.id];
     channel.input.checked = pref.on;
     channel.slider.value = pref.level;
-    const wanted = playing && pref.on && (channel.id !== 'rail' || trainMoving);
+    const wanted = pref.on && (channel.id === 'rail' ? trainMoving : playing);
     if (!wanted) {
       const wasPlaying = channel.wanted;
       channel.wanted = false;
@@ -168,10 +170,12 @@ export function mountFocusSound(panel, { moving, route }) {
     toggle.textContent = playing ? 'Tạm dừng âm thanh' : 'Phát âm thanh';
     toggle.setAttribute('aria-pressed', playing);
     masterInput.value = state.master;
-    const mutedMessage = 'Âm lượng tổng đang ở 0%. Kéo thanh âm lượng lên để nghe.';
+    const mutedMessage = 'Âm lượng nhạc và môi trường đang ở 0%. Kéo thanh âm lượng lên để nghe.';
     if (playing && state.master === 0) saveStatus.textContent = mutedMessage;
     else if (saveStatus.textContent === mutedMessage) saveStatus.textContent = '';
-    for (const channel of channels.values()) apply(channel,retry);
+    for (const channel of channels.values()) {
+      if (channel.id !== 'rail') apply(channel,retry);
+    }
   }
 
   for (const [id,[name]] of Object.entries(tracks)) {
@@ -189,15 +193,19 @@ export function mountFocusSound(panel, { moving, route }) {
     const status = document.createElement('small');
     status.setAttribute('role','status');
     row.append(label,slider,status);
-    list.append(row);
+    if (id === 'rail') view.querySelector('#focus-rail-sound').append(row);
+    else list.append(row);
     const channel = { id,input,slider,status,wanted:false,attempt:0 };
     channels.set(id,channel);
 
     input.addEventListener('change', () => {
       state.channels[id].on = input.checked;
-      if (input.checked) playing = true;
       remember();
-      applyAll(input.checked);
+      if (id === 'rail') apply(channel,input.checked);
+      else {
+        if (input.checked) playing = true;
+        applyAll(input.checked);
+      }
     });
     slider.addEventListener('input', () => {
       state.channels[id].level = Number(slider.value);
@@ -215,7 +223,7 @@ export function mountFocusSound(panel, { moving, route }) {
     if (playing) playing = false;
     else {
       if (!Object.entries(state.channels).some(([id, channel]) =>
-        channel.on && channel.level > 0 && (id !== 'rail' || trainMoving))) {
+        id !== 'rail' && channel.on && channel.level > 0)) {
         state.channels.lofi.on = true;
         if (state.channels.lofi.level === 0) state.channels.lofi.level = tracks.lofi[1];
         remember();
@@ -227,6 +235,7 @@ export function mountFocusSound(panel, { moving, route }) {
   function choosePreset(id) {
     const levels = state.presets[id] ?? presets[id];
     for (const [name,pref] of Object.entries(state.channels)) {
+      if (name === 'rail') continue;
       pref.on = Object.hasOwn(levels,name);
       if (pref.on) pref.level = levels[name];
     }
@@ -241,18 +250,21 @@ export function mountFocusSound(panel, { moving, route }) {
   view.querySelector('#focus-audio-save').addEventListener('click', () => {
     state.selected = presetPicker.value;
     state.presets[state.selected] = Object.fromEntries(Object.entries(state.channels)
-      .filter(([,pref]) => pref.on).map(([id,pref]) => [id,pref.level]));
+      .filter(([id,pref]) => id !== 'rail' && pref.on).map(([id,pref]) => [id,pref.level]));
     saveStatus.textContent = 'Đã lưu bộ âm tùy chỉnh.';
     remember();
   });
   presetPicker.value = state.selected;
-  if (route === 'ocean') {
+  if (route === 'ocean' || route === 'tri-ton') {
+    const fields = route === 'tri-ton';
     hint.hidden = false;
-    hint.addEventListener('click',() => choosePreset('coast'));
+    hint.textContent = fields ? 'Thử bộ âm Đồng ruộng Tri Tôn' : 'Thử bộ âm Bờ biển thư giãn';
+    hint.addEventListener('click',() => choosePreset(fields ? 'fields' : 'coast'));
   }
   window.addEventListener('pagehide', () => {
     navigatingAway = true;
     playing = false;
+    state.channels.rail.on = false;
     for (const channel of channels.values()) {
       clearTimeout(channel.pauseAfter);
       clearInterval(channel.volumeTick);
@@ -269,9 +281,11 @@ export function mountFocusSound(panel, { moving, route }) {
     if (!navigatingAway) return;
     navigatingAway = false;
     applyAll();
+    apply(channels.get('rail'));
   });
   mountYouTube(view);
   applyAll();
+  apply(channels.get('rail'));
   const mixer = {
     setTrainMoving(value) {
       trainMoving = value;

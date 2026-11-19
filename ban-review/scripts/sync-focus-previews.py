@@ -41,9 +41,11 @@ def synchronize(check):
     modules = [ROOT / 'village-scene.js', *sorted((ROOT / 'focus').glob('*.js'))]
     imports = {f'lofi/{path.relative_to(ROOT).as_posix()}': embedded_module(path) for path in modules}
 
-    def update_map(match):
+    def update_map(match, path):
         manifest = json.loads(match[2])
         manifest['imports'].update(imports)
+        if path.name == 'tri-ton.html':
+            manifest['imports']['lofi/tri-ton-scene.js'] = embedded_module(ROOT / 'tri-ton-scene.js')
         return match[1] + json.dumps(manifest, separators=(',', ':')) + match[3]
 
     outdated = []
@@ -52,7 +54,7 @@ def synchronize(check):
         original = path.read_text(encoding='utf-8')
         updated = replace_required(FOCUS_BLOCK, lambda _: controls, original, path)
         updated = replace_required(STYLE, lambda _: '<style>' + css + '</style>', updated, path)
-        updated = replace_required(IMPORT_MAP, update_map, updated, path)
+        updated = replace_required(IMPORT_MAP, lambda match: update_map(match, path), updated, path)
         if updated == original:
             continue
         if check:
