@@ -72,7 +72,7 @@ export function mountFocusPlanner(panel) {
           data = result.planner;
           counts = new Map();
           for (const item of result.history) {
-            if (item.mode === '25' && item.taskId) counts.set(item.taskId, (counts.get(item.taskId) ?? 0) + 1);
+            if (['25', 'down'].includes(item.mode) && item.taskId) counts.set(item.taskId, (counts.get(item.taskId) ?? 0) + 1);
           }
         } catch { storageAvailable = false; }
       } else {

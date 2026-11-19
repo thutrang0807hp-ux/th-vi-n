@@ -1,10 +1,14 @@
 import { focusAudioContext } from './sound.js';
 const MINUTE = 60000;
 const defaults = { 25: 25, 5: 5, 15: 15 };
-const labels = { 25: 'Tập trung', 5: 'Nghỉ ngắn', 15: 'Nghỉ dài', up: 'Bấm giờ' };
+const labels = { 25: 'Tập trung', 5: 'Nghỉ ngắn', 15: 'Nghỉ dài', up: 'Bấm giờ', down: 'Đếm ngược' };
+const customDefault = 60;
+const isFocusMode = mode => mode === '25' || mode === 'down';
+const minutesFor = (state, mode = state.mode) => mode === 'down'
+  ? state.minutes.down ?? customDefault : state.minutes[mode];
 
 export function initialTimer() {
-  return { mode: '25', minutes: { ...defaults }, elapsed: 0, startedAt: null,
+  return { mode: '25', minutes: { ...defaults, down: customDefault }, elapsed: 0, startedAt: null,
     id: null, taskId: null, completed: 0, autoBreak: false, autoFocus: false, chime: false,
     notify: false, notice: '' };
 }
@@ -20,24 +24,29 @@ export function transitionTimer(previous, action, now, makeId = () => crypto.ran
     ({ ...state, mode, elapsed: 0, startedAt: null, id: null, taskId: null, notice });
   const begin = () => ({
     ...state, startedAt: now, id: state.id ?? makeId(),
-    taskId: state.mode === '25' ? (state.id ? state.taskId ?? null : selectedTask) : null,
+    taskId: isFocusMode(state.mode) ? (state.id ? state.taskId ?? null : selectedTask) : null,
     notice: '',
   });
-  const length = state.minutes[state.mode] * MINUTE;
+  const length = minutesFor(state) * MINUTE;
   if (state.mode !== 'up' && state.startedAt !== null && timerReading(state, now) >= length) {
     const endedAt = state.startedAt + Math.max(0, length - state.elapsed);
     const isFocus = state.mode === '25';
     const completed = state.completed + Number(isFocus);
     record = { id: state.id, mode: state.mode, endedAt, duration: length, taskId: state.taskId ?? null };
-    const next = isFocus ? (completed % 4 === 0 ? '15' : '5') : '25';
-    const auto = (isFocus ? state.autoBreak : state.autoFocus) && now - endedAt < MINUTE;
-    state = { ...reset(next, `Đã xong · ${labels[next]}`), completed };
-    if (auto) state = { ...begin(), notice: `Đã xong · ${labels[next]}` };
+    if (state.mode === 'down') {
+      state = { ...reset('down', 'Đã hết giờ'), elapsed: length };
+    } else {
+      const next = isFocus ? (completed % 4 === 0 ? '15' : '5') : '25';
+      const auto = (isFocus ? state.autoBreak : state.autoFocus) && now - endedAt < MINUTE;
+      state = { ...reset(next, `Đã xong · ${labels[next]}`), completed };
+      if (auto) state = { ...begin(), notice: `Đã xong · ${labels[next]}` };
+    }
     if (action.type === 'toggle' || action.type === 'skip') return { state, record };
   }
 
   switch (action.type) {
     case 'toggle':
+      if (state.mode === 'down' && state.elapsed >= length) state = reset('down');
       state = state.startedAt === null ? begin()
         : { ...state, elapsed: timerReading(state, now), startedAt: null, notice: '' };
       break;
@@ -48,7 +57,7 @@ export function transitionTimer(previous, action, now, makeId = () => crypto.ran
       state = reset(state.mode);
       break;
     case 'skip':
-      if (state.mode !== 'up') {
+      if (state.mode !== 'up' && state.mode !== 'down') {
         const isFocus = state.mode === '25';
         state = reset(isFocus ? '5' : '25', 'Đã bỏ qua phiên');
         if (isFocus ? state.autoBreak : state.autoFocus) state = begin();
@@ -59,6 +68,16 @@ export function transitionTimer(previous, action, now, makeId = () => crypto.ran
       if (Object.hasOwn(defaults, action.mode) && Number.isInteger(minutes) && minutes >= 1 && minutes <= 180) {
         const active = state.mode === action.mode && (state.startedAt !== null || state.elapsed > 0);
         if (!active) state = { ...state, minutes: { ...state.minutes, [action.mode]: minutes } };
+      }
+      break;
+    }
+    case 'custom-duration': {
+      const hours = Number(action.hours), minutes = Number(action.minutes);
+      const total = hours * 60 + minutes;
+      if (state.mode === 'down' && state.id === null &&
+          Number.isInteger(hours) && hours >= 0 && Number.isInteger(minutes) && minutes >= 0 && minutes < 60 &&
+          total >= 1 && total <= 1440) {
+        state = { ...reset('down'), minutes: { ...state.minutes, down: total } };
       }
       break;
     }
@@ -128,6 +147,10 @@ export function mountFocusTimer(panel, widget) {
   const modes = [...panel.querySelectorAll('[data-focus-mode]')];
   const settings = [...panel.querySelectorAll('[data-focus-setting]')];
   const durations = [...panel.querySelectorAll('[data-focus-duration]')];
+  const customForm = panel.querySelector('#focus-countdown-form');
+  const customHours = customForm.elements.hours;
+  const customMinutes = customForm.elements.minutes;
+  const customApply = customForm.querySelector('button');
   const smallClock = widget.querySelector('time');
   const smallLabel = widget.querySelector('.focus-widget-label');
   const smallAction = widget.querySelector('[data-widget-start]');
@@ -160,21 +183,24 @@ export function mountFocusTimer(panel, widget) {
   function completion(record) {
     if (state.chime) sound();
     if (state.notify && document.hidden && globalThis.Notification?.permission === 'granted') {
-      try { new Notification(record.mode === '25' ? 'Đã xong phiên tập trung' : 'Đã hết giờ nghỉ'); } catch {}
+      try { new Notification(record.mode === 'down' ? 'Đã hết giờ' : isFocusMode(record.mode) ? 'Đã xong phiên tập trung' : 'Đã hết giờ nghỉ'); } catch {}
     }
-    panel.dispatchEvent(new CustomEvent(record.mode === '25' ? 'focus:completed' : 'break:completed',
+    panel.dispatchEvent(new CustomEvent(isFocusMode(record.mode) ? 'focus:completed' : 'break:completed',
       { detail: record, bubbles: true }));
   }
   function draw() {
     const now = Date.now();
     const elapsed = timerReading(state, now);
     const up = state.mode === 'up';
-    const length = state.minutes[state.mode] * MINUTE;
+    const length = minutesFor(state) * MINUTE;
     const seconds = up ? Math.floor(elapsed / 1000) : Math.ceil(Math.max(0,length-elapsed) / 1000);
     const digits = value => String(value).padStart(2,'0');
-    const value = `${digits(Math.floor(seconds/60))}:${digits(seconds%60)}`;
+    const value = seconds >= 3600
+      ? `${digits(Math.floor(seconds / 3600))}:${digits(Math.floor(seconds / 60) % 60)}:${digits(seconds % 60)}`
+      : `${digits(Math.floor(seconds / 60))}:${digits(seconds % 60)}`;
     const progress = up ? (seconds % 60) / 60 : 1 - seconds * 1000 / length;
-    const button = state.startedAt !== null ? 'Tạm dừng' : state.elapsed ? 'Tiếp tục' : 'Bắt đầu';
+    const finished = state.mode === 'down' && state.elapsed >= length;
+    const button = state.startedAt !== null ? 'Tạm dừng' : finished ? 'Bắt đầu lại' : state.elapsed ? 'Tiếp tục' : 'Bắt đầu';
     text(clock,value);
     text(smallClock,value);
     text(smallLabel, labels[state.mode]);
@@ -196,7 +222,7 @@ export function mountFocusTimer(panel, widget) {
     for (const mode of modes) {
       const id = mode.dataset.focusMode;
       mode.setAttribute('aria-pressed', id === state.mode);
-      if (id !== 'up') text(mode.querySelector('small'), `${state.minutes[id]} phút`);
+      if (id !== 'up') text(mode.querySelector('small'), `${minutesFor(state, id)} phút`);
     }
     for (const input of settings) input.checked = state[input.dataset.focusSetting];
     for (const input of durations) {
@@ -204,7 +230,12 @@ export function mountFocusTimer(panel, widget) {
       input.disabled = input.dataset.focusDuration === state.mode &&
         (state.startedAt !== null || state.elapsed > 0);
     }
-    skip.disabled = state.mode === 'up';
+    const custom = state.mode === 'down';
+    customForm.hidden = !custom;
+    customHours.value = Math.floor(minutesFor(state, 'down') / 60);
+    customMinutes.value = minutesFor(state, 'down') % 60;
+    customMinutes.disabled = customHours.disabled = customApply.disabled = custom && state.id !== null;
+    skip.disabled = state.mode === 'up' || custom;
   }
   function dispatch(action) {
     const run = async () => {
@@ -219,7 +250,7 @@ export function mountFocusTimer(panel, widget) {
       state = result.state;
       syncControls();
       panel.dispatchEvent(new CustomEvent('focus:session', { detail: {
-        active: state.id !== null && state.mode === '25', taskId: state.taskId ?? null,
+        active: state.id !== null && isFocusMode(state.mode), taskId: state.taskId ?? null,
         mode: state.mode, running: state.startedAt !== null, sessionId: state.id,
         elapsed: state.elapsed, startedAt: state.startedAt,
       } }));
@@ -239,6 +270,18 @@ export function mountFocusTimer(panel, widget) {
   panel.querySelector('#timer-reset').addEventListener('click',() => dispatch({type:'reset'}));
   skip.addEventListener('click',() => dispatch({type:'skip'}));
   for (const mode of modes) mode.addEventListener('click',() => dispatch({type:'mode',mode:mode.dataset.focusMode}));
+  customHours.addEventListener('input', () => customMinutes.setCustomValidity(''));
+  customMinutes.addEventListener('input', () => customMinutes.setCustomValidity(''));
+  customForm.addEventListener('submit', event => {
+    event.preventDefault();
+    const total = Number(customHours.value) * 60 + Number(customMinutes.value);
+    if (total < 1 || total > 1440) {
+      customMinutes.setCustomValidity('Chọn thời lượng từ 1 phút đến 24 giờ.');
+      customMinutes.reportValidity();
+      return;
+    }
+    void dispatch({ type: 'custom-duration', hours: customHours.value, minutes: customMinutes.value });
+  });
   for (const input of durations) input.addEventListener('change',() =>
     dispatch({type:'duration',mode:input.dataset.focusDuration,value:input.value}));
   for (const input of settings) input.addEventListener('change',async () => {

@@ -205,7 +205,18 @@ dialog h2 { margin: 0 0 12px; font-size: 1.1rem; }
 .focus-heading { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 11px; }
 .focus-heading h2 { margin: 0; font-size: 1.2rem; color: #f6dbb6; }
 .focus-heading button { padding: 5px 9px; font-size: .82rem; }
-.focus-modes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.focus-modes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+#focus-countdown-form {
+  display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 7px;
+  margin: 9px 0;
+}
+#focus-countdown-form[hidden] { display: none; }
+#focus-countdown-form label { display: grid; gap: 3px; min-width: 0; font-size: .8rem; }
+#focus-countdown-form input {
+  width: 100%; min-width: 0; padding: 5px; font: inherit; color: inherit;
+  background: #241a16; border: 1px solid #946b4f; border-radius: 7px;
+}
+#focus-countdown-form button { padding: 5px 9px; font-size: .78rem; }
 .focus-modes button { padding: 7px 2px; border-radius: 9px; font-size: .74rem; line-height: 1.24; }
 .focus-modes small { display: block; margin-top: 2px; color: #dbc7ac; }
 .focus-dial {

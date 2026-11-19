@@ -171,7 +171,13 @@
         <button type="button" data-focus-mode="5" aria-pressed="false">Nghỉ ngắn <small>5 phút</small></button>
         <button type="button" data-focus-mode="15" aria-pressed="false">Nghỉ dài <small>15 phút</small></button>
         <button type="button" data-focus-mode="up" aria-pressed="false">Bấm giờ</button>
+        <button type="button" data-focus-mode="down" aria-pressed="false">Đếm ngược <small>60 phút</small></button>
       </div>
+      <form id="focus-countdown-form" hidden>
+        <label>Giờ <input name="hours" type="number" min="0" max="24" step="1" value="1" required></label>
+        <label>Phút <input name="minutes" type="number" min="0" max="59" step="1" value="0" required></label>
+        <button type="submit">Đặt giờ</button>
+      </form>
       <div class="focus-dial">
         <output id="focus-clock" role="timer">25:00</output>
         <span id="focus-status" role="status">Sẵn sàng</span>
