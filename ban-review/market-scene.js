@@ -1590,11 +1590,20 @@ function closePartyWalls(parent, m, pitches, sectionIndex) {
   }
 }
 
-function oldStreetTree(street, m, x, z) {
-  const tree = groupAt(street, 'Old street tree', x, 0.04, z);
-  const taper = new T.CylinderGeometry(0.64, 1.0, 1, 9);
-  const bark = [material('#665441'), material('#81705b'), material('#514539')];
-  const leaves = ['#3c5034', '#51643b', '#67794a', '#7b8952'].map(color => material(color));
+function oldStreetTree(street, x, z) {
+  const tree = groupAt(street, 'Old low-poly street tree', x, 0.04, z);
+  const taper = new T.CylinderGeometry(0.66, 1, 1, 7);
+  const bark = ['#60432e', '#795238', '#4a3729'].map(color => material(color));
+  const canopyGeometry = new T.IcosahedronGeometry(1, 1);
+  canopyGeometry.computeVertexNormals();
+  const olive = ['#768550', '#8b904b', '#626f3e', '#989849', '#74884e'].map(color => {
+    const geometry = canopyGeometry.clone();
+    tintVertices(geometry, new T.Color(color));
+    return geometry;
+  });
+  const canopySurface = new T.MeshLambertMaterial({
+    vertexColors: true, emissive: '#4f5a32', emissiveIntensity: 0.65,
+  });
   const up = new T.Vector3(0, 1, 0);
   function limb(a, b, radius, surface) {
     const direction = new T.Vector3(...b).sub(new T.Vector3(...a));
@@ -1602,26 +1611,46 @@ function oldStreetTree(street, m, x, z) {
       (a[2] + b[2]) / 2, radius, direction.length(), radius);
     branch.quaternion.setFromUnitVectors(up, direction.normalize());
   }
-  limb([0, 0, 0], [-0.18, 2.68, 0.06], 0.33, bark[0]);
-  limb([-0.18, 2.55, 0.06], [0.03, 4.67, -0.16], 0.23, bark[0]);
-  for (let i = 0; i < 6; i++) {
-    const angle = i * Math.PI / 3;
-    limb([Math.cos(angle) * 0.58, 0.035, Math.sin(angle) * 0.55],
-      [0, 0.35 + (i % 2) * 0.12, 0], 0.085, bark[i % 3]);
-    const x = Math.cos(angle) * (1.32 + (i % 3) * 0.23);
-    const z = Math.sin(angle) * 1.28 - 0.18;
-    const y = 5.93 + (i % 3) * 0.39;
-    limb([-0.04, 3.48 + (i % 3) * 0.38, -0.02], [x * 0.55, y - 0.74, z * 0.62], 0.14, bark[i % 3]);
-    limb([x * 0.55, y - 0.74, z * 0.62], [x, y, z], 0.088, bark[0]);
-    for (let j = 0; j < 8; j++) {
-      const spin = i + j * 2.39;
-      const radius = 0.47 + 0.15 * (j % 3);
-      const crown = mesh(tree, bodyGeo, leaves[(i + j) % leaves.length],
-        x + Math.cos(spin) * 0.72, y + (j % 4) * 0.26, z + Math.sin(spin) * 0.74,
-        radius * 1.45, radius * 0.85, radius * 1.18);
-      crown.rotation.y = spin;
-    }
+  limb([0, 0, 0], [-0.16, 1.53, 0.05], 0.39, bark[0]);
+  limb([-0.16, 1.38, 0.05], [-0.10, 3.09, -0.04], 0.31, bark[0]);
+  limb([-0.10, 2.93, -0.04], [0.33, 4.51, -0.16], 0.26, bark[0]);
+  limb([0.28, 4.30, -0.14], [0.19, 5.66, -0.39], 0.18, bark[0]);
+  const roots = [[0.65, 0.27], [-0.62, 0.30], [-0.46, -0.40], [0.33, -0.52], [0.02, 0.55]];
+  for (const [i, [dx, dz]] of roots.entries()) {
+    const knee = [dx * 0.58, 0.16, dz * 0.58];
+    limb([dx * 0.13, 0.61 - (i % 2) * 0.11, dz * 0.14], knee, 0.13, bark[i % bark.length]);
+    limb(knee, [dx, 0.018, dz], 0.075, bark[i % bark.length]);
   }
+  const branches = [
+    [[-0.12, 2.68, 0.01], [-0.93, 3.38, 0.18], [-1.90, 5.03, 0.37]],
+    [[0.10, 3.65, -0.11], [1.07, 4.53, 0.26], [2.06, 5.57, 0.43]],
+    [[0.27, 4.24, -0.16], [-0.59, 5.12, -0.47], [-1.15, 6.11, -0.78]],
+    [[0.29, 4.54, -0.20], [0.73, 5.14, -0.78], [1.02, 6.34, -1.14]],
+  ];
+  for (const [i, [start, elbow, tip]] of branches.entries()) {
+    limb(start, elbow, 0.16, bark[i % bark.length]);
+    limb(elbow, tip, 0.105, bark[0]);
+  }
+
+  // Uneven, interlocking lobes form one broad silhouette with a few larger polygon facets.
+  const crowns = [
+    [-1.68, 5.51, 0.30, 1.12, 0.76, 0.90],
+    [-0.97, 5.93, 0.58, 1.26, 0.88, 0.92],
+    [0.20, 5.91, 0.70, 1.44, 0.83, 1.00],
+    [1.20, 5.96, 0.38, 1.33, 0.86, 1.05],
+    [2.04, 5.81, 0.19, 0.87, 0.66, 0.78],
+    [-0.81, 6.28, -0.80, 1.34, 0.97, 1.03],
+    [0.11, 6.76, -0.57, 1.33, 1.13, 1.05],
+    [1.18, 6.55, -0.71, 1.10, 0.91, 0.99],
+    [0.44, 4.24, 0.37, 0.60, 0.43, 0.47],
+  ];
+  for (const [i, [x, y, z, width, height, depth]] of crowns.entries()) {
+    const crown = mesh(tree, olive[i % olive.length], canopySurface, x, y, z, width, height, depth);
+    crown.rotation.set(i * 0.17, i * 0.49, -0.20 + (i % 3) * 0.15);
+  }
+  const stone = material('#746b64');
+  mesh(tree, leafGeo, stone, 0.38, 0.10, 0.32, 0.23, 0.14, 0.20);
+  mesh(tree, leafGeo, stone, -0.34, 0.09, 0.36, 0.27, 0.13, 0.18);
 }
 
 function rearRoofline(street, m, section) {
@@ -1746,7 +1775,7 @@ export function buildMarketPreview(scene, marketHouses) {
     }
     if (i === 0) {
       box(street, m.coffee, 5.55, 0.065, 2.82, 1.17, 0.033, 0.90);
-      oldStreetTree(street, m, 5.55, 2.83);
+      oldStreetTree(street, 5.55, 2.83);
     }
     if (marketHouses) rearRoofline(street, m, i);
     const buildings = groupAt(street, 'Market facades');
