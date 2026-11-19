@@ -604,7 +604,7 @@ function buildFieldStorks(root) {
     storks.forEach(({ bird, wings, side }, i) => {
       const along = T.MathUtils.euclideanModulo(time * 2.7 + 113 + i * 39, 266) - 133;
       bird.position.set(side * (112 + Math.sin(time * 0.25 + i) * 2.0),
-        24.5 + i * 2.0 + Math.sin(time * 0.75 + i) * 0.42, along * side);
+        32 + i * 2.0 + Math.sin(time * 0.75 + i) * 0.42, along * side);
       bird.rotation.set(0.04, side > 0 ? Math.PI + 0.39 : 0.39, Math.sin(time * 0.64 + i) * 0.19);
       const flap = Math.sin(time * 5.2 + i * 1.7) * (0.38 + Math.sin(time * 0.79 + i) * 0.15);
       wings[0].rotation.z = -flap;
