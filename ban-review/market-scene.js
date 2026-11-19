@@ -1284,9 +1284,18 @@ const streetColors = [
   [limewash.paleYellow, limewash.sage, limewash.mustard, limewash.cream],
   [limewash.ochre, limewash.smoke, limewash.paleYellow, limewash.cream],
 ];
-const photographedLimewash = new Set([limewash.ochre, limewash.paleYellow, limewash.mustard]);
-const untintedPlaster = new T.Color('#ffffff');
+const photographedLimewash = new Map([
+  [limewash.ochre, new T.Color('#fff1bc')],
+  [limewash.paleYellow, new T.Color('#fff9df')],
+  [limewash.mustard, new T.Color('#ffe3a2')],
+]);
 const streetFronts = [[0, 3, 4, 2], [4, 0, 1, 3], [2, 4, 0, 1], [3, 1, 2, 4]];
+const streetRoofHeights = [
+  [5.48, 6.98, 5.60, 4.75],
+  [5.35, 7.33, 6.15, 7.02],
+  [4.90, 6.82, 5.22, 6.59],
+  [7.24, 5.55, 4.82, 6.81],
+];
 
 function tintVertices(geometry, { r, g, b }) {
   const colors = new Float32Array(geometry.attributes.position.count * 3);
@@ -1352,7 +1361,7 @@ function plasterBox(home, material, tint, frontageWidth, frontageHeight, x, y, z
     uv.setXY(i, (tileLeft + T.MathUtils.clamp(u, 0, 1) * 228) / 1024,
       (20 + T.MathUtils.clamp(v, 0, 1) * 472) / 1024);
   }
-  tintVertices(geometry, useYellowPhoto ? untintedPlaster : tint);
+  tintVertices(geometry, photographedLimewash.get(tint) ?? tint);
   return mesh(home, geometry, material, 0, 0, 0);
 }
 
@@ -1387,18 +1396,25 @@ function placeMarketHouses(parent, { fronts, material }, m, pitches, variants, s
       return;
     }
     const variant = variants[i];
-    const { floors, sign, shop, roof, height, shopWidth: shopRatio } = fronts[design];
+    const { floors, sign, shop, roof, height: designHeight, shopWidth: shopRatio } = fronts[design];
+    const height = streetRoofHeights[sectionIndex][i];
+    const shopTop = 2.45;
+    const upperScale = (height - shopTop) / (designHeight - shopTop);
+    const upperY = y => shopTop + (y - shopTop) * upperScale;
     const home = groupAt(parent, 'Photo-textured shophouse', x, 0.075, -0.85);
     const width = roof === 'veranda' ? 3.58 : roof === 'greenShop' ? 3.91 : widths[variant];
-    if ((i + sectionIndex) % 2 === 0) hangVietnamFlag(home, m, -width * 0.32, 3.93, -0.49 - i * 0.09);
+    if ((i + sectionIndex) % 2 === 0) {
+      hangVietnamFlag(home, m, -width * 0.32, Math.max(3.82, upperY(3.93)), -0.49 - i * 0.09);
+    }
     const wall = (...dimensions) => plasterBox(home, material, tint, width, height, ...dimensions);
     // This rear volume leaves room for the window reveals in the street-facing wall.
     wall(0, height / 2, -1.91, width, height, 2.46);
     const band = (lower, upper, setback) =>
       wall(0, (lower + upper) / 2, (-0.66 - setback + 0.04) / 2,
         width, upper - lower, 0.70 - setback);
-    let previousTop = 2.45;
-    for (const { bottom, top, windows, balcony, setback = 0 } of floors) {
+    let previousTop = shopTop;
+    for (const { bottom: designBottom, top: designTop, windows, balcony, setback = 0 } of floors) {
+      const bottom = upperY(designBottom), top = upperY(designTop);
       band(previousTop, bottom, setback);
       const opening = windows.length === 2 ? 1.31 : 0.95;
       const spacing = (width - 0.48) / windows.length;
