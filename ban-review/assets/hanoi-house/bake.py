@@ -94,7 +94,7 @@ def box_atlas(frontage):
     canvas = Image.new('RGB', (2 * CELL, 2 * CELL))
     textures = ROOT / 'textures'
     for slot, path in enumerate((frontage, textures / (PLASTER + '.jpg'),
-                                 textures / 'ma-may-shop.jpg', textures / 'ma-may-old-shop.jpg')):
+                                 textures / 'hanoi-corner-frontage.jpg', textures / 'hanoi-bar-frontage.jpg')):
         with Image.open(path) as photo:
             image = ImageOps.fit(ImageOps.exif_transpose(photo).convert('RGB'),
                                  (CELL - 2 * GUTTER, CELL - 2 * GUTTER))

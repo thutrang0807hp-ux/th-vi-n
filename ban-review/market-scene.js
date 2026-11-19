@@ -1143,14 +1143,14 @@ function placeMarketHouses(parent, { geometries, material, bounds }, pitches, va
   const size = bounds.getSize(new T.Vector3());
   const center = bounds.getCenter(new T.Vector3());
   const widths = [4.55, 4.48, 4.57, 4.51];
-  const heights = [6.05, 7.10, 5.65, 6.65];
+  const heights = [5.80, 6.15, 5.90, 6.05];
   pitches.forEach((x, i) => {
     const variant = variants[i];
     const photo = (sectionIndex + i) % geometries.length;
     const house = new T.Mesh(geometries[photo], material);
     house.scale.set(widths[variant] / size.x, heights[variant] / size.y, 3.1 / size.z);
     house.position.set(x - center.x * house.scale.x, 0.075 - bounds.min.y * house.scale.y,
-      0.72 - bounds.max.z * house.scale.z);
+      -0.85 - bounds.max.z * house.scale.z);
     parent.add(house);
   });
 }
@@ -1228,11 +1228,14 @@ export function buildMarketPreview(scene, marketHouses) {
     section.name = 'Market · ' + name;
     tile.add(section);
   });
-  const overhead = new T.Group();
-  overhead.position.set(9.5, -0.17, 4.70);
-  overhead.rotation.y = -Math.PI / 2;
-  overheadLines(overhead, m, [-64.4,-59.8,-50.6,-41.4,-32.2,-23,-13.8,-4.6,4.6,9.2]);
-  tile.add(batchStatic(overhead, paintedSurfaces));
+  // The frontage photos already contain wires in front of the shop windows.
+  if (!marketHouses) {
+    const overhead = new T.Group();
+    overhead.position.set(9.5, -0.17, 4.70);
+    overhead.rotation.y = -Math.PI / 2;
+    overheadLines(overhead, m, [-64.4,-59.8,-50.6,-41.4,-32.2,-23,-13.8,-4.6,4.6,9.2]);
+    tile.add(batchStatic(overhead, paintedSurfaces));
+  }
 
   const strip = new T.Group();
   strip.name = 'Moving Vietnamese market';
