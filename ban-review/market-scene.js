@@ -598,7 +598,7 @@ function awning(parent, m, width, style) {
   const palette = colors.map(color => new T.Color(color));
   const positions = [], colorsByVertex = [], indices = [];
   const segments = 8;
-  const rear = 0.35, front = 2.43, top = 3.64, edge = 2.70;
+  const rear = 0.35, front = 2.18, top = 3.22, edge = 2.56;
   for (let strip = 0; strip < strips; strip++) {
     const first = positions.length / 3;
     const { r, g, b } = palette[strip % palette.length];
@@ -607,7 +607,7 @@ function awning(parent, m, width, style) {
       const t = Math.min(1, row / segments);
       for (let side = 0; side < 2; side++) {
         const x = ((strip + side) / strips - 0.5) * width;
-        const y = T.MathUtils.lerp(top, edge, drop(t)) - (hem ? 0.16 : 0);
+        const y = T.MathUtils.lerp(top, edge, drop(t)) - (hem ? 0.12 : 0);
         const z = T.MathUtils.lerp(rear, front, t) + (hem ? 0.018 : 0);
         positions.push(x, y, z);
         const wear = (hem ? 0.81 : 0.95) + 0.035 * Math.sin(5.2 * x + 9.1 * z);
@@ -643,6 +643,7 @@ const signStyles = [
 ];
 
 function fascia(parent, m, name, subtitle, emblem, ink = '#234558') {
+  if (m.useFacadeSigns) return;
   const width = 3.64, height = 0.42, y = 2.65, z = 0.48;
   const styleIndex = name === 'Bếp Than' ? 1 : emblem.charCodeAt(0) % signStyles.length;
   const { background, lettering, line } = signStyles[styleIndex];
@@ -1274,20 +1275,22 @@ const limewash = {
   ochre: new T.Color('#e7aa45'),
   paleYellow: new T.Color('#f2ce83'),
   mustard: new T.Color('#cd923a'),
+  amber: new T.Color('#db9d47'),
   cream: new T.Color('#f5e9ce'),
   sage: new T.Color('#a7a98c'),
   smoke: new T.Color('#bcb39d'),
 };
 const streetColors = [
-  [limewash.ochre, limewash.cream, limewash.paleYellow, limewash.sage],
-  [limewash.mustard, limewash.smoke, limewash.ochre, limewash.cream],
-  [limewash.paleYellow, limewash.sage, limewash.mustard, limewash.cream],
-  [limewash.ochre, limewash.smoke, limewash.paleYellow, limewash.cream],
+  [limewash.ochre, limewash.amber, limewash.cream, limewash.sage],
+  [limewash.cream, limewash.smoke, limewash.amber, limewash.mustard],
+  [limewash.paleYellow, limewash.cream, limewash.mustard, limewash.cream],
+  [limewash.amber, limewash.smoke, limewash.paleYellow, limewash.cream],
 ];
 const photographedLimewash = new Map([
   [limewash.ochre, new T.Color('#fff1bc')],
   [limewash.paleYellow, new T.Color('#fff9df')],
   [limewash.mustard, new T.Color('#ffe3a2')],
+  [limewash.amber, new T.Color('#ffd18a')],
 ]);
 const streetFronts = [[0, 3, 4, 2], [4, 0, 1, 3], [2, 4, 0, 1], [3, 1, 2, 4]];
 const streetRoofHeights = [
@@ -1389,10 +1392,10 @@ function placeMarketHouses(parent, { fronts, material }, m, pitches, variants, s
   const widths = [4.48, 4.40, 4.54, 4.46];
   pitches.forEach((x, i) => {
     const design = streetFronts[sectionIndex][i];
-    const tint = design === 3 ? limewash.mustard : design === 4 ? limewash.cream : streetColors[sectionIndex][i];
+    const tint = streetColors[sectionIndex][i];
     if (sectionIndex < 3 && i === sectionIndex) {
       const front = fronts[(sectionIndex + 2) % 3];
-      architecturePrototype(parent, m, x, sectionIndex, random, { front, material, tint: streetColors[sectionIndex][i] });
+      architecturePrototype(parent, m, x, sectionIndex, random, { front, material, tint });
       return;
     }
     const variant = variants[i];
@@ -1508,6 +1511,7 @@ export function buildMarketPreview(scene, marketHouses) {
     return seed / 4294967296;
   };
   const m = buildKit(random);
+  m.useFacadeSigns = Boolean(marketHouses);
   m.flag = vietnamFlag();
   const paintedSurfaces = [T.FrontSide, T.BackSide, T.DoubleSide].map(side =>
     new T.MeshLambertMaterial({ side, vertexColors: true }));
