@@ -840,8 +840,8 @@ export function buildTriTon(scene) {
         const spread = 0.50 - Math.abs(flap) * 0.13;
         for (const wing of [-1, 1]) {
           wings.setXYZ(vertex++, x, y, z);
-          wings.setXYZ(vertex++, x + wing * spread, y + 0.12 + flap * 0.29, z - side * 0.23);
-          wings.setXYZ(vertex++, x + wing * 0.17, y + flap * 0.10, z - side * 0.29);
+          wings.setXYZ(vertex++, x + wing * spread * 0.64, y + 0.12 + flap * 0.29, z + wing * spread * 0.78 - side * 0.09);
+          wings.setXYZ(vertex++, x + wing * 0.11, y + flap * 0.10, z + wing * 0.13 - side * 0.31);
         }
       }
     }
