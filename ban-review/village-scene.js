@@ -2330,13 +2330,13 @@ function play(renderer, avatar,
     camera.position.z += trainZ;
     look.z += trainZ;
     if (rideAmount > 0) {
-      const bounce = rideAmount * (Math.sin(rideTime * 12.7) * 0.0042 + Math.sin(rideTime * 20.3) * 0.0018);
+      const bounce = rideAmount * (Math.sin(rideTime * 5.6) * 0.00135 + Math.sin(rideTime * 9.1) * 0.00035);
       camera.position.y += bounce;
       look.y += bounce;
     }
     camera.lookAt(look);
     if (rideAmount > 0) {
-      const roll = rideAmount * (Math.sin(rideTime * 4.7) * 0.00135 + Math.sin(rideTime * 8.6) * 0.0005);
+      const roll = rideAmount * (Math.sin(rideTime * 3.0) * 0.00045 + Math.sin(rideTime * 5.1) * 0.00012);
       camera.rotateZ(roll);
     }
     updateLampTool(trainZ);
