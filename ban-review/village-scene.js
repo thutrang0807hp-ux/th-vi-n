@@ -1418,9 +1418,15 @@ function buildMascot() {
   const hood = group(() => {
     const rings = [
       [-0.245, 0.416, 0.325], [-0.191, 0.454, 0.350], [-0.081, 0.471, 0.370],
-      [0.055, 0.468, 0.375], [0.182, 0.421, 0.339], [0.274, 0.314, 0.252],
-      [0.333, 0.179, 0.158], [0.348, 0.004, 0.004],
+      [0.055, 0.468, 0.375],
     ];
+    const capRings = 16;
+    const backDepth = 0.334;
+    for (let i = 1; i < capRings; i++) {
+      const angle = i / capRings * Math.PI / 2;
+      const radius = Math.cos(angle) ** 0.82;
+      rings.push([0.055 + Math.sin(angle) * backDepth, 0.468 * radius, 0.375 * radius]);
+    }
     const segments = 48, positions = [], indices = [];
     const pointAt = ([z, width, height], angle) => {
       const x = Math.cos(angle), y = Math.sin(angle);
@@ -1428,21 +1434,29 @@ function buildMascot() {
       const puff = T.MathUtils.smoothstep(z, -0.245, -0.13)
         * (1 - T.MathUtils.smoothstep(z, -0.05, 0.22));
       const sideVolume = 0.030 * puff * (1 - Math.abs(y + 0.10) * 0.68);
-      return new T.Vector3(Math.sign(x) * Math.abs(x) ** 0.63 * (width + sideVolume),
-        0.014 + Math.sign(y) * Math.abs(y) ** 0.66 * height - brow * 0.112,
-        z + Math.max(0, -y) * 0.034 * width / 0.468 - brow * 0.058);
+      const rounding = T.MathUtils.smoothstep(z, 0.055, 0.33);
+      return new T.Vector3(Math.sign(x) * Math.abs(x) ** (0.63 + 0.37 * rounding) * (width + sideVolume),
+        0.014 + Math.sign(y) * Math.abs(y) ** (0.66 + 0.34 * rounding) * height - brow * 0.112,
+        z + Math.max(0, -y) * 0.034 * width / 0.468 * (1 - rounding) - brow * 0.058);
     };
     rings.forEach((ring, row) => {
-      for (let i = 0; i <= segments; i++) {
+      for (let i = 0; i < segments; i++) {
         const point = pointAt(ring, i * Math.PI * 2 / segments);
         positions.push(point.x, point.y, point.z);
-        if (row && i) {
-          const current = row * (segments + 1) + i;
-          const previous = current - segments - 1;
-          indices.push(previous - 1, previous, current, previous - 1, current, current - 1);
-        }
+        if (!row) continue;
+        const next = (i + 1) % segments;
+        const previous = (row - 1) * segments;
+        const current = row * segments;
+        indices.push(previous + i, previous + next, current + next,
+          previous + i, current + next, current + i);
       }
     });
+    const back = rings.length * segments;
+    positions.push(0, 0.014, 0.055 + backDepth);
+    const lastRing = back - segments;
+    for (let i = 0; i < segments; i++) {
+      indices.push(lastRing + i, lastRing + (i + 1) % segments, back);
+    }
     const geometry = new T.BufferGeometry().setIndex(indices);
     geometry.setAttribute('position', new T.Float32BufferAttribute(positions, 3));
     geometry.computeVertexNormals();
