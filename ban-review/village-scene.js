@@ -2194,6 +2194,8 @@ function play(renderer, avatar,
   let lastFrame = performance.now();
   let lastSceneryRender = 0;
   let ambientTime = 0;
+  let rideTime = 0;
+  let rideAmount = 0;
   const normalPixelRatio = renderer.getPixelRatio();
   const resolutionScales = [1, 0.85, 0.70, 0.55];
   let resolutionLevel = 0;
@@ -2261,7 +2263,12 @@ function play(renderer, avatar,
         strip.position.z = (strip.position.z + sceneryDt * speed) % length;
       }
     }
-    if (!needsRender && !cameraMoving && !trainMoving
+    const settling = rideAmount > 0;
+    const rideTarget = trainMoving && !reduceMotion ? 1 : 0;
+    rideAmount = T.MathUtils.damp(rideAmount, rideTarget, trainMoving ? 3.5 : 7, dt);
+    if (rideTarget === 0 && rideAmount < 0.001) rideAmount = 0;
+    if (rideAmount > 0) rideTime += dt;
+    if (!needsRender && !cameraMoving && !trainMoving && !settling
       && (!animateAmbient || now - lastSceneryRender < 1000 / 30)) return;
     if (adaptResolution && trainMoving && lastSceneryRender && !document.hidden) {
       const frameTime = now - lastSceneryRender;
@@ -2322,7 +2329,16 @@ function play(renderer, avatar,
     }
     camera.position.z += trainZ;
     look.z += trainZ;
+    if (rideAmount > 0) {
+      const bounce = rideAmount * (Math.sin(rideTime * 12.7) * 0.0042 + Math.sin(rideTime * 20.3) * 0.0018);
+      camera.position.y += bounce;
+      look.y += bounce;
+    }
     camera.lookAt(look);
+    if (rideAmount > 0) {
+      const roll = rideAmount * (Math.sin(rideTime * 4.7) * 0.00135 + Math.sin(rideTime * 8.6) * 0.0005);
+      camera.rotateZ(roll);
+    }
     updateLampTool(trainZ);
     renderer.render(scene, camera);
   });
