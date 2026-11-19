@@ -433,6 +433,7 @@ function recessedOpening(home, m, opening, shop, photo, photoMaterial) {
 function marketBalcony(home, m, width, y, depth, bowed) {
   box(home, m.sill, 0, y, depth / 2, width + 0.07, 0.19, depth);
   box(home, m.trim, 0, y - 0.11, depth + 0.011, width + 0.11, 0.09, 0.10);
+  balconyShadow(home, m, width, y - 0.11, 0.116);
   for (const height of [0.18, 0.74]) box(home, m.iron, 0, y + height, depth, width, 0.046, 0.045);
   const bars = Math.ceil(width / 0.15);
   for (let i = 0; i <= bars; i++) {
@@ -1519,6 +1520,7 @@ function placeMarketHouses(parent, { fronts, material }, m, pitches, variants, s
         const span = roof === 'pediment' ? width * 0.57 : width - 0.52;
         const rail = roof === 'greenShop' ? m.teal[0] : roof === 'veranda' ? m.trim : m.iron;
         box(home, roof === 'greenShop' ? rail : m.sill, 0, bottom - 0.04, face + 0.24, span, 0.15, 0.65);
+        balconyShadow(home, m, span, bottom - 0.105, face + 0.008);
         box(home, rail, 0, bottom + 0.45, face + 0.52, span - 0.05, 0.06, 0.06);
         for (let j = 0; j < 10; j++) {
           const railX = (j / 9 - 0.5) * (span - 0.12);
@@ -1575,6 +1577,60 @@ function placeMarketHouses(parent, { fronts, material }, m, pitches, variants, s
     box(home, m.darkWood, 0, 2.40, 0.09, shopWidth, 0.43, 0.17);
     mesh(home, sign, material, 0, 2.40, 0.180, shopWidth - 0.31, 0.31);
   });
+}
+
+function balconyShadow(home, m, width, top, front) {
+  const height = 0.48;
+  mesh(home, new T.PlaneGeometry(width, height), m.balconyShade, 0, top - height / 2, front);
+}
+
+function streetShadowMaterial(pitches, withTree) {
+  const map = texture(768, 192, ctx => {
+    const width = 18.4, depth = 4.2;
+    ctx.scale(ctx.canvas.width / width, ctx.canvas.height / depth);
+    ctx.translate(width / 2, 0);
+    function softShadow(x, z, width, depth, opacity, angle = 0) {
+      ctx.save();
+      ctx.translate(x, z);
+      ctx.rotate(angle);
+      ctx.scale(width, depth);
+      const falloff = ctx.createRadialGradient(0, 0, 0.18, 0, 0, 1);
+      falloff.addColorStop(0, `rgba(29, 34, 36, ${opacity})`);
+      falloff.addColorStop(0.58, `rgba(29, 34, 36, ${opacity * 0.72})`);
+      falloff.addColorStop(1, 'rgba(29, 34, 36, 0)');
+      ctx.fillStyle = falloff;
+      ctx.fillRect(-1, -1, 2, 2);
+      ctx.restore();
+    }
+    pitches.forEach((x, index) => {
+      softShadow(x - 0.32, 0.84, 2.38, 1.04, 0.41, -0.11);
+      if (!withTree || index !== pitches.length - 1) {
+        softShadow(x, 1.58, 1.72, 0.65, 0.43, -0.055);
+      }
+      for (const side of [-1, 1]) softShadow(x + side * 2.04, 2.09, 0.20, 0.22, 0.34);
+    });
+    if (withTree) {
+      softShadow(5.53, 2.83, 0.58, 0.54, 0.54);
+      softShadow(4.76, 2.44, 1.31, 0.25, 0.30, 0.39);
+      [[2.14, 2.43, 1.75, 0.76], [3.5, 2.11, 1.3, 0.70], [4.53, 1.86, 1.25, 0.78],
+        [1.65, 2.95, 1.2, 0.62], [0.93, 2.42, 0.95, 0.58]].forEach(([x, z, w, d]) =>
+        softShadow(x, z, w, d, 0.38, -0.12));
+    }
+  });
+  return new T.MeshBasicMaterial({ map, transparent: true, depthWrite: false, toneMapped: false });
+}
+
+function layStreetShadows(street, surface, width) {
+  // Share the mask across two elevations, so the shadow follows the curb onto the road.
+  for (const [start, end, height] of [[0, 3.30, 0.091], [3.30, 4.20, 0.035]]) {
+    const geometry = new T.PlaneGeometry(width, end - start);
+    const uv = geometry.attributes.uv;
+    for (let i = 0; i < uv.count; i++) {
+      uv.setY(i, 1 - T.MathUtils.lerp(end, start, uv.getY(i)) / 4.2);
+    }
+    const shadow = mesh(street, geometry, surface, 0, height, (start + end) / 2);
+    shadow.rotation.x = -Math.PI / 2;
+  }
 }
 
 function closePartyWalls(parent, m, pitches, sectionIndex) {
@@ -1713,6 +1769,15 @@ export function buildMarketPreview(scene, marketHouses) {
   const m = buildKit(random);
   m.useFacadeSigns = Boolean(marketHouses);
   m.flag = vietnamFlag();
+  const shade = texture(16, 64, ctx => {
+    const fade = ctx.createLinearGradient(0, 0, 0, 64);
+    fade.addColorStop(0, 'rgba(35, 30, 26, 0.55)');
+    fade.addColorStop(0.48, 'rgba(35, 30, 26, 0.24)');
+    fade.addColorStop(1, 'rgba(35, 30, 26, 0)');
+    ctx.fillStyle = fade;
+    ctx.fillRect(0, 0, 16, 64);
+  });
+  m.balconyShade = new T.MeshBasicMaterial({ map: shade, transparent: true, depthWrite: false, toneMapped: false });
   const paintedSurfaces = [T.FrontSide, T.BackSide, T.DoubleSide].map(side =>
     new T.MeshLambertMaterial({ side, vertexColors: true }));
   m.bougainvillea = paintedSurfaces[T.DoubleSide];
@@ -1723,6 +1788,8 @@ export function buildMarketPreview(scene, marketHouses) {
   const curb = material('#4b4b47');
   const width = 18.4;
   const pitches = [-6.9, -2.3, 2.3, 6.9];
+  const pavementShade = streetShadowMaterial(pitches, false);
+  const treePavementShade = streetShadowMaterial(pitches, true);
   const sections = [
     { name: 'Vải và đồ gia dụng', facades: [2, 0, 1, 3], stalls(street) {
       textilesAnnex(street, m, pitches[0]);
@@ -1796,6 +1863,7 @@ export function buildMarketPreview(scene, marketHouses) {
       }
     }
     stalls(street);
+    layStreetShadows(street, i === 0 ? treePavementShade : pavementShade, width);
     const section = batchStatic(street, paintedSurfaces);
     section.name = 'Market · ' + name;
     tile.add(section);
