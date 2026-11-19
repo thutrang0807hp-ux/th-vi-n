@@ -1273,26 +1273,116 @@ function banhMiCart(street, m, x) {
   stool(stall, m, 1.83, 1.37, m.plasticGreen, { turn: -0.24 });
 }
 
+function phoShop(parent, m, x) {
+  const shop = groupAt(parent, 'Phở Nhỏ', x);
+  const entrance = -0.80;
+  const jade = material('#46734d', { roughness: 0.6 });
+  const shutter = material('#777964', { metalness: 0.38, roughness: 0.62 });
+  const fascia = material('#bd906c');
+  const inside = material('#23302b');
+  const tile = material('#c1bda3');
+  const glass = new T.MeshBasicMaterial({ color: '#a9d3be', transparent: true, opacity: 0.12, depthWrite: false, side: T.DoubleSide });
+  const publicName = texture(768, 192, ctx => {
+    ctx.fillStyle = '#c89b75';
+    ctx.fillRect(0, 0, 768, 192);
+    ctx.fillStyle = '#b58966';
+    for (const x of [146, 302, 458, 614]) ctx.fillRect(x, 0, 2, 192);
+    ctx.font = 'bold 95px Georgia, serif';
+    ctx.fillStyle = '#916a51';
+    ctx.fillText('PHỞ NHỎ', 44, 120);
+    ctx.fillStyle = '#fff2d9';
+    ctx.fillText('PHỞ NHỎ', 40, 114);
+    ctx.font = 'bold 23px sans-serif';
+    ctx.fillText('PHỞ BÒ · PHỞ GÀ', 47, 158);
+    ctx.beginPath();
+    ctx.ellipse(667, 97, 52, 17, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(623, 92);
+    ctx.quadraticCurveTo(628, 144, 667, 143);
+    ctx.quadraticCurveTo(706, 144, 711, 92);
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#fff2d9';
+    for (const steam of [650, 669, 687]) {
+      ctx.beginPath();
+      ctx.moveTo(steam, 72);
+      ctx.bezierCurveTo(steam - 15, 58, steam + 14, 51, steam, 32);
+      ctx.stroke();
+    }
+  });
+  box(shop, fascia, 0, 2.66, entrance + 0.48, 3.73, 0.68, 0.13);
+  for (const side of [-1, 1]) {
+    box(shop, m.iron, side * 1.75, 2.51, entrance + 0.20, 0.045, 0.05, 0.49);
+  }
+  mesh(shop, new T.PlaneGeometry(3.69, 0.65),
+    new T.MeshBasicMaterial({ map: publicName, toneMapped: false }), 0, 2.66, entrance + 0.549);
+  box(shop, jade, 0, 2.31, entrance + 0.12, 3.86, 0.10, 0.32);
+  box(shop, inside, 0, 1.25, entrance - 0.63, 3.29, 2.14, 0.08);
+  for (const side of [-1, 1]) {
+    box(shop, fascia, side * 1.71, 1.28, entrance - 0.14, 0.21, 2.12, 0.35);
+    box(shop, jade, side * 1.57, 1.26, entrance + 0.037, 0.047, 2.08, 0.047);
+    mesh(shop, new T.PlaneGeometry(0.58, 1.74), glass, side * 1.27, 1.18, entrance + 0.02);
+    box(shop, jade, side * 0.98, 1.17, entrance + 0.031, 0.044, 1.77, 0.045);
+  }
+  box(shop, shutter, 0, 1.98, entrance + 0.005, 3.15, 0.51, 0.08);
+  for (let i = 0; i < 10; i++) {
+    box(shop, m.iron, 0, 1.75 + i * 0.049, entrance + 0.05, 3.16, 0.013, 0.021);
+  }
+  for (const [index, z] of [entrance + 0.47, entrance + 0.22, entrance - 0.05].entries()) {
+    box(shop, tile, 0, 0.058 + index * 0.055, z, 3.12, 0.060 + index * 0.11, 0.32);
+  }
+  for (let shelf = 0; shelf < 2; shelf++) {
+    const y = 0.91 + shelf * 0.37;
+    box(shop, m.silver, -0.92, y, entrance - 0.48, 1.29, 0.042, 0.26);
+    for (let i = 0; i < 5; i++) container(shop, m, -1.44 + i * 0.24, y + 0.023, entrance - 0.43,
+      0.092, 0.048, m.enamel, 'bowl');
+  }
+  box(shop, m.silver, -0.91, 0.62, entrance + 0.27, 1.54, 0.76, 0.57);
+  box(shop, jade, -0.91, 0.62, entrance + 0.563, 1.39, 0.57, 0.023);
+  box(shop, m.silver, -0.91, 1.02, entrance + 0.28, 1.60, 0.065, 0.62);
+  container(shop, m, -1.29, 1.055, entrance + 0.28, 0.246, 0.30, m.silver, 'pot');
+  container(shop, m, -0.73, 1.055, entrance + 0.25, 0.181, 0.24, m.silver, 'pot');
+  rod(shop, m.silver, [-0.73, 1.26, entrance + 0.22], [-0.57, 1.48, entrance + 0.29], 0.014);
+  for (let i = 0; i < 4; i++) {
+    container(shop, m, -0.35, 1.052 + i * 0.032, entrance + 0.35, 0.091, 0.052, m.enamel, 'bowl');
+  }
+  bulb(shop, m, -1.25, 1.91, entrance + 0.15);
+  bulb(shop, m, 1.26, 1.93, entrance + 0.15);
+
+  for (const [u, z, color] of [[-1.10, 1.83, m.red], [1.03, 2.31, m.blue]]) {
+    const table = groupAt(shop, 'Bàn nhựa vỉa hè', u, 0.075, z);
+    box(table, color, 0, 0.485, 0, 0.84, 0.058, 0.60);
+    for (const side of [-1, 1]) for (const end of [-1, 1]) {
+      const leg = box(table, color, side * 0.35, 0.24, end * 0.24, 0.055, 0.47, 0.047);
+      leg.rotation.z = side * 0.10;
+    }
+    container(table, m, -0.16, 0.52, 0, 0.093, 0.052, m.enamel, 'bowl');
+    container(table, m, 0.17, 0.52, -0.05, 0.078, 0.122, m.silver, 'bowl');
+    for (let i = 0; i < 3; i++) rod(table, m.timber, [0.145 + i * 0.024, 0.54, -0.04],
+      [0.133 + i * 0.030, 0.69, -0.05], 0.006);
+    stool(shop, m, u, z + 0.49, color, { turn: 0.11 });
+    stool(shop, m, u + Math.sign(u) * 0.61, z - 0.03, color === m.red ? m.blue : m.red, { turn: -0.18 });
+  }
+}
+
 function foodStall(parent, m, x, type) {
+  if (type === 0) {
+    phoShop(parent, m, x);
+    return;
+  }
   if (type === 2) {
     banhMiCart(parent, m, x);
     return;
   }
   const names = {
-    0: ['Nồi Phố', 'PHỞ BÒ · BÚN NÓNG', 'P', 'stripe'],
     1: ['Bếp Than', 'THỊT XIÊN · ĐỒ NƯỚNG', 'B', 'sand'],
     3: ['Chè Nhà', 'CHÈ · SỮA ĐẬU NÀNH', 'C', 'stripe'],
   };
   const [name, subtitle, logo, style] = names[type];
   const stall = stallFrame(parent, m, x, name, subtitle, logo, style, '#723c30');
   table(stall, m, 0, 1.34, 3.44);
-  if (type === 0) {
-    container(stall, m, -0.75, 0.77, 1.28, 0.36, 0.42, m.silver, 'pot');
-    container(stall, m, 0.12, 0.77, 1.31, 0.24, 0.32, m.silver, 'pot');
-    for (let i = 0; i < 7; i++) container(stall, m, 0.91 + (i % 2) * 0.26,
-      0.77 + Math.floor(i / 2) * 0.043, 1.38, 0.12, 0.070, m.enamel, 'bowl');
-    rod(stall, m.silver, [0.20, 1.07, 1.24], [0.51, 1.43, 1.26], 0.017);
-  } else if (type === 1) {
+  if (type === 1) {
     box(stall, m.silver, 0, 0.89, 1.33, 2.02, 0.22, 0.54);
     box(stall, m.coffee, 0, 1.011, 1.33, 1.93, 0.027, 0.49);
     for (let i = 0; i < 16; i++) {
@@ -1662,6 +1752,7 @@ function placeMarketHouses(parent, { fronts, material }, m, pitches, variants, s
       box(home, m.trim, 0, height + 0.44, -0.10, width * 0.49, 0.055, 0.38);
     }
 
+    if (sectionIndex === 1 && i === 0) return;
     box(home, m.sill, 0, 0.13, 0.01, width, 0.25, 0.27);
     const shopWidth = width * shopRatio;
     const jambWidth = (width - shopWidth) / 2;
