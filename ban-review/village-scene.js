@@ -1417,17 +1417,20 @@ function buildMascot() {
   }
   const hood = group(() => {
     const rings = [
-      [-0.245, 0.416, 0.325], [-0.186, 0.445, 0.354], [-0.081, 0.467, 0.374],
+      [-0.245, 0.416, 0.325], [-0.191, 0.454, 0.350], [-0.081, 0.471, 0.370],
       [0.055, 0.468, 0.375], [0.182, 0.421, 0.339], [0.274, 0.314, 0.252],
       [0.333, 0.179, 0.158], [0.348, 0.004, 0.004],
     ];
     const segments = 48, positions = [], indices = [];
     const pointAt = ([z, width, height], angle) => {
       const x = Math.cos(angle), y = Math.sin(angle);
-      const brow = T.MathUtils.smoothstep(-z, 0.12, 0.245) * Math.max(0, y) ** 2;
-      return new T.Vector3(Math.sign(x) * Math.abs(x) ** 0.63 * width,
-        0.014 + Math.sign(y) * Math.abs(y) ** 0.66 * height - brow * 0.063,
-        z + Math.max(0, -y) * 0.034 * width / 0.468 - brow * 0.035);
+      const brow = T.MathUtils.smoothstep(-z, 0.09, 0.245) * Math.max(0, y) ** 3;
+      const puff = T.MathUtils.smoothstep(z, -0.245, -0.13)
+        * (1 - T.MathUtils.smoothstep(z, -0.05, 0.22));
+      const sideVolume = 0.030 * puff * (1 - Math.abs(y + 0.10) * 0.68);
+      return new T.Vector3(Math.sign(x) * Math.abs(x) ** 0.63 * (width + sideVolume),
+        0.014 + Math.sign(y) * Math.abs(y) ** 0.66 * height - brow * 0.112,
+        z + Math.max(0, -y) * 0.034 * width / 0.468 - brow * 0.058);
     };
     rings.forEach((ring, row) => {
       for (let i = 0; i <= segments; i++) {
