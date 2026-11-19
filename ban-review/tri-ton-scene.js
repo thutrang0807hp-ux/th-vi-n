@@ -819,16 +819,36 @@ export function buildTriTon(scene) {
     return batch;
   });
 
-  const wings = new Facets(), white = color('#fff1da');
-  for (const side of [-1, 1]) {
-    for (let i = 0; i < 8; i++) {
-      const x = side * (62 + i * 1.2), y = 13.4 + Math.cos(i * 0.71) * 1.27, z = -31 + i * 2.03;
-      const p = (u, v, w) => [x + u, y + v, z + w];
-      wings.triangle(p(0, 0, 0), p(0.09, 0.28, -0.52), p(-0.12, 0.06, -0.24), white);
-      wings.triangle(p(0, 0, 0), p(-0.21, 0.06, 0.26), p(0.12, 0.31, 0.51), white);
+  const birdsPerSide = 8;
+  const wings = new T.BufferAttribute(new Float32Array(birdsPerSide * 2 * 6 * 3), 3);
+  wings.setUsage(T.DynamicDrawUsage);
+  const flock = new T.Mesh(new T.BufferGeometry().setAttribute('position', wings),
+    new T.MeshBasicMaterial({ color: '#fff1da', side: T.DoubleSide }));
+  flock.name = 'Tri Ton flying birds';
+  flock.frustumCulled = false;
+  backdrop.add(flock);
+
+  function flyBirds(time) {
+    let vertex = 0;
+    for (const side of [-1, 1]) {
+      const along = T.MathUtils.euclideanModulo(time * 2.1 + 97 + (side < 0 ? 38 : 0), 244) - 122;
+      for (let i = 0; i < birdsPerSide; i++) {
+        const x = side * (68 + i * 1.45 + Math.sin(time * 0.34 + i) * 0.8);
+        const y = 15.2 + Math.cos(i * 0.71) * 1.27 + Math.sin(time * 0.93 + i * 0.76) * 0.32;
+        const z = side * (along + i * 2.05 + Math.sin(i * 1.9) * 0.91);
+        const flap = Math.sin(time * (7.6 + i * 0.17) - i * 1.2);
+        const spread = 0.50 - Math.abs(flap) * 0.13;
+        for (const wing of [-1, 1]) {
+          wings.setXYZ(vertex++, x, y, z);
+          wings.setXYZ(vertex++, x + wing * spread, y + 0.12 + flap * 0.29, z - side * 0.23);
+          wings.setXYZ(vertex++, x + wing * 0.17, y + flap * 0.10, z - side * 0.29);
+        }
+      }
     }
+    wings.needsUpdate = true;
   }
-  backdrop.add(new T.Mesh(wings.geometry(), new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide })));
+  flyBirds(0);
+
   function repeat(tile, speed) {
     const strip = new T.Group();
     strip.name = tile.name;
@@ -848,6 +868,7 @@ export function buildTriTon(scene) {
     animateAmbient(time) {
       daylight.value = time;
       flyKite(time, layers[1].strip.position.z);
+      flyBirds(time);
       cloudMeshes.forEach((clouds, layer) => {
         const phase = layer * 0.72;
         clouds.position.z = (Math.sin(time * (0.026 - layer * 0.005) + phase) - Math.sin(phase)) * 18;
