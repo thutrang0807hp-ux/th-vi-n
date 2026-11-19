@@ -1,6 +1,6 @@
 # Nhà phố Hà Nội trong cảnh chợ
 
-`model.glb` chứa atlas nguồn và khối hộp để xem ảnh. Cảnh chợ dùng riêng atlas này cho các vùng cửa sổ, biển hiệu và cửa tiệm. Hình khối của 16 căn trên bốn đoạn phố được dựng trong `market-scene.js` bằng tường có hốc cửa, gờ mái, khung và lan can ban công. Các miếng ảnh dùng một vật liệu và được gộp theo đoạn phố.
+`model.glb` chứa atlas nguồn và khối hộp để xem ảnh. Cảnh chợ dùng atlas này cho tường vữa và các vùng cửa sổ, biển hiệu, cửa tiệm. UV tường chạy theo tọa độ của căn nhà để vân vữa liền qua các cột và dải tường. Ba kiểu nhà mới có hai ban công với sân thượng, tầng trên lùi dưới mái tôn, hoặc cửa vòm có gờ mái giật cấp. Dãy phố còn dùng lại ba mẫu cũ có mái ngói, nhà ống và mái tôn lệch. Tường và các chi tiết ảnh dùng chung một vật liệu và được gộp theo từng đoạn phố.
 
 - `hang-gai-frontage.jpg` là hai mặt tiền liền nhau từ [Hang Gai Street (9753914924)](https://commons.wikimedia.org/wiki/File:Hang_Gai_Street_(9753914924).jpg) của Gary Todd, CC0.
 - `hanoi-corner-frontage.jpg` lấy từ [Crossroad in Hanoi](https://commons.wikimedia.org/wiki/File:Crossroad_in_Hanoi.jpg) của Christophe95, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).

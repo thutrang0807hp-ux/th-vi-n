@@ -374,12 +374,12 @@ function plasterPanel(parent, surface, config, x, y, z, width, height, depth) {
   mesh(parent, geometry, surface, 0, 0, 0);
 }
 
-function facadeBand(home, surface, config, bottom, top, openings) {
+function facadeBand(panel, config, bottom, top, openings) {
   const { width } = config;
   const front = 0.11, depth = 0.31;
   const wall = (left, right, low, high) => {
     if (right <= left || high <= low) return;
-    plasterPanel(home, surface, config, (left + right) / 2, (low + high) / 2, front - depth / 2,
+    panel((left + right) / 2, (low + high) / 2, front - depth / 2,
       right - left, high - low, depth);
   };
   let edge = -width / 2;
@@ -392,7 +392,7 @@ function facadeBand(home, surface, config, bottom, top, openings) {
   wall(edge, width / 2, bottom, top);
 }
 
-function recessedOpening(home, m, opening, shop) {
+function recessedOpening(home, m, opening, shop, photo, photoMaterial) {
   const { x, span, sill, lintel } = opening;
   const middle = (sill + lintel) / 2, height = lintel - sill;
   const reveal = shop ? 0.89 : 0.24;
@@ -404,6 +404,7 @@ function recessedOpening(home, m, opening, shop) {
   box(home, m.sill, x, sill - 0.04, 0.09 - reveal / 2, span + 0.18, 0.10, reveal + 0.23);
   box(home, m.trim, x, lintel + 0.025, 0.17, span + 0.21, 0.10, 0.20);
   if (shop) {
+    if (photo) mesh(home, photo, photoMaterial, x, middle, -0.766, span - 0.12, height - 0.13);
     for (const side of [-1, 1]) {
       const leaf = groupAt(home, 'Open paneled shop door', x + side * (span / 2 - 0.16), middle, -0.06);
       leaf.rotation.y = side * 1.08;
@@ -412,7 +413,8 @@ function recessedOpening(home, m, opening, shop) {
     }
     return;
   }
-  box(home, m.glass, x, middle, -0.10, span - 0.10, height - 0.11, 0.039);
+  if (photo) mesh(home, photo, photoMaterial, x, middle, -0.085, span - 0.10, height - 0.11);
+  else box(home, m.glass, x, middle, -0.10, span - 0.10, height - 0.11, 0.039);
   box(home, m.darkWood, x, middle, -0.069, 0.049, height, 0.035);
   for (const y of [middle - height * 0.20, middle + height * 0.20]) {
     box(home, m.darkWood, x, y, -0.070, span, 0.042, 0.035);
@@ -478,7 +480,7 @@ function marketWallUnit(home, m, x, y) {
     [x + 0.32, y - 0.54, 0.14]], 0.013);
 }
 
-function architecturePrototype(parent, m, x, variant, random) {
+function architecturePrototype(parent, m, x, variant, random, photoStyle) {
   const config = [
     { name: 'Nhà phố hai tầng mái ngói', width: 4.48, height: 5.48, shop: 3.25,
       floors: [[2.93, 5.48, 3.46, 4.96, [-1.04, 0.98], 0.68]] },
@@ -488,21 +490,30 @@ function architecturePrototype(parent, m, x, variant, random) {
     { name: 'Nhà chợ mái tôn lệch', width: 4.55, height: 5.22, shop: 3.57,
       floors: [[2.93, 5.22, 3.46, 4.67, [-1.17, 0.96], 0.76]] },
   ][variant];
-  const home = groupAt(parent, config.name, x, 0, variant === 1 ? -0.11 : 0);
+  const setback = photoStyle ? -0.85 : 0;
+  const home = groupAt(parent, config.name, x, 0, setback - (variant === 1 ? 0.11 : 0));
   const { width, height, floors } = config;
-  const surface = wallFinish(config, variant);
-  plasterPanel(home, surface, config, 0, height / 2, -1.03, width, height, 0.24);
+  const surface = photoStyle?.material ?? wallFinish(config, variant);
+  const panel = photoStyle
+    ? (...dimensions) => plasterBox(home, surface, plasterTints[variant], width, height, ...dimensions)
+    : (...dimensions) => plasterPanel(home, surface, config, ...dimensions);
+  panel(0, height / 2, -1.03, width, height, 0.24);
   for (const side of [-1, 1]) {
-    plasterPanel(home, surface, config, side * (width / 2 - 0.07), height / 2, -0.52, 0.14, height, 1.02);
+    panel(side * (width / 2 - 0.07), height / 2, -0.52, 0.14, height, 1.02);
   }
   const threshold = { x: variant === 2 ? -0.13 : 0, span: config.shop, sill: 0.14, lintel: 2.32 };
-  facadeBand(home, surface, config, 0, floors[0][0], [threshold]);
-  recessedOpening(home, m, threshold, true);
+  facadeBand(panel, config, 0, floors[0][0], [threshold]);
+  recessedOpening(home, m, threshold, true, photoStyle?.front.shop, surface);
+  if (photoStyle) {
+    box(home, m.darkWood, threshold.x, 2.60, 0.15, config.shop, 0.41, 0.13);
+    mesh(home, photoStyle.front.sign, surface, threshold.x, 2.60, 0.222, config.shop - 0.22, 0.29);
+  }
   box(home, m.trim, 0, floors[0][0] - 0.02, 0.13, width + 0.07, 0.12, 0.26);
   for (const [floor, [bottom, top, sill, lintel, xs, span]] of floors.entries()) {
     const openings = xs.map(x => ({ x, span, sill, lintel }));
-    facadeBand(home, surface, config, bottom, top, openings);
-    openings.forEach(opening => recessedOpening(home, m, opening, false));
+    facadeBand(panel, config, bottom, top, openings);
+    const photoFloor = photoStyle?.front.floors[Math.min(floor, photoStyle.front.floors.length - 1)];
+    openings.forEach((opening, i) => recessedOpening(home, m, opening, false, photoFloor?.windows[i], surface));
     const balconyY = sill - 0.12;
     marketBalcony(home, m, variant === 2 ? width * 0.68 : width * 0.84,
       balconyY, variant === 1 ? 0.77 : 0.63, variant === 1);
@@ -512,7 +523,7 @@ function architecturePrototype(parent, m, x, variant, random) {
     if (variant === 1 || variant === 2) marketWallUnit(home, m, width / 2 - 0.39, lintel - 0.36);
   }
   if (variant === 2) {
-    plasterPanel(home, surface, config, -0.94, height + 0.18, -0.31, width * 0.55, 0.43, 0.72);
+    panel(-0.94, height + 0.18, -0.31, width * 0.55, 0.43, 0.72);
     marketRoof(home, m, -0.91, width * 0.57, height + 0.45, true);
     marketRoof(home, m, 1.29, width * 0.42, height + 0.03, true);
     marketRoof(home, m, 0, width * 0.98, 3.12, true);
@@ -1098,14 +1109,7 @@ function batchStatic(root, paintedSurfaces) {
     let surface = mesh.material;
     if (surface.isMeshStandardMaterial && !surface.map && !surface.bumpMap
       && !surface.transparent && !surface.vertexColors && surface.emissive.getHex() === 0) {
-      const { r, g, b } = surface.color;
-      const colors = new Float32Array(geometry.attributes.position.count * 3);
-      for (let i = 0; i < colors.length; i += 3) {
-        colors[i] = r;
-        colors[i + 1] = g;
-        colors[i + 2] = b;
-      }
-      geometry.setAttribute('color', new T.BufferAttribute(colors, 3));
+      tintVertices(geometry, surface.color);
       surface = paintedSurfaces[surface.side];
     }
     if (!groups.has(surface)) groups.set(surface, []);
@@ -1122,13 +1126,42 @@ function batchStatic(root, paintedSurfaces) {
 
 // Crop coordinates refer to the 472 px photos embedded in the shared atlas.
 const photoFrontages = [
-  { origin: [0, 0], windows: [[65, 213, 166, 247], [253, 191, 293, 237]],
-    sign: [54, 330, 170, 351], shop: [53, 365, 122, 395], balcony: true },
-  { origin: [0, 512], windows: [[130, 193, 225, 247], [244, 195, 332, 248], [341, 194, 440, 246]],
-    sign: [154, 323, 385, 341], shop: [152, 354, 354, 397], balcony: false },
-  { origin: [512, 512], windows: [[44, 142, 96, 202], [166, 137, 244, 200], [328, 131, 405, 202]],
-    sign: [122, 221, 220, 239], shop: [108, 298, 309, 372], balcony: true, arched: true },
+  {
+    origin: [0, 0], height: 6.55, shopWidth: 0.74, roof: 'terrace',
+    floors: [
+      { bottom: 3.05, top: 4.19, windows: [[65, 213, 166, 247], [253, 191, 293, 237]], balcony: true },
+      { bottom: 4.88, top: 6.04, windows: [[24, 75, 67, 113], [149, 65, 196, 117], [254, 80, 299, 126]], balcony: true },
+    ],
+    sign: [54, 330, 170, 351], shop: [53, 365, 122, 395],
+  },
+  {
+    origin: [0, 512], height: 6.20, shopWidth: 0.84, roof: 'metal',
+    floors: [
+      { bottom: 2.87, top: 4.10, windows: [[130, 193, 225, 247], [244, 195, 332, 248], [341, 194, 440, 246]] },
+      { bottom: 4.62, top: 5.79, windows: [[119, 83, 217, 115], [241, 88, 326, 116]], balcony: true, setback: 0.29 },
+    ],
+    sign: [154, 323, 385, 341], shop: [152, 354, 354, 397],
+  },
+  {
+    origin: [512, 512], height: 5.65, shopWidth: 0.80, roof: 'pediment',
+    floors: [
+      { bottom: 3.05, top: 4.83, windows: [[44, 142, 96, 202], [166, 137, 244, 200], [328, 131, 405, 202]],
+        balcony: true, arched: true },
+    ],
+    sign: [122, 221, 220, 239], shop: [108, 298, 309, 372],
+  },
 ];
+const plasterTints = ['#ffe8c4', '#ffd6a2', '#fff3df', '#e7f4f1'].map(color => new T.Color(color));
+
+function tintVertices(geometry, { r, g, b }) {
+  const colors = new Float32Array(geometry.attributes.position.count * 3);
+  for (let i = 0; i < colors.length; i += 3) {
+    colors[i] = r;
+    colors[i + 1] = g;
+    colors[i + 2] = b;
+  }
+  geometry.setAttribute('color', new T.BufferAttribute(colors, 3));
+}
 
 function photoPanel([ox, oy], [left, top, right, bottom], arched = false) {
   let geometry = new T.PlaneGeometry(1, 1);
@@ -1149,6 +1182,7 @@ function photoPanel([ox, oy], [left, top, right, bottom], arched = false) {
     const v = T.MathUtils.lerp(top, bottom, 0.5 - position.getY(i));
     uv.setXY(i, (ox + 20 + u) / 1024, (oy + 20 + v) / 1024);
   }
+  tintVertices(geometry, { r: 1, g: 1, b: 1 });
   return geometry;
 }
 
@@ -1156,71 +1190,114 @@ export async function loadMarketHouses(url) {
   const { scene } = await new GLTFLoader().loadAsync(url);
   const source = scene.getObjectByName('Architecture');
   if (!source?.isMesh || !source.material.map) throw new Error('Missing market photo atlas');
-  const fronts = photoFrontages.map(({ origin, windows, sign, shop, arched, balcony }) => ({
-    windows: windows.map(crop => photoPanel(origin, crop, arched)),
+  const fronts = photoFrontages.map(({ origin, floors, sign, shop, ...layout }) => ({
+    ...layout,
+    floors: floors.map(({ windows, arched, ...floor }) => ({
+      ...floor, windows: windows.map(crop => photoPanel(origin, crop, arched)),
+    })),
     sign: photoPanel(origin, sign),
     shop: photoPanel(origin, shop),
-    balcony,
   }));
-  return { fronts, material: source.material };
+  const material = source.material.clone();
+  material.vertexColors = true;
+  return { fronts, material };
 }
 
-function placeMarketHouses(parent, { fronts, material }, m, pitches, variants, sectionIndex) {
-  const widths = [4.48, 4.40, 4.54, 4.46];
-  const heights = [5.55, 5.94, 5.72, 5.82];
-  pitches.forEach((x, i) => {
-    const variant = variants[i];
-    const { windows, sign, shop, balcony } = fronts[(sectionIndex + i) % fronts.length];
-    const home = groupAt(parent, 'Photo-textured shophouse', x, 0.075, -0.85);
-    const width = widths[variant], height = heights[variant];
-    const wall = m.walls[variant];
-    // The main volume ends behind the front wall, leaving shallow reveals in the openings.
-    box(home, wall, 0, height / 2, -1.74, width, height, 2.8);
-    const facadeBand = (lower, upper) =>
-      box(home, wall, 0, (lower + upper) / 2, -0.15, width, upper - lower, 0.38);
-    const windowBottom = 3.16, windowTop = height - 0.84;
-    facadeBand(2.45, windowBottom);
-    facadeBand(windowTop, height);
-    const opening = windows.length === 2 ? 1.27 : 0.89;
-    const spacing = (width - 0.48) / windows.length;
-    const windowY = (windowBottom + windowTop) / 2;
-    const windowHeight = windowTop - windowBottom;
-    let previous = -width / 2;
-    windows.forEach((photo, index) => {
-      const u = (index - (windows.length - 1) / 2) * spacing;
-      const left = u - opening / 2, right = u + opening / 2;
-      box(home, wall, (previous + left) / 2, windowY, -0.15, left - previous, windowHeight, 0.38);
-      previous = right;
-      box(home, m.darkWood, u, windowY, -0.25, opening, windowHeight, 0.04);
-      mesh(home, photo, material, u, windowY, -0.223, opening - 0.10, windowHeight - 0.10);
-      for (const side of [-1, 1]) {
-        box(home, m.trim, u + side * opening / 2, windowY, 0.035, 0.10, windowHeight, 0.13);
-      }
-      box(home, m.sill, u, windowBottom + 0.015, 0.085, opening + 0.22, 0.12, 0.22);
-    });
-    box(home, wall, (previous + width / 2) / 2, windowY, -0.15, width / 2 - previous, windowHeight, 0.38);
+function plasterBox(home, material, tint, frontageWidth, frontageHeight, x, y, z, width, height, depth) {
+  const geometry = boxGeo.clone().scale(width, height, depth).translate(x, y, z);
+  const { position, normal, uv } = geometry.attributes;
+  for (let i = 0; i < uv.count; i++) {
+    const side = Math.abs(normal.getX(i)) > 0.5;
+    const top = Math.abs(normal.getY(i)) > 0.5;
+    const u = side ? (position.getZ(i) + 3.2) / 3.5 : 0.5 + position.getX(i) / frontageWidth;
+    const v = top ? -position.getZ(i) / 3.5 : 1 - position.getY(i) / frontageHeight;
+    // Top-right atlas tile. Building-local coordinates keep the bricks aligned across piers and bands.
+    uv.setXY(i, (532 + T.MathUtils.clamp(u, 0, 1) * 472) / 1024,
+      (20 + T.MathUtils.clamp(v, 0, 1) * 472) / 1024);
+  }
+  tintVertices(geometry, tint);
+  return mesh(home, geometry, material, 0, 0, 0);
+}
 
-    box(home, m.sill, 0, height - 0.28, 0.06, width + 0.12, 0.14, 0.30);
-    box(home, m.tiles[variant], 0, height, -1.37, width + 0.08, 0.11, 3.36);
-    box(home, m.sill, 0, 0.13, 0.01, width, 0.25, 0.27);
-    for (const side of [-1, 1]) {
-      box(home, wall, side * (width / 2 - 0.23), 1.34, -0.13, 0.46, 2.36, 0.42);
-      box(home, m.darkWood, side * (width / 2 - 0.51), 1.33, 0.045, 0.10, 2.15, 0.13);
+function placeMarketHouses(parent, { fronts, material }, m, pitches, variants, sectionIndex, random) {
+  const widths = [4.48, 4.40, 4.54, 4.46];
+  pitches.forEach((x, i) => {
+    if (sectionIndex < 3 && i === sectionIndex) {
+      const front = fronts[(sectionIndex + 2) % fronts.length];
+      architecturePrototype(parent, m, x, sectionIndex, random, { front, material });
+      return;
     }
-    const shopWidth = width - 1.12;
+    const variant = variants[i];
+    const { floors, sign, shop, roof, height, shopWidth: shopRatio } = fronts[(sectionIndex + i) % fronts.length];
+    const home = groupAt(parent, 'Photo-textured shophouse', x, 0.075, -0.85);
+    const width = widths[variant];
+    const wall = (...dimensions) => plasterBox(home, material, plasterTints[variant], width, height, ...dimensions);
+    // This rear volume leaves room for the window reveals in the street-facing wall.
+    wall(0, height / 2, -1.91, width, height, 2.46);
+    const band = (lower, upper, setback) =>
+      wall(0, (lower + upper) / 2, (-0.66 - setback + 0.04) / 2,
+        width, upper - lower, 0.70 - setback);
+    let previousTop = 2.45;
+    for (const { bottom, top, windows, balcony, setback = 0 } of floors) {
+      band(previousTop, bottom, setback);
+      const opening = windows.length === 2 ? 1.31 : 0.95;
+      const spacing = (width - 0.48) / windows.length;
+      const windowY = (bottom + top) / 2;
+      const windowHeight = top - bottom;
+      const face = 0.04 - setback;
+      const pierDepth = face + 0.66;
+      let previous = -width / 2;
+      windows.forEach((photo, index) => {
+        const u = (index - (windows.length - 1) / 2) * spacing;
+        const left = u - opening / 2, right = u + opening / 2;
+        wall((previous + left) / 2, windowY, face - pierDepth / 2, left - previous, windowHeight, pierDepth);
+        previous = right;
+        box(home, m.darkWood, u, windowY, face - 0.26, opening, windowHeight, 0.04);
+        mesh(home, photo, material, u, windowY, face - 0.233, opening - 0.10, windowHeight - 0.10);
+        for (const side of [-1, 1]) {
+          box(home, m.trim, u + side * opening / 2, windowY, face, 0.10, windowHeight, 0.13);
+        }
+        box(home, m.sill, u, bottom + 0.015, face + 0.05, opening + 0.22, 0.12, 0.22);
+      });
+      wall((previous + width / 2) / 2, windowY, face - pierDepth / 2,
+        width / 2 - previous, windowHeight, pierDepth);
+      if (balcony) {
+        const span = roof === 'pediment' ? width * 0.57 : width - 0.52;
+        box(home, m.sill, 0, bottom - 0.04, face + 0.24, span, 0.15, 0.65);
+        box(home, m.iron, 0, bottom + 0.45, face + 0.52, span - 0.05, 0.06, 0.06);
+        for (let j = 0; j < 10; j++) {
+          box(home, m.iron, (j / 9 - 0.5) * (span - 0.12), bottom + 0.20, face + 0.52, 0.045, 0.51, 0.045);
+        }
+      }
+      previousTop = top;
+    }
+    const roofSetback = floors.at(-1).setback ?? 0;
+    band(previousTop, height, roofSetback);
+    box(home, m.sill, 0, height - 0.20, 0.04 - roofSetback, width + 0.12, 0.14, 0.30);
+    const roofSurface = roof === 'metal' ? m.iron : m.tiles[variant];
+    const cap = box(home, roofSurface, 0, height, -1.48, width + 0.12, 0.11, 3.28);
+    if (roof === 'metal') cap.rotation.x = -0.09;
+    if (roof === 'terrace') {
+      wall(0, height + 0.12, 0.01, width, 0.24, 0.22);
+      box(home, m.sill, 0, height + 0.25, 0.01, width + 0.08, 0.07, 0.26);
+    }
+    if (roof === 'pediment') {
+      wall(0, height + 0.13, -0.10, width * 0.76, 0.28, 0.34);
+      wall(0, height + 0.32, -0.10, width * 0.48, 0.22, 0.34);
+      box(home, m.trim, 0, height + 0.44, -0.10, width * 0.49, 0.055, 0.38);
+    }
+
+    box(home, m.sill, 0, 0.13, 0.01, width, 0.25, 0.27);
+    const shopWidth = width * shopRatio;
+    const jambWidth = (width - shopWidth) / 2;
+    for (const side of [-1, 1]) {
+      wall(side * (width - jambWidth) / 2, 1.34, -0.27, jambWidth, 2.36, 0.66);
+      box(home, m.darkWood, side * shopWidth / 2, 1.33, 0.045, 0.10, 2.15, 0.13);
+    }
     box(home, m.crevice, 0, 1.35, -0.24, shopWidth, 2.18, 0.06);
     mesh(home, shop, material, 0, 1.50, -0.203, shopWidth - 0.17, 1.32);
     box(home, m.darkWood, 0, 2.40, 0.09, shopWidth, 0.43, 0.17);
     mesh(home, sign, material, 0, 2.40, 0.180, shopWidth - 0.31, 0.31);
-
-    if (balcony) {
-      box(home, m.sill, 0, 3.13, 0.25, width - 0.62, 0.15, 0.68);
-      box(home, m.iron, 0, 3.63, 0.55, width - 0.69, 0.06, 0.06);
-      for (let j = 0; j < 10; j++) {
-        const railX = (j / 9 - 0.5) * (width - 0.76);
-        box(home, m.iron, railX, 3.38, 0.55, 0.045, 0.51, 0.045);
-      }
-    }
   });
 }
 
@@ -1280,7 +1357,9 @@ export function buildMarketPreview(scene, marketHouses) {
     }
     const buildings = groupAt(street, 'Market facades');
     if (marketHouses) {
-      placeMarketHouses(buildings, marketHouses, m, pitches, facades, i);
+      const seedBeforeHouses = seed;
+      placeMarketHouses(buildings, marketHouses, m, pitches, facades, i, random);
+      seed = seedBeforeHouses;
     } else {
       facades.forEach((variant, j) => townhouse(buildings, m, {
         x: pitches[j], width: 4.57, height: [5.34, 5.50, 5.15, 5.91][variant], variant,
