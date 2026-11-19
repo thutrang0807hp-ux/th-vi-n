@@ -1120,38 +1120,107 @@ function batchStatic(root, paintedSurfaces) {
   return result;
 }
 
-export async function loadMarketHouses(url) {
-  const { scene } = await new GLTFLoader().loadAsync(url);
-  const house = scene.getObjectByName('Architecture');
-  if (!house?.isMesh || house.geometry.attributes.position.count !== 36) {
-    throw new Error('Expected the photo house box in Architecture');
+// Crop coordinates refer to the 472 px photos embedded in the shared atlas.
+const photoFrontages = [
+  { origin: [0, 0], windows: [[65, 213, 166, 247], [253, 191, 293, 237]],
+    sign: [54, 330, 170, 351], shop: [53, 365, 122, 395], balcony: true },
+  { origin: [0, 512], windows: [[130, 193, 225, 247], [244, 195, 332, 248], [341, 194, 440, 246]],
+    sign: [154, 323, 385, 341], shop: [152, 354, 354, 397], balcony: false },
+  { origin: [512, 512], windows: [[44, 142, 96, 202], [166, 137, 244, 200], [328, 131, 405, 202]],
+    sign: [122, 221, 220, 239], shop: [108, 298, 309, 372], balcony: true, arched: true },
+];
+
+function photoPanel([ox, oy], [left, top, right, bottom], arched = false) {
+  let geometry = new T.PlaneGeometry(1, 1);
+  if (arched) {
+    const arch = new T.Shape();
+    arch.moveTo(-0.5, -0.5);
+    arch.lineTo(0.5, -0.5);
+    arch.lineTo(0.5, 0.15);
+    arch.quadraticCurveTo(0.5, 0.5, 0, 0.5);
+    arch.quadraticCurveTo(-0.5, 0.5, -0.5, 0.15);
+    arch.closePath();
+    geometry.dispose();
+    geometry = new T.ShapeGeometry(arch, 5);
   }
-  house.geometry.computeBoundingBox();
-  // The front starts in the first atlas quadrant. Move only its UVs for the other photos.
-  const geometries = [[0, 0], [0, 0.5], [0.5, 0.5]].map(([du, dv]) => {
-    const geometry = house.geometry.clone();
-    const { normal, uv } = geometry.attributes;
-    for (let i = 0; i < uv.count; i++) {
-      if (normal.getZ(i) > 0.99) uv.setXY(i, uv.getX(i) + du, uv.getY(i) + dv);
-    }
-    return geometry;
-  });
-  return { geometries, material: house.material, bounds: house.geometry.boundingBox };
+  const { position, uv } = geometry.attributes;
+  for (let i = 0; i < uv.count; i++) {
+    const u = T.MathUtils.lerp(left, right, position.getX(i) + 0.5);
+    const v = T.MathUtils.lerp(top, bottom, 0.5 - position.getY(i));
+    uv.setXY(i, (ox + 20 + u) / 1024, (oy + 20 + v) / 1024);
+  }
+  return geometry;
 }
 
-function placeMarketHouses(parent, { geometries, material, bounds }, pitches, variants, sectionIndex) {
-  const size = bounds.getSize(new T.Vector3());
-  const center = bounds.getCenter(new T.Vector3());
-  const widths = [4.55, 4.48, 4.57, 4.51];
-  const heights = [5.80, 6.15, 5.90, 6.05];
+export async function loadMarketHouses(url) {
+  const { scene } = await new GLTFLoader().loadAsync(url);
+  const source = scene.getObjectByName('Architecture');
+  if (!source?.isMesh || !source.material.map) throw new Error('Missing market photo atlas');
+  const fronts = photoFrontages.map(({ origin, windows, sign, shop, arched, balcony }) => ({
+    windows: windows.map(crop => photoPanel(origin, crop, arched)),
+    sign: photoPanel(origin, sign),
+    shop: photoPanel(origin, shop),
+    balcony,
+  }));
+  return { fronts, material: source.material };
+}
+
+function placeMarketHouses(parent, { fronts, material }, m, pitches, variants, sectionIndex) {
+  const widths = [4.48, 4.40, 4.54, 4.46];
+  const heights = [5.55, 5.94, 5.72, 5.82];
   pitches.forEach((x, i) => {
     const variant = variants[i];
-    const photo = (sectionIndex + i) % geometries.length;
-    const house = new T.Mesh(geometries[photo], material);
-    house.scale.set(widths[variant] / size.x, heights[variant] / size.y, 3.1 / size.z);
-    house.position.set(x - center.x * house.scale.x, 0.075 - bounds.min.y * house.scale.y,
-      -0.85 - bounds.max.z * house.scale.z);
-    parent.add(house);
+    const { windows, sign, shop, balcony } = fronts[(sectionIndex + i) % fronts.length];
+    const home = groupAt(parent, 'Photo-textured shophouse', x, 0.075, -0.85);
+    const width = widths[variant], height = heights[variant];
+    const wall = m.walls[variant];
+    // The main volume ends behind the front wall, leaving shallow reveals in the openings.
+    box(home, wall, 0, height / 2, -1.74, width, height, 2.8);
+    const facadeBand = (lower, upper) =>
+      box(home, wall, 0, (lower + upper) / 2, -0.15, width, upper - lower, 0.38);
+    const windowBottom = 3.16, windowTop = height - 0.84;
+    facadeBand(2.45, windowBottom);
+    facadeBand(windowTop, height);
+    const opening = windows.length === 2 ? 1.27 : 0.89;
+    const spacing = (width - 0.48) / windows.length;
+    const windowY = (windowBottom + windowTop) / 2;
+    const windowHeight = windowTop - windowBottom;
+    let previous = -width / 2;
+    windows.forEach((photo, index) => {
+      const u = (index - (windows.length - 1) / 2) * spacing;
+      const left = u - opening / 2, right = u + opening / 2;
+      box(home, wall, (previous + left) / 2, windowY, -0.15, left - previous, windowHeight, 0.38);
+      previous = right;
+      box(home, m.darkWood, u, windowY, -0.25, opening, windowHeight, 0.04);
+      mesh(home, photo, material, u, windowY, -0.223, opening - 0.10, windowHeight - 0.10);
+      for (const side of [-1, 1]) {
+        box(home, m.trim, u + side * opening / 2, windowY, 0.035, 0.10, windowHeight, 0.13);
+      }
+      box(home, m.sill, u, windowBottom + 0.015, 0.085, opening + 0.22, 0.12, 0.22);
+    });
+    box(home, wall, (previous + width / 2) / 2, windowY, -0.15, width / 2 - previous, windowHeight, 0.38);
+
+    box(home, m.sill, 0, height - 0.28, 0.06, width + 0.12, 0.14, 0.30);
+    box(home, m.tiles[variant], 0, height, -1.37, width + 0.08, 0.11, 3.36);
+    box(home, m.sill, 0, 0.13, 0.01, width, 0.25, 0.27);
+    for (const side of [-1, 1]) {
+      box(home, wall, side * (width / 2 - 0.23), 1.34, -0.13, 0.46, 2.36, 0.42);
+      box(home, m.darkWood, side * (width / 2 - 0.51), 1.33, 0.045, 0.10, 2.15, 0.13);
+    }
+    const shopWidth = width - 1.12;
+    box(home, m.crevice, 0, 1.35, -0.24, shopWidth, 2.18, 0.06);
+    mesh(home, shop, material, 0, 1.50, -0.203, shopWidth - 0.17, 1.32);
+    box(home, m.darkWood, 0, 2.40, 0.09, shopWidth, 0.43, 0.17);
+    mesh(home, sign, material, 0, 2.40, 0.180, shopWidth - 0.31, 0.31);
+
+    if (balcony) {
+      box(home, m.sill, 0, 3.13, 0.25, width - 0.62, 0.15, 0.68);
+      box(home, m.iron, 0, 3.63, 0.55, width - 0.69, 0.06, 0.06);
+      for (let j = 0; j < 10; j++) {
+        const railX = (j / 9 - 0.5) * (width - 0.76);
+        box(home, m.iron, railX, 3.38, 0.55, 0.045, 0.51, 0.045);
+      }
+    }
   });
 }
 
@@ -1211,7 +1280,7 @@ export function buildMarketPreview(scene, marketHouses) {
     }
     const buildings = groupAt(street, 'Market facades');
     if (marketHouses) {
-      placeMarketHouses(buildings, marketHouses, pitches, facades, i);
+      placeMarketHouses(buildings, marketHouses, m, pitches, facades, i);
     } else {
       facades.forEach((variant, j) => townhouse(buildings, m, {
         x: pitches[j], width: 4.57, height: [5.34, 5.50, 5.15, 5.91][variant], variant,
