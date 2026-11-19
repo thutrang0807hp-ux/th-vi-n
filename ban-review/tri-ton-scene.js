@@ -490,32 +490,35 @@ function buildFieldKite(root) {
   kite.add(bridle);
   fadeMaterials.push(bridle.material);
 
+  const spacing = fieldLength * 3;
+  let previousOffset = 0;
+  let travel = 0;
   return (time, fieldOffset) => {
-    const clock = time + 13;
-    const cycle = Math.floor(clock / 66);
-    const elapsed = clock % 66;
-    group.visible = elapsed < 32;
+    // Unwrap the scenery tile offset so the kite can pass the train without a jump.
+    const step = T.MathUtils.euclideanModulo(fieldOffset - previousOffset + fieldHalf, fieldLength) - fieldHalf;
+    travel = T.MathUtils.euclideanModulo(travel + step, spacing);
+    previousOffset = fieldOffset;
+    const along = T.MathUtils.euclideanModulo(travel - 14 + spacing / 2, spacing) - spacing / 2;
+    group.visible = Math.abs(along) < 136;
     if (!group.visible) return;
-    const side = cycle % 2 === 0 ? 1 : -1;
-    const z = side * 8;
-    const x = side * 64;
+    const z = along + 8;
+    const x = 64;
     const landZ = T.MathUtils.euclideanModulo(z - fieldOffset + fieldHalf, fieldLength) - fieldHalf;
     const ground = groundAt(x, landZ) + 0.55;
-    const fade = T.MathUtils.smoothstep(elapsed, 0, 4) * (1 - T.MathUtils.smoothstep(elapsed, 27, 32));
+    const fade = 1 - T.MathUtils.smoothstep(Math.abs(along), 109, 136);
     fadeMaterials.forEach((material, i) => { material.opacity = fade * (i === 1 ? 0.43 : 1); });
-    kite.position.set(side * (84 + Math.sin(time * 0.48) * 1.2),
-      28 + Math.sin(time * 0.81) * 0.55, side * (elapsed - 13) * 1.5 + Math.sin(time * 0.63) * 1.1);
-    kite.rotation.set(0.24 + Math.sin(time * 1.4) * 0.12, Math.sin(time * 0.9) * 0.18, -side * 0.21);
+    kite.position.set(84 + Math.sin(time * 0.48) * 1.2,
+      28 + Math.sin(time * 0.81) * 0.55, along + Math.sin(time * 0.63) * 1.1);
+    kite.rotation.set(0.24 + Math.sin(time * 1.4) * 0.12, Math.sin(time * 0.9) * 0.18, -0.21);
     kite.updateMatrix();
-    hitch.set(-side * 0.20, 0.13, 0.04);
-    if (!bridle.geometry.attributes.position || bridle.userData.side !== side) {
+    hitch.set(-0.20, 0.13, 0.04);
+    if (!bridle.geometry.attributes.position) {
       bridle.geometry.setFromPoints([new T.Vector3(...left), hitch, new T.Vector3(...right)]);
-      bridle.userData.side = side;
     }
     hitch.applyMatrix4(kite.matrix);
     for (let i = 0; i < string.count; i++) {
       const t = i / (string.count - 1);
-      string.setXYZ(i, T.MathUtils.lerp(x, hitch.x, t) - side * Math.sin(Math.PI * t) * 0.65,
+      string.setXYZ(i, T.MathUtils.lerp(x, hitch.x, t) - Math.sin(Math.PI * t) * 0.65,
         T.MathUtils.lerp(ground, hitch.y, t), T.MathUtils.lerp(z, hitch.z, t) + Math.sin(Math.PI * t) * 0.70);
     }
     string.needsUpdate = true;
@@ -527,6 +530,84 @@ function buildFieldKite(root) {
           tip[2] + t * (2.4 + index * 0.27));
       }
       tail.needsUpdate = true;
+    });
+  };
+}
+
+function buildFieldStorks(root) {
+  const body = new Facets();
+  const white = color('#fff2d7');
+  const shade = color('#d5cab7');
+  const dark = color('#364047');
+  const orange = color('#dd8545');
+  const meshMaterial = new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide });
+  const storkParts = [];
+  const shapes = {
+    ellipsoid(tint, x, y, z, sx, sy, sz) {
+      const shape = new T.IcosahedronGeometry(1, 0).scale(sx, sy, sz).translate(x, y, z);
+      storkParts.push({ shape, tint });
+    },
+    taper(tint, start, end, radius, tipRadius) {
+      const from = new T.Vector3(...start), to = new T.Vector3(...end);
+      const axis = to.clone().sub(from);
+      const shape = new T.CylinderGeometry(tipRadius, radius, axis.length(), 5, 1);
+      const turn = new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), axis.normalize());
+      const center = from.lerp(to, 0.5);
+      shape.applyQuaternion(turn).translate(center.x, center.y, center.z);
+      storkParts.push({ shape, tint });
+    },
+  };
+  shapes.ellipsoid(white, 0, 0, 0, 0.22, 0.24, 0.54);
+  shapes.ellipsoid(shade, 0, -0.02, 0.45, 0.16, 0.12, 0.24);
+  shapes.taper(white, [0, 0.06, -0.34], [0, 0.19, -0.99], 0.124, 0.076);
+  shapes.ellipsoid(white, 0, 0.19, -1.01, 0.094, 0.10, 0.15);
+  shapes.taper(orange, [0, 0.17, -1.10], [0, 0.12, -1.52], 0.052, 0.006);
+  for (const side of [-1, 1]) {
+    shapes.ellipsoid(dark, side * 0.081, 0.22, -1.065, 0.024, 0.025, 0.025);
+    shapes.taper(orange, [side * 0.085, -0.11, 0.28], [side * 0.14, -0.21, 1.15], 0.032, 0.016);
+  }
+  for (const { shape, tint } of storkParts) {
+    const vertices = shape.attributes.position;
+    const count = shape.index?.count ?? vertices.count;
+    for (let i = 0; i < count; i += 3) {
+      const points = [i, i + 1, i + 2].map(index => {
+        const vertex = shape.index ? shape.index.getX(index) : index;
+        return [vertices.getX(vertex), vertices.getY(vertex), vertices.getZ(vertex)];
+      });
+      body.triangle(...points, tint);
+    }
+    shape.dispose();
+  }
+  const bodyGeometry = body.geometry();
+  const wingGeometries = [-1, 1].map(side => {
+    const wing = new Facets();
+    const point = (span, lift, sweep) => [span * side, lift, sweep];
+    const shoulder = point(0, 0, -0.37), elbow = point(0.83, 0.02, -0.52);
+    const wrist = point(1.16, 0.015, -0.27), tip = point(1.69, -0.045, -0.03);
+    const trailing = point(0.76, -0.04, 0.38), root = point(0, 0, 0.34);
+    wing.quad(shoulder, elbow, trailing, root, white);
+    wing.triangle(elbow, wrist, trailing, shade);
+    wing.quad(wrist, tip, point(1.38, -0.075, 0.30), trailing, dark);
+    return wing.geometry();
+  });
+  const storks = [1, -1].map(side => {
+    const bird = new T.Mesh(bodyGeometry, meshMaterial);
+    bird.name = 'Tri Ton flying stork';
+    const wings = wingGeometries.map(geometry => new T.Mesh(geometry, meshMaterial));
+    bird.add(...wings);
+    root.add(bird);
+    return { bird, wings, side };
+  });
+
+  return time => {
+    storks.forEach(({ bird, wings, side }, i) => {
+      const along = T.MathUtils.euclideanModulo(time * 2.7 + 113 + i * 39, 266) - 133;
+      bird.position.set(side * (68 + Math.sin(time * 0.25 + i) * 2.0),
+        14.3 + i * 2.0 + Math.sin(time * 0.75 + i) * 0.42, along * side);
+      bird.rotation.set(0.04, side > 0 ? Math.PI + 0.39 : 0.39, Math.sin(time * 0.64 + i) * 0.19);
+      const flap = Math.sin(time * 5.2 + i * 1.7) * (0.38 + Math.sin(time * 0.79 + i) * 0.15);
+      wings[0].rotation.z = -flap;
+      wings[1].rotation.z = flap;
     });
   };
 }
@@ -549,6 +630,25 @@ export function buildTriTon(scene) {
   const land = color('#c8ad37'), fallow = color('#dfb32a'), path = color('#c3a067'), wet = color('#65845b');
   const soil = painted({ emissive: '#494725', emissiveIntensity: 0.25 });
   const water = new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide, toneMapped: false });
+  water.onBeforeCompile = shader => {
+    shader.uniforms.canalTime = daylight;
+    shader.vertexShader = 'varying vec2 canalPoint;\n' + shader.vertexShader.replace(
+      '#include <begin_vertex>', '#include <begin_vertex>\ncanalPoint = position.xz;'
+    );
+    shader.fragmentShader = 'uniform float canalTime;\nvarying vec2 canalPoint;\n' +
+      shader.fragmentShader.replace('#include <opaque_fragment>', `
+        float flow = (canalPoint.y - canalTime * 0.92) * ${fullTurn / fieldLength};
+        float bank = canalPoint.x;
+        float ripple = sin(flow * 33.0 + sin(bank * 3.3) * 1.5);
+        float crossed = sin(flow * 21.0 - bank * 4.2 - canalTime * 0.38);
+        float streak = pow(max(0.0, sin(bank * 7.0 + sin(flow * 8.0) * 1.4)), 9.0)
+          * smoothstep(0.24, 0.88, sin(flow * 17.0 + bank * 2.0));
+        float reflection = smoothstep(0.74, 0.99, ripple) * smoothstep(0.27, 0.96, crossed);
+        outgoingLight *= 0.94 + crossed * 0.055 + ripple * 0.034;
+        outgoingLight = mix(outgoingLight, vec3(0.54, 0.77, 0.80), streak * 0.24 + reflection * 0.28);
+        #include <opaque_fragment>
+      `);
+  };
   const earth = new Facets(), irrigated = new Facets();
   const blue = color('#76adc2'), deep = color('#4c8d9a'), shore = color('#8d9880');
   for (const side of [-1, 1]) {
@@ -682,17 +782,8 @@ export function buildTriTon(scene) {
     outdoorShadows(layer, shadowSites.filter(([group]) => group === layer).map(([, ...site]) => site));
   }
 
-  const glints = new Facets(), reflected = color('#c2d9c9'), light = color('#e9dcc0');
-  for (const side of [-1, 1]) {
-    for (let i = 0; i < 126; i++) {
-      const z = -fieldHalf + 0.30 + random() * (fieldLength - 0.60);
-      const x = side * (canalCenter(z, side) + (random() - 0.5) * canalHalfWidth(z) * 1.5);
-      const w = 0.07 + random() * 0.20, h = random() * 0.05 + 0.021;
-      glints.quad([x - w, -0.616, z], [x, -0.616, z + h], [x + w, -0.616, z],
-        [x, -0.616, z - h], reflected.clone().lerp(light, random()));
-    }
-  }
-  near.add(new T.Mesh(glints.geometry(), water));
+  // Keep the seeded layout stable after removing the old static water sparkles.
+  for (let i = 0; i < 2 * 126 * 5; i++) random();
   const ranges = new T.Group();
   mountains(ranges, random);
   backdrop.add(ranges);
@@ -819,35 +910,8 @@ export function buildTriTon(scene) {
     return batch;
   });
 
-  const birdsPerSide = 8;
-  const wings = new T.BufferAttribute(new Float32Array(birdsPerSide * 2 * 6 * 3), 3);
-  wings.setUsage(T.DynamicDrawUsage);
-  const flock = new T.Mesh(new T.BufferGeometry().setAttribute('position', wings),
-    new T.MeshBasicMaterial({ color: '#fff1da', side: T.DoubleSide }));
-  flock.name = 'Tri Ton flying birds';
-  flock.frustumCulled = false;
-  backdrop.add(flock);
-
-  function flyBirds(time) {
-    let vertex = 0;
-    for (const side of [-1, 1]) {
-      const along = T.MathUtils.euclideanModulo(time * 2.1 + 97 + (side < 0 ? 38 : 0), 244) - 122;
-      for (let i = 0; i < birdsPerSide; i++) {
-        const x = side * (68 + i * 1.45 + Math.sin(time * 0.34 + i) * 0.8);
-        const y = 15.2 + Math.cos(i * 0.71) * 1.27 + Math.sin(time * 0.93 + i * 0.76) * 0.32;
-        const z = side * (along + i * 2.05 + Math.sin(i * 1.9) * 0.91);
-        const flap = Math.sin(time * (7.6 + i * 0.17) - i * 1.2);
-        const spread = 0.50 - Math.abs(flap) * 0.13;
-        for (const wing of [-1, 1]) {
-          wings.setXYZ(vertex++, x, y, z);
-          wings.setXYZ(vertex++, x + wing * spread * 0.64, y + 0.12 + flap * 0.29, z + wing * spread * 0.78 - side * 0.09);
-          wings.setXYZ(vertex++, x + wing * 0.11, y + flap * 0.10, z + wing * 0.13 - side * 0.31);
-        }
-      }
-    }
-    wings.needsUpdate = true;
-  }
-  flyBirds(0);
+  const flyStorks = buildFieldStorks(backdrop);
+  flyStorks(0);
 
   function repeat(tile, speed) {
     const strip = new T.Group();
@@ -868,7 +932,7 @@ export function buildTriTon(scene) {
     animateAmbient(time) {
       daylight.value = time;
       flyKite(time, layers[1].strip.position.z);
-      flyBirds(time);
+      flyStorks(time);
       cloudMeshes.forEach((clouds, layer) => {
         const phase = layer * 0.72;
         clouds.position.z = (Math.sin(time * (0.026 - layer * 0.005) + phase) - Math.sin(phase)) * 18;
