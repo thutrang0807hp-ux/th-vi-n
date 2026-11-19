@@ -909,8 +909,10 @@ function buildMochiBody(surface) {
     // Each limb has its own joint, recessed into the body at its attachment.
     const shoulder = new T.Group();
     shoulder.position.set(side * 0.18, 0.433, 0.012);
-    const arm = oval(surface, side * 0.075, -0.112, -0.006, 0.077, 0.123, 0.082);
+    const arm = new T.Group();
+    arm.position.set(side * 0.075, -0.112, -0.006);
     arm.rotation.z = side * 0.29;
+    arm.add(oval(surface, 0, 0, 0, 0.077, 0.123, 0.082));
     shoulder.add(arm);
     scene.add(shoulder);
     arms.push(shoulder);
@@ -1437,17 +1439,17 @@ function buildMascot() {
     }
     for (const y of [0.314, 0.260, 0.206]) oval(brass, 0, y, -0.157, 0.013, 0.013, 0.007);
   });
-  const bareArms = arms.map(arm => arm.children[0]);
+  const limbs = arms.map(shoulder => shoulder.children[0]);
+  const bareArms = limbs.map(limb => limb.children[0]);
   const sleeves = {};
   for (const [name, fabric, cuff] of [['hoodie', hoodieFleece, hoodieRib], ['uniform', midnight, softGold]]) {
-    sleeves[name] = arms.map((arm, i) => {
-      const side = i === 0 ? -1 : 1;
+    sleeves[name] = limbs.map(limb => {
       const sleeve = group(() => {
-        oval(fabric, side * 0.057, -0.076, -0.006, 0.082, 0.101, 0.087).rotation.z = side * 0.28;
-        oval(cuff, side * 0.082, -0.146, -0.006, 0.080, 0.021, 0.083).rotation.z = side * 0.28;
-        oval(skin, side * 0.087, -0.165, -0.006, 0.067, 0.062, 0.073).rotation.z = side * 0.28;
+        oval(fabric, 0, 0.038, 0, 0.083, 0.087, 0.087);
+        oval(cuff, 0, -0.043, 0, 0.080, 0.021, 0.083);
+        oval(skin, 0, -0.082, 0, 0.067, 0.053, 0.073);
       });
-      arm.add(sleeve);
+      limb.add(sleeve);
       return sleeve;
     });
   }
@@ -1533,7 +1535,7 @@ function buildMascot() {
 
   function reach(index, target, x, y, z) {
     const shoulder = arms[index];
-    const arm = shoulder.children[0];
+    const arm = limbs[index];
     contactPoint.set(x, y, z);
     target.localToWorld(contactPoint);
     shoulder.worldToLocal(contactPoint);
@@ -1541,7 +1543,7 @@ function buildMascot() {
     armDirection.copy(contactPoint).normalize();
     arm.position.copy(contactPoint).multiplyScalar(0.48);
     arm.quaternion.setFromUnitVectors(armDown, armDirection);
-    arm.scale.y = contactPoint.length() * 0.54;
+    arm.scale.y = contactPoint.length() * 0.54 / bareArms[index].scale.y;
   }
 
   function setActivity(activity) {
