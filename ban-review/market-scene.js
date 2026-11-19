@@ -298,11 +298,87 @@ function townhouse(parent, m, { x, width, height, variant }, random) {
   }
 }
 
-function facadeBand(home, surface, width, bottom, top, openings) {
+function wallFinish(config, style) {
+  const palette = [
+    [[213, 181, 106], [168, 139, 82], [112, 104, 75]],
+    [[194, 180, 138], [152, 148, 114], [98, 108, 89]],
+    [[221, 196, 141], [176, 155, 111], [122, 112, 83]],
+  ][style];
+  const extent = config.height + 0.7;
+  const smooth = T.MathUtils.smoothstep;
+  const fract = value => value - Math.floor(value);
+  function hash(x, y) {
+    return fract(Math.sin(x * 127.1 + y * 311.7 + style * 71.4) * 43758.5453);
+  }
+  function grain(x, y) {
+    const ix = Math.floor(x), iy = Math.floor(y);
+    const u = smooth(x - ix, 0, 1), v = smooth(y - iy, 0, 1);
+    const top = T.MathUtils.lerp(hash(ix, iy), hash(ix + 1, iy), u);
+    const bottom = T.MathUtils.lerp(hash(ix, iy + 1), hash(ix + 1, iy + 1), u);
+    return T.MathUtils.lerp(top, bottom, v);
+  }
+  const map = texture(512, 768, ctx => {
+    const image = ctx.createImageData(512, 768);
+    for (let row = 0; row < image.height; row++) {
+      const y = (1 - row / (image.height - 1)) * extent;
+      for (let col = 0; col < image.width; col++) {
+        const x = (col / (image.width - 1) - 0.5) * config.width;
+        const broad = grain(x * 1.68, y * 1.92);
+        const mottling = grain(x * 6.8 + 4, y * 5.2 + 7);
+        const grit = grain(x * 49 + 19, y * 52);
+        const vertical = grain(x * 12.4, y * 1.16);
+        let damp = (1 - smooth(y, 0.10, 0.82)) * (0.27 + broad * 0.38);
+        damp += (1 - smooth(config.height - y, 0, 0.61)) * (0.19 + vertical * 0.49);
+        damp += smooth(Math.abs(x), config.width * 0.39, config.width * 0.50) * 0.13;
+        for (const [, , sill, lintel, windows, span] of config.floors) {
+          const ledge = sill - 0.12;
+          const shadow = ledge - y + x * 0.07;
+          if (shadow >= 0) damp += (1 - smooth(shadow, 0, 0.25)) * 0.32;
+          for (const windowX of windows) {
+            const fall = sill - y;
+            const edge = Math.abs(Math.abs(x - windowX) - span * 0.42);
+            if (fall > 0) damp += (1 - smooth(fall, 0.06, 0.80))
+              * (1 - smooth(edge, 0.025, 0.15)) * (0.17 + vertical * 0.33);
+            if (y < lintel && lintel - y < 0.14 && Math.abs(x - windowX) < span * 0.60) damp += 0.10;
+          }
+        }
+        const chips = broad * 0.56 + mottling * 0.35 + grit * 0.09 + damp * 0.19;
+        const peel = smooth(chips, 0.66, 0.80);
+        const fine = 0.92 + mottling * 0.12 + grit * 0.075;
+        const mortar = fract(y / 0.12) < 0.08
+          || fract(x / 0.24 + (Math.floor(y / 0.12) % 2) * 0.5) < 0.055;
+        const index = (row * image.width + col) * 4;
+        for (let channel = 0; channel < 3; channel++) {
+          let tone = T.MathUtils.lerp(palette[0][channel] * fine, palette[1][channel], damp * 0.79);
+          tone = T.MathUtils.lerp(tone, palette[2][channel] + (mortar ? 22 : 0), peel * 0.83);
+          image.data[index + channel] = tone;
+        }
+        image.data[index + 3] = 255;
+      }
+    }
+    ctx.putImageData(image, 0, 0);
+  });
+  return material('white', { map, bumpMap: map, bumpScale: 0.017, roughness: 0.97 });
+}
+
+function plasterPanel(parent, surface, config, x, y, z, width, height, depth) {
+  const geometry = boxGeo.clone().scale(width, height, depth).translate(x, y, z);
+  const { position, normal, uv } = geometry.attributes;
+  for (let i = 0; i < position.count; i++) {
+    const wallX = Math.abs(normal.getX(i)) > 0.5
+      ? position.getZ(i) + normal.getX(i) * config.width * 0.22
+      : position.getX(i);
+    uv.setXY(i, wallX / config.width + 0.5, position.getY(i) / (config.height + 0.7));
+  }
+  mesh(parent, geometry, surface, 0, 0, 0);
+}
+
+function facadeBand(home, surface, config, bottom, top, openings) {
+  const { width } = config;
   const front = 0.11, depth = 0.31;
   const wall = (left, right, low, high) => {
     if (right <= left || high <= low) return;
-    box(home, surface, (left + right) / 2, (low + high) / 2, front - depth / 2,
+    plasterPanel(home, surface, config, (left + right) / 2, (low + high) / 2, front - depth / 2,
       right - left, high - low, depth);
   };
   let edge = -width / 2;
@@ -403,28 +479,28 @@ function marketWallUnit(home, m, x, y) {
 
 function architecturePrototype(parent, m, x, variant, random) {
   const config = [
-    { name: 'Nhà phố hai tầng mái ngói', width: 4.48, height: 5.48, wall: 0, shop: 3.25,
+    { name: 'Nhà phố hai tầng mái ngói', width: 4.48, height: 5.48, shop: 3.25,
       floors: [[2.93, 5.48, 3.46, 4.96, [-1.04, 0.98], 0.68]] },
-    { name: 'Nhà ống ba tầng', width: 3.68, height: 7.33, wall: 3, shop: 2.62,
+    { name: 'Nhà ống ba tầng', width: 3.68, height: 7.33, shop: 2.62,
       floors: [[2.92, 5.12, 3.39, 4.81, [-0.82, 0.78], 0.55],
         [5.12, 7.33, 5.51, 6.83, [-0.74, 0.74], 0.50]] },
-    { name: 'Nhà chợ mái tôn lệch', width: 4.55, height: 5.22, wall: 2, shop: 3.57,
+    { name: 'Nhà chợ mái tôn lệch', width: 4.55, height: 5.22, shop: 3.57,
       floors: [[2.93, 5.22, 3.46, 4.67, [-1.17, 0.96], 0.76]] },
   ][variant];
   const home = groupAt(parent, config.name, x, 0, variant === 1 ? -0.11 : 0);
   const { width, height, floors } = config;
-  const surface = m.walls[config.wall];
-  box(home, surface, 0, height / 2, -1.03, width, height, 0.24);
+  const surface = wallFinish(config, variant);
+  plasterPanel(home, surface, config, 0, height / 2, -1.03, width, height, 0.24);
   for (const side of [-1, 1]) {
-    box(home, surface, side * (width / 2 - 0.07), height / 2, -0.52, 0.14, height, 1.02);
+    plasterPanel(home, surface, config, side * (width / 2 - 0.07), height / 2, -0.52, 0.14, height, 1.02);
   }
   const threshold = { x: variant === 2 ? -0.13 : 0, span: config.shop, sill: 0.14, lintel: 2.32 };
-  facadeBand(home, surface, width, 0, floors[0][0], [threshold]);
+  facadeBand(home, surface, config, 0, floors[0][0], [threshold]);
   recessedOpening(home, m, threshold, true);
   box(home, m.trim, 0, floors[0][0] - 0.02, 0.13, width + 0.07, 0.12, 0.26);
   for (const [floor, [bottom, top, sill, lintel, xs, span]] of floors.entries()) {
     const openings = xs.map(x => ({ x, span, sill, lintel }));
-    facadeBand(home, surface, width, bottom, top, openings);
+    facadeBand(home, surface, config, bottom, top, openings);
     openings.forEach(opening => recessedOpening(home, m, opening, false));
     const balconyY = sill - 0.12;
     marketBalcony(home, m, variant === 2 ? width * 0.68 : width * 0.84,
@@ -435,7 +511,7 @@ function architecturePrototype(parent, m, x, variant, random) {
     if (variant === 1 || variant === 2) marketWallUnit(home, m, width / 2 - 0.39, lintel - 0.36);
   }
   if (variant === 2) {
-    box(home, surface, -0.94, height + 0.18, -0.31, width * 0.55, 0.43, 0.72);
+    plasterPanel(home, surface, config, -0.94, height + 0.18, -0.31, width * 0.55, 0.43, 0.72);
     marketRoof(home, m, -0.91, width * 0.57, height + 0.45, true);
     marketRoof(home, m, 1.29, width * 0.42, height + 0.03, true);
     marketRoof(home, m, 0, width * 0.98, 3.12, true);
