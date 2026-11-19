@@ -298,6 +298,167 @@ function townhouse(parent, m, { x, width, height, variant }, random) {
   }
 }
 
+function facadeBand(home, surface, width, bottom, top, openings) {
+  const front = 0.11, depth = 0.31;
+  const wall = (left, right, low, high) => {
+    if (right <= left || high <= low) return;
+    box(home, surface, (left + right) / 2, (low + high) / 2, front - depth / 2,
+      right - left, high - low, depth);
+  };
+  let edge = -width / 2;
+  for (const { x, span, sill, lintel } of openings) {
+    wall(edge, x - span / 2, bottom, top);
+    wall(x - span / 2, x + span / 2, bottom, sill);
+    wall(x - span / 2, x + span / 2, lintel, top);
+    edge = x + span / 2;
+  }
+  wall(edge, width / 2, bottom, top);
+}
+
+function recessedOpening(home, m, opening, shop) {
+  const { x, span, sill, lintel } = opening;
+  const middle = (sill + lintel) / 2, height = lintel - sill;
+  const reveal = shop ? 0.89 : 0.24;
+  box(home, m.crevice, x, middle, 0.08 - reveal, span, height, 0.07);
+  for (const side of [-1, 1]) {
+    box(home, m.trim, x + side * (span / 2 + 0.018), middle, 0.09 - reveal / 2,
+      0.085, height + 0.07, reveal);
+  }
+  box(home, m.sill, x, sill - 0.04, 0.09 - reveal / 2, span + 0.18, 0.10, reveal + 0.23);
+  box(home, m.trim, x, lintel + 0.025, 0.17, span + 0.21, 0.10, 0.20);
+  if (shop) {
+    for (const side of [-1, 1]) {
+      const leaf = groupAt(home, 'Open paneled shop door', x + side * (span / 2 - 0.16), middle, -0.06);
+      leaf.rotation.y = side * 1.08;
+      box(leaf, m.teal[0], 0, 0, 0, 0.35, height - 0.10, 0.067);
+      for (const y of [-0.59, 0.02, 0.64]) box(leaf, m.teal[1], 0, y, 0.042, 0.25, 0.41, 0.022);
+    }
+    return;
+  }
+  box(home, m.glass, x, middle, -0.10, span - 0.10, height - 0.11, 0.039);
+  box(home, m.darkWood, x, middle, -0.069, 0.049, height, 0.035);
+  for (const y of [middle - height * 0.20, middle + height * 0.20]) {
+    box(home, m.darkWood, x, y, -0.070, span, 0.042, 0.035);
+  }
+  for (const side of [-1, 1]) {
+    const shutter = groupAt(home, 'Open wood shutters', x + side * span * 0.52, middle, 0.11);
+    shutter.rotation.y = side * 0.69;
+    box(shutter, m.teal[0], side * 0.15, 0, 0, 0.31, height - 0.07, 0.063);
+    for (let blade = 0; blade < 9; blade++) {
+      box(shutter, m.teal[1], side * 0.15, ((blade + 0.5) / 9 - 0.5) * (height - 0.16),
+        0.047, 0.26, 0.031, 0.028).rotation.x = 0.18;
+    }
+  }
+}
+
+function marketBalcony(home, m, width, y, depth, bowed) {
+  box(home, m.sill, 0, y, depth / 2, width + 0.07, 0.19, depth);
+  box(home, m.trim, 0, y - 0.11, depth + 0.011, width + 0.11, 0.09, 0.10);
+  for (const height of [0.18, 0.74]) box(home, m.iron, 0, y + height, depth, width, 0.046, 0.045);
+  const bars = Math.ceil(width / 0.15);
+  for (let i = 0; i <= bars; i++) {
+    const x = (i / bars - 0.5) * width;
+    if (bowed) {
+      rod(home, m.iron, [x, y + 0.17, depth], [x, y + 0.43, depth + 0.085], 0.012);
+      rod(home, m.iron, [x, y + 0.43, depth + 0.085], [x, y + 0.74, depth], 0.012);
+    } else {
+      box(home, m.iron, x, y + 0.45, depth, 0.024, 0.55, 0.024);
+    }
+  }
+  for (const side of [-1, 1]) {
+    box(home, m.iron, side * width / 2, y + 0.74, depth / 2, 0.041, 0.041, depth);
+    box(home, m.iron, side * width / 2, y + 0.45, depth, 0.058, 0.60, 0.058);
+  }
+}
+
+function marketRoof(home, m, x, width, height, metal) {
+  const color = metal ? m.teal[0] : m.tiles[2];
+  const length = metal ? 1.06 : 1.60;
+  const slope = metal ? 0.16 : 0.44;
+  const centerZ = metal ? 0.23 : -0.04;
+  const roofBand = groupAt(home, 'Pitched roof and eaves', x, height, centerZ);
+  roofBand.rotation.x = slope;
+  box(roofBand, color, 0, 0, 0, width, 0.085, length);
+  const runs = Math.ceil(width / (metal ? 0.11 : 0.17));
+  const tiers = metal ? 1 : 4;
+  for (let row = 0; row < tiers; row++) for (let i = 0; i < runs; i++) {
+    const xpos = (i + 0.5) * width / runs - width / 2;
+    const zpos = ((row + 0.5) / tiers - 0.50) * length;
+    mesh(roofBand, cylinderGeo, metal ? m.teal[1] : m.tiles[(row + i) % 4],
+      xpos, 0.04, zpos, metal ? 0.026 : 0.076, length / tiers + 0.026, metal ? 0.027 : 0.035)
+      .rotation.x = Math.PI / 2;
+  }
+  rod(roofBand, metal ? m.iron : m.darkWood, [-width / 2, -0.035, length / 2],
+    [width / 2, -0.035, length / 2], 0.041);
+}
+
+function marketWallUnit(home, m, x, y) {
+  const ac = groupAt(home, 'Outdoor air conditioning unit', x, y, 0.24);
+  box(ac, m.enamel, 0, 0, 0, 0.48, 0.32, 0.26);
+  mesh(ac, cylinderGeo, m.iron, -0.07, 0, 0.135, 0.104, 0.025, 0.104).rotation.x = Math.PI / 2;
+  for (let i = 0; i < 5; i++) box(ac, m.enamel, -0.07, (i - 2) * 0.033, 0.155, 0.18, 0.010, 0.014);
+  tube(home, m.wire, [[x + 0.22, y, 0.34], [x + 0.31, y - 0.25, 0.19],
+    [x + 0.32, y - 0.54, 0.14]], 0.013);
+}
+
+function architecturePrototype(parent, m, x, variant, random) {
+  const config = [
+    { name: 'Nhà phố hai tầng mái ngói', width: 4.48, height: 5.48, wall: 0, shop: 3.25,
+      floors: [[2.93, 5.48, 3.46, 4.96, [-1.04, 0.98], 0.68]] },
+    { name: 'Nhà ống ba tầng', width: 3.68, height: 7.33, wall: 3, shop: 2.62,
+      floors: [[2.92, 5.12, 3.39, 4.81, [-0.82, 0.78], 0.55],
+        [5.12, 7.33, 5.51, 6.83, [-0.74, 0.74], 0.50]] },
+    { name: 'Nhà chợ mái tôn lệch', width: 4.55, height: 5.22, wall: 2, shop: 3.57,
+      floors: [[2.93, 5.22, 3.46, 4.67, [-1.17, 0.96], 0.76]] },
+  ][variant];
+  const home = groupAt(parent, config.name, x, 0, variant === 1 ? -0.11 : 0);
+  const { width, height, floors } = config;
+  const surface = m.walls[config.wall];
+  box(home, surface, 0, height / 2, -1.03, width, height, 0.24);
+  for (const side of [-1, 1]) {
+    box(home, surface, side * (width / 2 - 0.07), height / 2, -0.52, 0.14, height, 1.02);
+  }
+  const threshold = { x: variant === 2 ? -0.13 : 0, span: config.shop, sill: 0.14, lintel: 2.32 };
+  facadeBand(home, surface, width, 0, floors[0][0], [threshold]);
+  recessedOpening(home, m, threshold, true);
+  box(home, m.trim, 0, floors[0][0] - 0.02, 0.13, width + 0.07, 0.12, 0.26);
+  for (const [floor, [bottom, top, sill, lintel, xs, span]] of floors.entries()) {
+    const openings = xs.map(x => ({ x, span, sill, lintel }));
+    facadeBand(home, surface, width, bottom, top, openings);
+    openings.forEach(opening => recessedOpening(home, m, opening, false));
+    const balconyY = sill - 0.12;
+    marketBalcony(home, m, variant === 2 ? width * 0.68 : width * 0.84,
+      balconyY, variant === 1 ? 0.77 : 0.63, variant === 1);
+    const plantX = variant === 0 ? 0.68 : -0.64;
+    box(home, m.tiles[2], plantX, balconyY + 0.27, 0.44, 0.39, 0.20, 0.24);
+    vine(home, m, plantX, balconyY + 0.45, 0.59, floor ? 0.49 : 0.94, variant !== 1 || floor === 0, random);
+    if (variant === 1 || variant === 2) marketWallUnit(home, m, width / 2 - 0.39, lintel - 0.36);
+  }
+  if (variant === 2) {
+    box(home, surface, -0.94, height + 0.18, -0.31, width * 0.55, 0.43, 0.72);
+    marketRoof(home, m, -0.91, width * 0.57, height + 0.45, true);
+    marketRoof(home, m, 1.29, width * 0.42, height + 0.03, true);
+    marketRoof(home, m, 0, width * 0.98, 3.12, true);
+  } else {
+    marketRoof(home, m, 0, width + 0.22, height + 0.22, variant === 1);
+  }
+  if (variant === 1) {
+    const z = 0.63;
+    tube(home, m.wire, [[-1.11, 6.41, z], [0, 6.31, z], [1.18, 6.42, z]], 0.009);
+    for (const [i, surface] of [m.enamel, m.fabrics[1], m.fabrics[3]].entries()) {
+      box(home, surface, (i - 1) * 0.56, 6.10 + i % 2 * 0.04, z, 0.30, 0.42, 0.014)
+        .rotation.x = -0.09 + i * 0.07;
+    }
+  }
+  const meterX = width / 2 - 0.23;
+  box(home, m.iron, meterX, 2.14, 0.18, 0.16, 0.24, 0.10);
+  box(home, m.sill, meterX, 2.18, 0.235, 0.11, 0.064, 0.018);
+  for (const offset of [0, 0.042]) {
+    tube(home, m.wire, [[meterX + offset, 2.23, 0.23], [meterX + offset, 2.68, 0.18],
+      [meterX - 0.08 + offset, 2.98, 0.18], [meterX - 0.49, 3.17 + offset, 0.17]], 0.009);
+  }
+}
+
 function awning(parent, m, width, style) {
   const strips = 14, segments = 9;
   for (let strip = 0; strip < strips; strip++) {
@@ -921,9 +1082,17 @@ export function buildMarketPreview(scene) {
       box(street, stone[(col * 7 + row) % 4], x, 0.056, 0.45 + row * 0.47,
         0.451, 0.05 + random() * 0.013, 0.455);
     }
-    facades.forEach((variant, j) => townhouse(street, m, {
+    const buildings = groupAt(street, 'Existing facades');
+    facades.forEach((variant, j) => townhouse(buildings, m, {
       x: pitches[j], width: 4.57, height: [5.34, 5.50, 5.15, 5.91][variant], variant,
     }, random));
+    if (i === 0) {
+      // Preserve the scene seed for the other market blocks while swapping only this review frontage.
+      buildings.remove(...buildings.children.slice(0, 3));
+      const seedAfterFacades = seed;
+      for (let j = 0; j < 3; j++) architecturePrototype(buildings, m, pitches[j], j, random);
+      seed = seedAfterFacades;
+    }
     stalls(street);
     const section = batchStatic(street);
     section.name = 'Market · ' + name;
