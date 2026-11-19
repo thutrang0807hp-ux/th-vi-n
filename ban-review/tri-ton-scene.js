@@ -468,38 +468,44 @@ function buildFieldKite(root) {
     });
   }
   const kite = new T.Mesh(sail.geometry(), new T.MeshBasicMaterial({
-    vertexColors: true, side: T.DoubleSide,
+    vertexColors: true, side: T.DoubleSide, transparent: true, depthWrite: false,
   }));
+  kite.scale.setScalar(0.72);
   group.add(kite);
+  const fadeMaterials = [kite.material];
 
   function dynamicLine(count, hex, parent) {
     const points = new T.BufferAttribute(new Float32Array(count * 3), 3).setUsage(T.DynamicDrawUsage);
     const geometry = new T.BufferGeometry().setAttribute('position', points);
-    const line = new T.Line(geometry, new T.LineBasicMaterial({ color: hex }));
+    const line = new T.Line(geometry, new T.LineBasicMaterial({ color: hex, transparent: true, depthWrite: false }));
     line.frustumCulled = false;
     parent.add(line);
+    fadeMaterials.push(line.material);
     return points;
   }
   const string = dynamicLine(20, '#594936', group);
   const tails = ['#b9423d', '#8462a6', '#ca9d4a'].map(hex => dynamicLine(22, hex, kite));
   const hitch = new T.Vector3();
-  const bridle = new T.Line(new T.BufferGeometry(), new T.LineBasicMaterial({ color: '#66513b' }));
+  const bridle = new T.Line(new T.BufferGeometry(), new T.LineBasicMaterial({ color: '#66513b', transparent: true, depthWrite: false }));
   kite.add(bridle);
+  fadeMaterials.push(bridle.material);
 
   return (time, fieldOffset) => {
-    const cycle = Math.floor(time / 62);
-    const elapsed = time % 62;
-    group.visible = elapsed >= 5 && elapsed < 25;
+    const clock = time + 13;
+    const cycle = Math.floor(clock / 66);
+    const elapsed = clock % 66;
+    group.visible = elapsed < 32;
     if (!group.visible) return;
     const side = cycle % 2 === 0 ? 1 : -1;
-    const z = side * -6;
-    const x = side * 27;
+    const z = side * 8;
+    const x = side * 64;
     const landZ = T.MathUtils.euclideanModulo(z - fieldOffset + fieldHalf, fieldLength) - fieldHalf;
-    const ground = groundAt(x, landZ) + 0.64;
-    const rise = T.MathUtils.smoothstep(elapsed, 5, 9) * (1 - T.MathUtils.smoothstep(elapsed, 21, 25));
-    kite.position.set(x + side * rise * 5, ground + rise * (8.2 + Math.sin(time * 1.3) * 0.55),
-      z + rise * (4 + Math.sin(time * 0.63) * 3));
-    kite.rotation.set(0.24 + Math.sin(time * 1.4) * 0.19, Math.sin(time * 0.9) * 0.29, -side * 0.21);
+    const ground = groundAt(x, landZ) + 0.55;
+    const fade = T.MathUtils.smoothstep(elapsed, 0, 4) * (1 - T.MathUtils.smoothstep(elapsed, 27, 32));
+    fadeMaterials.forEach((material, i) => { material.opacity = fade * (i === 1 ? 0.43 : 1); });
+    kite.position.set(side * (84 + Math.sin(time * 0.48) * 1.2),
+      28 + Math.sin(time * 0.81) * 0.55, side * (elapsed - 13) * 1.5 + Math.sin(time * 0.63) * 1.1);
+    kite.rotation.set(0.24 + Math.sin(time * 1.4) * 0.12, Math.sin(time * 0.9) * 0.18, -side * 0.21);
     kite.updateMatrix();
     hitch.set(-side * 0.20, 0.13, 0.04);
     if (!bridle.geometry.attributes.position || bridle.userData.side !== side) {
