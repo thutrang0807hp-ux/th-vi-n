@@ -540,7 +540,7 @@ function buildFieldStorks(root) {
   const shade = color('#d5cab7');
   const dark = color('#364047');
   const orange = color('#dd8545');
-  const meshMaterial = new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide });
+  const meshMaterial = new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide, transparent: true });
   const storkParts = [];
   const shapes = {
     ellipsoid(tint, x, y, z, sx, sy, sz) {
@@ -591,10 +591,11 @@ function buildFieldStorks(root) {
     return wing.geometry();
   });
   const storks = [1, -1].map(side => {
-    const bird = new T.Mesh(bodyGeometry, meshMaterial);
+    const material = meshMaterial.clone();
+    const bird = new T.Mesh(bodyGeometry, material);
     bird.name = 'Tri Ton flying stork';
     bird.scale.setScalar(0.86);
-    const wings = wingGeometries.map(geometry => new T.Mesh(geometry, meshMaterial));
+    const wings = wingGeometries.map(geometry => new T.Mesh(geometry, material));
     bird.add(...wings);
     root.add(bird);
     return { bird, wings, side };
@@ -602,7 +603,12 @@ function buildFieldStorks(root) {
 
   return time => {
     storks.forEach(({ bird, wings, side }, i) => {
-      const along = T.MathUtils.euclideanModulo(time * 2.7 + 113 + i * 39, 266) - 133;
+      const elapsed = T.MathUtils.euclideanModulo(time - 12 - i * 46, 94);
+      bird.visible = elapsed < 28;
+      if (!bird.visible) return;
+      bird.material.opacity = T.MathUtils.smoothstep(elapsed, 0, 4)
+        * (1 - T.MathUtils.smoothstep(elapsed, 24, 28));
+      const along = (elapsed - 14) * 4.6;
       bird.position.set(side * (112 + Math.sin(time * 0.25 + i) * 2.0),
         32 + i * 2.0 + Math.sin(time * 0.75 + i) * 0.42, along * side);
       bird.rotation.set(0.04, side > 0 ? Math.PI + 0.39 : 0.39, Math.sin(time * 0.64 + i) * 0.19);
