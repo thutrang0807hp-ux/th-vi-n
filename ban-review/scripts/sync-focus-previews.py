@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-PAGES = ('iceland.html', 'ocean.html', 'tri-ton.html', 'lofi-lite.html')
+PAGES = ('iceland.html', 'ocean.html', 'tri-ton.html', 'lofi-lite.html', 'market-preview.html')
 FOCUS_BLOCK = re.compile(r'    <aside id="focus-widget"[\s\S]*?    </dialog>\n')
 IMPORT_MAP = re.compile(r'(<script type="importmap">)(.*?)(</script>)', re.S)
 STYLE = re.compile(r'<style>.*?</style>', re.S)
@@ -46,6 +46,8 @@ def synchronize(check):
         manifest['imports'].update(imports)
         if path.name == 'tri-ton.html':
             manifest['imports']['lofi/tri-ton-scene.js'] = embedded_module(ROOT / 'tri-ton-scene.js')
+        if path.name == 'market-preview.html':
+            manifest['imports']['lofi/market-scene.js'] = embedded_module(ROOT / 'market-scene.js')
         return match[1] + json.dumps(manifest, separators=(',', ':')) + match[3]
 
     outdated = []

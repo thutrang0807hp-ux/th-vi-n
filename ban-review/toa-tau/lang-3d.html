@@ -252,7 +252,7 @@
     const picker = document.querySelector('#route-picker');
     const route = new URLSearchParams(location.search).get('scene');
     const marketPreview = route === 'market-preview';
-    if (marketPreview) picker.add(new Option('Chợ vải và đồ gia dụng · Bản thử', route));
+    if (marketPreview) picker.add(new Option('Chợ phố Việt', route));
     const scene = ['tri-ton', 'ocean', 'iceland', 'market-preview'].includes(route) ? route : 'tulip';
     picker.value = scene;
     picker.addEventListener('change', () => {
@@ -267,12 +267,8 @@
       const { start } = await import('../village-scene.js?v=youtube-audio');
       if (marketPreview) {
         const { buildMarketPreview } = await import('../market-scene.js');
-        document.querySelector('.route').textContent = '— Chợ vải và đồ gia dụng';
+        document.querySelector('.route').textContent = '— Chợ phố Việt';
         await start({ buildExterior: buildMarketPreview });
-        const motion = document.querySelector('#motion-toggle');
-        if (motion.textContent === 'Dừng tàu') motion.click();
-        motion.textContent = 'Bản thử tĩnh';
-        motion.disabled = true;
       } else if (scene === 'tri-ton') {
         const { buildTriTon } = await import('../tri-ton-scene.js');
         document.querySelector('.route').textContent = '— Mùa vàng Tri Tôn';

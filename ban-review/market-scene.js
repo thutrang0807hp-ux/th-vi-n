@@ -106,7 +106,12 @@ function buildKit(random) {
     canvas: ['#214984', '#315d9e', '#d6b78a', '#a64031'].map(hex => material(hex, { side: T.DoubleSide, vertexColors: true })),
     wire: material('#372724'), silver: material('#aaa9a1', { roughness: 0.30, metalness: 0.43 }),
     enamel: material('#ddc7a2', { roughness: 0.41 }), basket: material('#b9834e'),
-    red: material('#a33227'), blue: material('#205598'), yellow: material('#c49127'),
+    red: material('#b73a34', { roughness: 0.55 }), blue: material('#254eaa', { roughness: 0.55 }),
+    yellow: material('#d2a32d', { roughness: 0.55 }), plasticGreen: material('#429245', { roughness: 0.55 }),
+    produce: ['#b94b32', '#e0a43d', '#91a14c', '#4e7348', '#b7ad5e'].map(hex => material(hex)),
+    flowers: ['#f4d46d', '#f2d8c6', '#d77695', '#ae819f'].map(hex => material(hex)),
+    bread: material('#bf7b3b'), coffee: material('#4c2c20'),
+    glaze: material('#768477', { roughness: 0.40 }),
     green: ['#425326', '#698537', '#879a49'].map(hex => material(hex, { side: T.DoubleSide })),
     petals: ['#c32665', '#e75690', '#a92f64'].map(hex => material(hex, { side: T.DoubleSide })),
     bulb: material('#ffe2a4', { emissive: '#ffa74b', emissiveIntensity: 1.6 }),
@@ -210,6 +215,15 @@ function townhouse(parent, m, { x, width, height, variant }, random) {
   const crown = height;
   box(home, m.walls[variant], 0, crown * 0.5, -0.48, width, crown, 1.12);
   box(home, m.crevice, 0, 1.24, 0.10, width - 0.58, 2.45, 0.11);
+  for (const side of [-1, 1]) {
+    const recess = side * width * 0.37;
+    box(home, m.teal[(variant + 1) % 3], recess, 1.13, 0.19, 0.49, 2.11, 0.06);
+    for (let panel = 0; panel < 3; panel++) {
+      const y = 0.51 + panel * 0.61;
+      box(home, m.glass, recess, y, 0.228, 0.34, 0.49, 0.031);
+      box(home, m.teal[0], recess, y, 0.25, 0.026, 0.49, 0.023);
+    }
+  }
   for (const sign of [-1, 1]) {
     box(home, m.trim, sign * (width / 2 - 0.11), crown / 2, 0.13, 0.18, crown, 0.26);
     box(home, m.sill, sign * (width / 2 - 0.15), 0.42, 0.17, 0.26, 0.84, 0.26);
@@ -258,6 +272,16 @@ function townhouse(parent, m, { x, width, height, variant }, random) {
     const tile = mesh(home, cylinderGeo, m.tiles[(i + row * 3 + variant) % 4], u,
       crown + 0.08 + row * 0.102, 0.67 - row * 0.173, 0.096, 0.225, 0.051);
     tile.rotation.x = 2.10;
+  }
+  if (variant === 3) {
+    const upper = crown + 0.83;
+    box(home, m.walls[variant], 0, upper, -0.38, width - 0.45, 1.44, 0.96);
+    box(home, m.trim, 0, upper + 0.63, 0.05, width - 0.28, 0.12, 0.30);
+    for (const side of [-1, 1]) {
+      box(home, m.crevice, side * 0.85, upper, 0.13, 0.59, 1.01, 0.08);
+      box(home, m.teal[1], side * 0.85, upper, 0.182, 0.45, 0.93, 0.048);
+    }
+    box(home, m.teal[0], 0, upper + 0.73, 0.16, width - 0.20, 0.12, 1.28).rotation.x = 0.12;
   }
   if (variant !== 0) {
     const unit = groupAt(home, 'Air conditioner', width * 0.40, windowY - 0.35, 0.41);
@@ -320,24 +344,34 @@ function awning(parent, m, width, style) {
   }
 }
 
-function sign(parent, m, lines, x, y, z, width, height) {
-  const face = texture(384, 224, ctx => {
-    ctx.fillStyle = '#e9c582';
-    ctx.fillRect(0, 0, 384, 224);
-    ctx.strokeStyle = '#8d5533';
-    ctx.lineWidth = 5;
-    ctx.strokeRect(12, 12, 360, 200);
+function fascia(parent, m, name, subtitle, emblem, ink = '#234558') {
+  const width = 3.64, height = 0.52, y = 2.65, z = 0.48;
+  const face = texture(768, 128, ctx => {
+    ctx.fillStyle = '#ded5b7';
+    ctx.fillRect(0, 0, 768, 128);
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(29, 97);
+    ctx.lineTo(740, 97);
+    ctx.stroke();
+    ctx.fillStyle = ink;
+    ctx.fillRect(26, 22, 64, 64);
+    ctx.fillStyle = '#f2e2bb';
+    ctx.font = 'bold 39px Georgia, serif';
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#892c1f';
-    ctx.font = 'bold 56px sans-serif';
-    lines.forEach((line, i) => ctx.fillText(line, 192, 112 + (i - (lines.length - 1) / 2) * 69, 327));
+    ctx.fillText(emblem, 58, 66, 55);
+    ctx.fillStyle = ink;
+    ctx.font = 'bold 62px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(name, 113, 77, 610);
+    ctx.font = 'bold 19px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(subtitle, 739, 119, 650);
   });
-  box(parent, m.timber, x, y, z - 0.035, width + 0.08, height + 0.08, 0.09);
-  mesh(parent, new T.PlaneGeometry(width, height),
-    new T.MeshBasicMaterial({ map: face, toneMapped: false }), x, y, z + 0.024);
-  for (const side of [-1, 1]) rod(parent, m.wire, [x + side * width * 0.38, y + height / 2, z],
-    [x + side * width * 0.24, 2.73, z - 0.18], 0.010);
+  box(parent, m.timber, 0, y, z - 0.043, width + 0.06, height + 0.045, 0.085);
+  mesh(parent, new T.PlaneGeometry(width, height), new T.MeshBasicMaterial({ map: face, toneMapped: false }),
+    0, y, z + 0.013);
 }
 
 function bulb(parent, m, x, y, z) {
@@ -348,13 +382,49 @@ function bulb(parent, m, x, y, z) {
   mesh(parent, cap, m.basket, x, y + 0.10, z);
 }
 
-function stool(parent, m, x, z, surface) {
-  box(parent, surface, x, 0.42, z, 0.38, 0.07, 0.31);
+function plasticSeatGeometry() {
+  const shape = new T.Shape();
+  shape.moveTo(-0.17, -0.15);
+  shape.quadraticCurveTo(-0.19, -0.15, -0.19, -0.12);
+  shape.lineTo(-0.19, 0.12);
+  shape.quadraticCurveTo(-0.19, 0.15, -0.16, 0.15);
+  shape.lineTo(0.16, 0.15);
+  shape.quadraticCurveTo(0.19, 0.15, 0.19, 0.12);
+  shape.lineTo(0.19, -0.12);
+  shape.quadraticCurveTo(0.19, -0.15, 0.17, -0.15);
+  shape.closePath();
+  const hole = new T.Path();
+  hole.absellipse(0, 0, 0.027, 0.014, 0, Math.PI * 2, true);
+  shape.holes.push(hole);
+  return new T.ExtrudeGeometry(shape, {
+    depth: 0.028, bevelThickness: 0.008, bevelSize: 0.009, bevelSegments: 1, curveSegments: 5,
+  }).rotateX(-Math.PI / 2);
+}
+const plasticSeat = plasticSeatGeometry();
+const chairBack = new T.TubeGeometry(new T.CatmullRomCurve3([
+  new T.Vector3(-0.156, 0.36, -0.138), new T.Vector3(-0.156, 0.58, -0.163),
+  new T.Vector3(-0.10, 0.73, -0.183), new T.Vector3(0, 0.78, -0.188),
+  new T.Vector3(0.1, 0.73, -0.183), new T.Vector3(0.156, 0.58, -0.163),
+  new T.Vector3(0.156, 0.36, -0.138),
+]), 15, 0.025, 5, false);
+
+function stool(parent, m, x, z, surface, { back = false, turn = 0 } = {}) {
+  const seat = groupAt(parent, back ? 'Molded plastic chair' : 'Stackable plastic stool', x, 0, z);
+  seat.rotation.y = turn;
+  const top = back ? 0.41 : 0.31;
+  mesh(seat, plasticSeat, surface, 0, top, 0);
   for (const u of [-1, 1]) for (const v of [-1, 1]) {
-    rod(parent, surface, [x + u * 0.18, 0.03, z + v * 0.145],
-      [x + u * 0.13, 0.40, z + v * 0.11], 0.035);
+    const leg = box(seat, surface, u * 0.155, top * 0.52, v * 0.122, 0.042, top + 0.012, 0.047);
+    leg.rotation.z = u * 0.12;
+    leg.rotation.x = -v * 0.12;
   }
-  for (const zSide of [-1, 1]) box(parent, surface, x, 0.14, z + zSide * 0.13, 0.34, 0.043, 0.031);
+  for (const s of [-1, 1]) box(seat, surface, 0, top * 0.35, s * 0.133, 0.34, 0.032, 0.028);
+  if (back) {
+    mesh(seat, chairBack, surface, 0, 0, 0);
+    for (const x of [-0.081, 0, 0.081]) {
+      rod(seat, surface, [x, 0.40, -0.137], [x * 0.67, 0.72, -0.175], 0.012);
+    }
+  }
 }
 
 function table(parent, m, x, z, width) {
@@ -379,10 +449,29 @@ function container(parent, m, x, y, z, r, h, surface, kind) {
     }
     return;
   }
-  if (kind === 'pot') {
-    mesh(parent, cylinderGeo, surface, x, y + h, z, r * 1.02, 0.035, r * 1.02);
-    mesh(parent, bodyGeo, m.darkWood, x, y + h + 0.043, z, 0.05, 0.035, 0.05);
-    for (const side of [-1, 1]) box(parent, m.darkWood, x + side * r * 1.07, y + h * 0.82, z, 0.10, 0.045, 0.08);
+  if (kind === 'pot' || kind === 'pan') {
+    const lidY = y + h + (kind === 'pan' ? 0.025 : 0.035);
+    const lid = new T.LatheGeometry([
+      [0, 0.062], [0.20, 0.060], [0.48, 0.047], [0.79, 0.029],
+      [1.03, 0.006], [1.05, -0.009], [0.98, -0.015],
+    ].reverse().map(([width, rise]) => new T.Vector2(width * r, rise)), 12);
+    mesh(parent, lid, surface, x, lidY, z);
+    if (kind === 'pot' && h / r > 1.05) {
+      tube(parent, surface, [[x - r * 0.43, lidY + 0.048, z], [x - r * 0.27, lidY + 0.106, z],
+        [x + r * 0.27, lidY + 0.106, z], [x + r * 0.43, lidY + 0.048, z]], 0.019);
+      for (const side of [-1, 1]) {
+        tube(parent, surface, [[x + side * r * 0.99, y + h * 0.78, z - r * 0.36],
+          [x + side * r * 1.28, y + h * 0.77, z - r * 0.26],
+          [x + side * r * 1.28, y + h * 0.77, z + r * 0.26],
+          [x + side * r * 0.99, y + h * 0.78, z + r * 0.36]], 0.018);
+      }
+    } else {
+      mesh(parent, bodyGeo, m.darkWood, x, lidY + 0.071, z, 0.041, 0.021, 0.041);
+      if (kind === 'pan') {
+        rod(parent, surface, [x + r * 0.86, y + h * 0.67, z], [x + r * 1.38, y + h * 0.74, z], 0.018);
+        rod(parent, m.darkWood, [x + r * 1.31, y + h * 0.73, z], [x + r * 2.13, y + h * 0.86, z], 0.027);
+      }
+    }
   } else if (kind === 'kettle') {
     tube(parent, m.darkWood, [[x - r * .65, y + h, z], [x, y + h + r, z], [x + r * .65, y + h, z]], 0.022);
     rod(parent, surface, [x + r * 0.82, y + 0.08, z], [x + r * 1.51, y + h * 0.89, z], r * 0.19);
@@ -462,7 +551,7 @@ function foldingGate(parent, m, x, width) {
 function fabricStall(parent, m, x) {
   const stall = groupAt(parent, 'Fabric and tailoring stall', x);
   awning(stall, m, 4.6, 'stripe');
-  sign(stall, m, ['VẢI', 'MAY MẶC'], -0.14, 2.23, 2.40, 1.10, 0.63);
+  fascia(stall, m, 'Tơ Mộc', 'VẢI HOA · MAY THEO SỐ ĐO', 'T');
   rod(stall, m.timber, [-2.12, 2.27, 0.71], [2.10, 2.27, 0.71], 0.035);
   for (let i = 0; i < 8; i++) garment(stall, m.fabrics[i % 6], -1.95 + i * 0.55,
     2.23 - (i % 3) * 0.032, 0.78 + (i % 2) * 0.10, 0.89 + i % 3 * 0.035, 0.10 - (i % 4) * 0.08);
@@ -494,7 +583,7 @@ function fabricStall(parent, m, x) {
 function householdStall(parent, m, x) {
   const stall = groupAt(parent, 'Housewares stall', x);
   awning(stall, m, 4.3, 'blue');
-  sign(stall, m, ['ĐỒ GIA DỤNG'], 0.09, 2.23, 2.40, 1.38, 0.45);
+  fascia(stall, m, 'Nhà Bếp', 'NỒI, CHẢO VÀ ĐỒ GIA DỤNG', 'B', '#603e31');
   for (const x of [-1.85, 0, 1.85]) box(stall, m.darkWood, x, 1.17, 0.67, 0.10, 2.33, 0.65);
   for (let row = 0; row < 4; row++) {
     const y = 0.32 + row * 0.49;
@@ -508,9 +597,9 @@ function householdStall(parent, m, x) {
     }
   }
   table(stall, m, -0.39, 1.69, 1.94);
-  container(stall, m, -0.92, 0.77, 1.73, 0.26, 0.24, m.silver, 'pot');
+  container(stall, m, -0.92, 0.77, 1.73, 0.25, 0.30, m.silver, 'pot');
   container(stall, m, -0.35, 0.77, 1.73, 0.16, 0.24, m.silver, 'kettle');
-  container(stall, m, 0.12, 0.77, 1.62, 0.16, 0.105, m.enamel, 'bowl');
+  container(stall, m, 0.12, 0.77, 1.62, 0.16, 0.105, m.silver, 'pan');
   for (let i = 0; i < 4; i++) rod(stall, m.timber, [0.17 + 0.025 * i, 0.82, 1.63],
     [0.26 + 0.025 * i, 0.88, 1.75], 0.009);
   stool(stall, m, 0.83, 2.11, m.red);
@@ -532,12 +621,205 @@ function householdStall(parent, m, x) {
   }
 }
 
-function overheadLines(parent, m) {
-  const poleLocations = [-10.3, -4.78, 4.72, 10.6];
+function stallFrame(parent, m, x, name, subtitle, emblem, canopy, ink) {
+  const stall = groupAt(parent, name, x);
+  awning(stall, m, 4.30, canopy);
+  fascia(stall, m, name, subtitle, emblem, ink);
+  bulb(stall, m, -1.42, 2.31, 1.85);
+  bulb(stall, m, 1.36, 2.33, 1.82);
+  return stall;
+}
+
+function produceStall(parent, m, x, fruit, random, second = false) {
+  const stall = fruit
+    ? stallFrame(parent, m, x, second ? 'Vị Vườn' : 'Quả Quê', 'TRÁI CÂY THEO MÙA', second ? 'V' : 'Q', second ? 'blue' : 'rust', '#843d2b')
+    : stallFrame(parent, m, x, second ? 'Rau Sớm' : 'Vườn Nhà', 'RAU XANH · CỦ QUẢ', second ? 'R' : 'V', second ? 'rust' : 'stripe', '#36563b');
+  for (const side of [-1, 1]) table(stall, m, side * 0.99, 1.53, 1.83);
+  for (let basket = 0; basket < 8; basket++) {
+    const u = (basket % 4 - 1.5) * 0.88, z = 1.29 + Math.floor(basket / 4) * 0.47;
+    const r = 0.29 + random() * 0.055;
+    container(stall, m, u, 0.76, z, r, 0.15, m.basket, 'basket');
+    for (let item = 0; item < 16; item++) {
+      const radius = Math.sqrt(random()) * r * 0.80, angle = random() * Math.PI * 2;
+      const y = 0.91 + (1 - radius / r) * 0.11;
+      const style = fruit ? (basket + Number(second) + (item % 7 === 0 ? 1 : 0)) % 3 : 2 + (basket + Number(second)) % 3;
+      const size = 0.053 + random() * 0.045;
+      mesh(stall, leafGeo, m.produce[style], u + Math.cos(angle) * radius,
+        y, z + Math.sin(angle) * radius, size, fruit ? size * 0.94 : size * 1.38, size);
+    }
+  }
+  for (let i = 0; i < 4; i++) {
+    crate(stall, (i - 1.5) * 0.58, 2.32, [m.red, m.blue, m.yellow, m.plasticGreen][i]);
+  }
+  if (fruit) {
+    for (let bunch = 0; bunch < 7; bunch++) {
+      const u = (bunch - 3) * 0.46;
+      rod(stall, m.wire, [u, 2.28, 1.06], [u, 1.86, 1.12], 0.009);
+      for (let finger = 0; finger < 6; finger++) {
+        const part = mesh(stall, bodyGeo, m.produce[1], u + (finger % 3 - 1) * 0.07,
+          1.76 - Math.floor(finger / 3) * 0.085, 1.10 + (finger % 2) * 0.052, 0.039, 0.113, 0.05);
+        part.rotation.z = (finger % 3 - 1) * 0.32;
+      }
+    }
+  } else {
+    for (let i = 0; i < 5; i++) container(stall, m, (i - 2) * 0.66,
+      0.08, 0.56, 0.25, 0.29, m.basket, 'basket');
+  }
+}
+
+function bouquet(stall, m, x, y, z, size, kind, random) {
+  container(stall, m, x, y, z, 0.13 * size, 0.30 * size, kind % 2 ? m.glaze : m.silver, 'bowl');
+  for (let i = 0; i < 7; i++) {
+    const a = i * 2.4, spread = (i ? 0.10 + random() * 0.09 : 0) * size;
+    const end = [x + Math.cos(a) * spread, y + (0.52 + random() * 0.24) * size, z + Math.sin(a) * spread];
+    rod(stall, m.green[1], [x, y + 0.20 * size, z], end, 0.011 * size);
+    const head = groupAt(stall, 'Flower head', ...end);
+    head.rotation.set((random() - 0.5) * 0.7, (random() - 0.5) * 0.8, random() * 3);
+    const petals = kind === 0 ? 9 : 5;
+    for (let j = 0; j < petals; j++) {
+      const angle = j / petals * Math.PI * 2;
+      const petal = mesh(head, leafGeo, m.flowers[kind], Math.cos(angle) * 0.049 * size,
+        Math.sin(angle) * 0.049 * size, 0, 0.048 * size, 0.024 * size, 0.023 * size);
+      petal.rotation.z = angle;
+    }
+    mesh(head, leafGeo, kind === 0 ? m.coffee : m.produce[1], 0, 0, 0.027 * size,
+      0.036 * size, 0.036 * size, 0.023 * size);
+  }
+}
+
+function flowerStall(parent, m, x, random, second = false) {
+  const stall = second
+    ? stallFrame(parent, m, x, 'Hương Mùa', 'HOA CẮM BÌNH', 'M', 'blue', '#4b6044')
+    : stallFrame(parent, m, x, 'Nhành Hoa', 'HOA TƯƠI · BÓ THEO MÙA', 'H', 'stripe', '#635061');
+  table(stall, m, 0, 1.02, 3.53);
+  for (const x of [-1.27, 1.34]) {
+    box(stall, m.timber, x, 1.43, 0.50, 0.99, 0.055, 0.46);
+    bouquet(stall, m, x, 1.46, 0.55, 0.81, second ? 1 : 3, random);
+  }
+  for (let i = 0; i < 9; i++) {
+    bouquet(stall, m, (i - 4) * 0.43, 0.77, 1.04, 0.83 + random() * 0.22, (i + Number(second)) % 4, random);
+  }
+  for (let i = 0; i < 8; i++) {
+    const u = (i - 3.5) * 0.48;
+    if (i % 3 === 0) stool(stall, m, u, 2.04, m.blue);
+    bouquet(stall, m, u, i % 3 === 0 ? 0.32 : 0.07, 2.06 - (i % 2) * 0.21,
+      0.90 + random() * 0.24, (i * 3 + 2) % 4, random);
+  }
+}
+
+function cups(parent, m, x, y, z) {
+  container(parent, m, x, y, z, 0.071, 0.105, m.enamel, 'bowl');
+  mesh(parent, cylinderGeo, m.coffee, x, y + 0.085, z, 0.053, 0.009, 0.053);
+  const handle = new T.TorusGeometry(0.033, 0.009, 4, 9);
+  mesh(parent, handle, m.enamel, x + 0.074, y + 0.056, z);
+}
+
+function cafeStall(parent, m, x, tea = false) {
+  const stall = tea
+    ? stallFrame(parent, m, x, 'Tiệm Trà', 'TRÀ SEN · TRÀ ĐÁ', 'T', 'blue', '#325448')
+    : stallFrame(parent, m, x, 'Ga Nhỏ', 'CÀ PHÊ · BẠC XỈU', 'G', 'rust', '#463930');
+  for (const y of [1.51, 1.88]) {
+    box(stall, m.darkWood, 0.63, y, 0.39, 1.8, 0.062, 0.38);
+    for (let i = 0; i < 6; i++) {
+      const u = (i - 2.5) * 0.26 + 0.63;
+      if (i % 2) cups(stall, m, u, y + 0.031, 0.43);
+      else container(stall, m, u, y + 0.031, 0.39, 0.075, 0.13, tea ? m.glaze : m.basket, 'pot');
+    }
+  }
+  box(stall, m.timber, 0, 0.61, 0.86, 3.7, 1.16, 0.73);
+  box(stall, m.sill, 0, 1.20, 0.91, 3.8, 0.10, 0.88);
+  for (let i = 0; i < 19; i++) box(stall, m.darkWood, (i - 9) * 0.19, 0.62, 1.23, 0.027, 1.10, 0.029);
+  if (tea) {
+    for (const u of [-1.40, -0.89, -0.39]) container(stall, m, u, 1.25, 0.91, 0.16, 0.25, m.glaze, 'kettle');
+  } else {
+    box(stall, m.silver, -1.01, 1.47, 0.88, 0.77, 0.47, 0.44);
+    box(stall, m.darkWood, -1.01, 1.48, 1.12, 0.59, 0.27, 0.07);
+    for (const u of [-1.16, -0.91]) rod(stall, m.silver, [u, 1.52, 1.17], [u, 1.36, 1.20], 0.022);
+  }
+  for (let i = 0; i < 6; i++) cups(stall, m, 0.21 + i * 0.21, 1.25, i % 2 ? 1.12 : 0.84);
+  for (const side of [-1, 1]) {
+    const u = side * 0.91;
+    table(stall, m, u, 2.08, 0.83);
+    cups(stall, m, u - 0.15, 0.77, 2.10);
+    cups(stall, m, u + 0.16, 0.77, 2.00);
+    stool(stall, m, u + side * 0.70, 2.14, side < 0 ? m.blue : m.red, { back: true, turn: -side * 0.88 });
+    stool(stall, m, u - side * 0.49, 2.47, side < 0 ? m.plasticGreen : m.yellow);
+  }
+}
+
+function foodStall(parent, m, x, type) {
+  const names = [
+    ['Nồi Phố', 'PHỞ BÒ · BÚN NÓNG', 'P', 'stripe'],
+    ['Bếp Than', 'THỊT XIÊN · ĐỒ NƯỚNG', 'B', 'rust'],
+    ['Lò Bánh', 'BÁNH MÌ NÓNG', 'L', 'blue'],
+    ['Chè Nhà', 'CHÈ · SỮA ĐẬU NÀNH', 'C', 'stripe'],
+  ];
+  const [name, subtitle, logo, style] = names[type];
+  const stall = stallFrame(parent, m, x, name, subtitle, logo, style, '#723c30');
+  table(stall, m, 0, 1.34, 3.44);
+  if (type === 0) {
+    container(stall, m, -0.75, 0.77, 1.28, 0.36, 0.42, m.silver, 'pot');
+    container(stall, m, 0.12, 0.77, 1.31, 0.24, 0.32, m.silver, 'pot');
+    for (let i = 0; i < 7; i++) container(stall, m, 0.91 + (i % 2) * 0.26,
+      0.77 + Math.floor(i / 2) * 0.043, 1.38, 0.12, 0.070, m.enamel, 'bowl');
+    rod(stall, m.silver, [0.20, 1.07, 1.24], [0.51, 1.43, 1.26], 0.017);
+  } else if (type === 1) {
+    box(stall, m.silver, 0, 0.89, 1.33, 2.02, 0.22, 0.54);
+    box(stall, m.coffee, 0, 1.011, 1.33, 1.93, 0.027, 0.49);
+    for (let i = 0; i < 16; i++) {
+      const u = (i - 7.5) * 0.113;
+      box(stall, m.silver, u, 1.043, 1.33, 0.019, 0.020, 0.51);
+      rod(stall, m.basket, [u, 1.066, 1.11], [u, 1.066, 1.72], 0.010);
+      for (let j = 0; j < 4; j++) mesh(stall, leafGeo, m.produce[(i + j) % 3], u, 1.091,
+        1.19 + j * 0.084, 0.048, 0.038, 0.051);
+    }
+  } else if (type === 2) {
+    for (const y of [0.86, 1.16, 1.46]) {
+      box(stall, m.sill, 0.06, y, 1.32, 2.66, 0.044, 0.53);
+      for (let i = 0; i < 9; i++) {
+        const loaf = mesh(stall, bodyGeo, m.bread, (i - 4) * 0.29, y + 0.103, 1.34, 0.11, 0.071, 0.22);
+        loaf.rotation.y = 0.19 - (i % 3) * 0.16;
+        box(stall, m.enamel, loaf.position.x, y + 0.164, 1.34, 0.029, 0.008, 0.16).rotation.y = loaf.rotation.y;
+      }
+    }
+    for (const side of [-1, 1]) for (const z of [1.08, 1.58]) {
+      rod(stall, m.silver, [side * 1.26, 0.78, z], [side * 1.26, 1.71, z], 0.024);
+    }
+    box(stall, m.silver, 0.06, 1.70, 1.33, 2.69, 0.039, 0.53);
+  } else {
+    for (let i = 0; i < 7; i++) {
+      const u = (i - 3) * 0.42;
+      container(stall, m, u, 0.77, 1.35, 0.12, 0.25 + (i % 3) * 0.05,
+        i % 2 ? m.glaze : m.enamel, 'pot');
+      cups(stall, m, u, 0.77, 1.62);
+    }
+  }
+  stool(stall, m, -0.87, 2.04, m.red);
+  stool(stall, m, 0.85, 2.17, m.blue);
+}
+
+function textilesAnnex(parent, m, x) {
+  const stall = stallFrame(parent, m, x, 'Chỉ Nâu', 'VẢI CUỘN · KIM CHỈ', 'C', 'rust', '#784336');
+  for (const side of [-1, 1]) table(stall, m, side * 0.97, 1.64, 1.73);
+  for (let i = 0; i < 22; i++) {
+    const u = (i % 11 - 5) * 0.29;
+    const y = i < 11 ? 0.89 : 1.12;
+    mesh(stall, cylinderGeo, m.fabrics[i % 6], u, y, 1.60, 0.096, 0.40 + (i % 4) * 0.045, 0.096).rotation.x = Math.PI / 2;
+  }
+  for (let shelf = 0; shelf < 2; shelf++) {
+    box(stall, m.darkWood, 0, 1.06 + shelf * 0.54, 0.64, 3.56, 0.071, 0.42);
+    for (let i = 0; i < 9; i++) for (let layer = 0; layer < 3; layer++) {
+      box(stall, m.fabrics[(i + layer + shelf) % 6], (i - 4) * 0.37, 1.11 + shelf * 0.54 + layer * 0.043,
+        0.68, 0.33, 0.036, 0.29);
+    }
+  }
+}
+
+function overheadLines(parent, m, poleLocations) {
   const height = 5.62, setback = 2.51;
   const connectors = [-0.67, -0.27, 0.27, 0.67];
   const poleGeometry = new T.CylinderGeometry(0.067, 0.11, height + 0.34, 8);
-  for (const x of poleLocations) {
+  for (const x of poleLocations.slice(1)) {
     const pole = groupAt(parent, 'Wooden power pole with porcelain insulators', x, 0, setback);
     mesh(pole, poleGeometry, m.timber, 0, (height + 0.34) / 2, 0);
     box(pole, m.darkWood, 0.073, height, 0, 0.145, 0.11, 1.64);
@@ -594,35 +876,74 @@ export function buildMarketPreview(scene) {
     return seed / 4294967296;
   };
   const m = buildKit(random);
-  const street = new T.Group();
-  // The train runs along Z. Local frontage +Z rotates to world −X, toward the windows.
-  street.position.set(9.5, -0.17, 4.70);
-  street.rotation.y = -Math.PI / 2;
   scene.background = new T.Color('#e8caa2');
   scene.fog = new T.FogExp2('#e7c39a', 0.008);
   const road = material('#655445');
   const stone = ['#8f7764', '#aa9178', '#9c836d', '#baa188'].map(hex => material(hex));
-  box(street, road, 0, -0.16, 0, 40, 0.27, 26);
-  box(street, m.sill, 0, -0.04, 1.35, 23, 0.19, 3.42);
-  for (let i = 0; i < 47; i++) for (let j = 0; j < 6; j++) {
-    const x = (i - 23) * 0.46 + (j % 2) * 0.23;
-    box(street, stone[(i * 7 + j) % 4], x, 0.056, 0.45 + j * 0.47, 0.452, 0.05 + random() * 0.013, 0.455);
+  const width = 18.4;
+  const pitches = [-6.9, -2.3, 2.3, 6.9];
+  const sections = [
+    { name: 'Vải và đồ gia dụng', facades: [2, 0, 1, 3], stalls(street) {
+      textilesAnnex(street, m, pitches[0]);
+      fabricStall(street, m, pitches[1]);
+      householdStall(street, m, pitches[2]);
+      const shutter = groupAt(street, 'Closed side entry', pitches[3]);
+      awning(shutter, m, 4.3, 'blue');
+      box(shutter, m.teal[0], 0, 1.24, 0.34, 3.77, 2.44, 0.13);
+      foldingGate(shutter, m, 0, 3.62);
+    } },
+    { name: 'Ẩm thực', facades: [1, 3, 0, 2], stalls(street) {
+      pitches.forEach((x, index) => foodStall(street, m, x, index));
+    } },
+    { name: 'Rau quả', facades: [0, 2, 1, 0], stalls(street) {
+      produceStall(street, m, pitches[0], true, random);
+      produceStall(street, m, pitches[1], false, random);
+      produceStall(street, m, pitches[2], true, random, true);
+      produceStall(street, m, pitches[3], false, random, true);
+    } },
+    { name: 'Hoa và cà phê', facades: [3, 1, 2, 0], stalls(street) {
+      flowerStall(street, m, pitches[0], random);
+      flowerStall(street, m, pitches[1], random, true);
+      cafeStall(street, m, pitches[2]);
+      cafeStall(street, m, pitches[3], true);
+    } },
+  ];
+  const tile = new T.Group();
+  // Train travel is along Z. Local frontage +Z rotates to world −X, toward the windows.
+  sections.forEach(({ name, facades, stalls }, i) => {
+    const street = new T.Group();
+    street.position.set(9.5, -0.17, 4.70 - i * width);
+    street.rotation.y = -Math.PI / 2;
+    box(street, road, 0, -0.16, 0, width, 0.27, 26);
+    box(street, m.sill, 0, -0.04, 1.35, width, 0.19, 3.42);
+    for (let col = 0; col < 40; col++) for (let row = 0; row < 6; row++) {
+      const x = (col - 19.5) * 0.46 + (row % 2 ? 0.08 : -0.08);
+      box(street, stone[(col * 7 + row) % 4], x, 0.056, 0.45 + row * 0.47,
+        0.451, 0.05 + random() * 0.013, 0.455);
+    }
+    facades.forEach((variant, j) => townhouse(street, m, {
+      x: pitches[j], width: 4.57, height: [5.34, 5.50, 5.15, 5.91][variant], variant,
+    }, random));
+    stalls(street);
+    const section = batchStatic(street);
+    section.name = 'Market · ' + name;
+    tile.add(section);
+  });
+  const overhead = new T.Group();
+  overhead.position.set(9.5, -0.17, 4.70);
+  overhead.rotation.y = -Math.PI / 2;
+  overheadLines(overhead, m, [-64.4,-59.8,-50.6,-41.4,-32.2,-23,-13.8,-4.6,4.6,9.2]);
+  tile.add(batchStatic(overhead));
+
+  const strip = new T.Group();
+  strip.name = 'Moving Vietnamese market';
+  const length = width * sections.length;
+  for (let copy = -2; copy <= 1; copy++) {
+    const sectionSequence = tile.clone();
+    sectionSequence.position.z = copy * length;
+    strip.add(sectionSequence);
   }
-  for (const [variant, x, width, height] of [[2, -6.86, 4.4, 5.06], [0, -2.3, 4.66, 5.52],
-    [1, 2.19, 4.29, 5.19], [3, 6.58, 4.47, 6.22]]) {
-    townhouse(street, m, { variant, x, width, height }, random);
-  }
-  fabricStall(street, m, -2.33);
-  householdStall(street, m, 2.19);
-  awning(groupAt(street, 'Adjacent closed frontage', -6.88), m, 4.37, 'blue');
-  awning(groupAt(street, 'Adjacent closed frontage', 6.57), m, 4.38, 'rust');
-  box(street, m.teal[0], -6.88, 1.24, 0.34, 3.77, 2.44, 0.13);
-  box(street, m.darkWood, 6.57, 1.24, 0.34, 3.82, 2.44, 0.13);
-  foldingGate(street, m, -6.88, 3.61);
-  foldingGate(street, m, 6.57, 3.60);
-  overheadLines(street, m);
-  const market = batchStatic(street);
-  market.name = 'Static market preview · fabric and housewares';
-  scene.add(market);
-  return { layers: [] };
+  scene.add(strip);
+  // Merchants and facades move together as one street. Their different depths supply perspective parallax.
+  return { layers: [{ strip, length, speed: 0.98 }] };
 }
